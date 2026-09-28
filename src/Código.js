@@ -89,3 +89,80 @@ function testNucleoAppsScript() {
     return { ok: false, stockFinal: r3.stockNuevo };
   }
 }
+
+/**
+ * Función de Review previa a la confirmación de movimientos.
+ * Analiza el texto de un documento sin alterar inventario ni crear movimientos.
+ * 
+ * @param {string} rawText 
+ * @param {Object} fileMeta 
+ * @returns {Object} ReviewPayload estructurado
+ */
+function revisarDocumentoHispatec(rawText, fileMeta) {
+  const repo = new SheetsRepository();
+  const existingDocs = repo.getDocumentos();
+  const maestro = repo.getMaestro();
+  
+  const resolver = new MaestroResolver(maestro);
+  const validator = new DocumentValidator({ maestroResolver: resolver });
+  const registry = new DocumentParserRegistry({ validator, maestroResolver: resolver });
+
+  return registry.reviewDocument(rawText, {
+    fileMeta: fileMeta || {},
+    existingDocuments: existingDocs
+  });
+}
+
+/**
+ * Confirma un documento previamente revisado y aplica sus movimientos al inventario.
+ * Acción explícita que conecta el Staging con el MovementService.
+ * 
+ * @param {Object} normalizedDoc 
+ * @param {string} usuario 
+ * @returns {Object} Resultado de la confirmación
+ */
+function confirmarDocumentoRevisado(normalizedDoc, usuario) {
+  const service = new MovementService();
+  const user = usuario || (typeof Session !== 'undefined' ? Session.getActiveUser().getEmail() : 'OPERADOR');
+
+  if (normalizedDoc.documentType === 'COMPRA' || normalizedDoc.documentType === 'RECEPCION') {
+    return service.registrarEntrada({
+      id_documento: normalizedDoc.sourceFileId || `DOC-${Date.now()}`,
+      sha256_hash: normalizedDoc.sha256Hash,
+      tipo_documento: normalizedDoc.documentType,
+      serie: normalizedDoc.series,
+      numero: normalizedDoc.number,
+      fecha_documento: normalizedDoc.date,
+      entidad_nombre: normalizedDoc.entityName,
+      drive_file_id: normalizedDoc.sourceFileId,
+      drive_url: ''
+    }, normalizedDoc.lines.map(l => ({
+      codigo_articulo: l.articleCode,
+      codigo_envase: l.envaseCode,
+      cajas: l.boxes,
+      partida: l.lot,
+      descripcion_articulo: l.articleName,
+      descripcion_envase: l.envaseName
+    })), user);
+  } else if (normalizedDoc.documentType === 'SALIDA') {
+    return service.registrarSalida({
+      id_documento: normalizedDoc.sourceFileId || `DOC-${Date.now()}`,
+      sha256_hash: normalizedDoc.sha256Hash,
+      tipo_documento: 'SALIDA',
+      serie: normalizedDoc.series,
+      numero: normalizedDoc.number,
+      fecha_documento: normalizedDoc.date,
+      entidad_nombre: normalizedDoc.entityName,
+      drive_file_id: normalizedDoc.sourceFileId,
+      drive_url: ''
+    }, normalizedDoc.lines.map(l => ({
+      codigo_articulo: l.articleCode,
+      codigo_envase: l.envaseCode,
+      cajas: l.boxes,
+      descripcion_articulo: l.articleName,
+      descripcion_envase: l.envaseName
+    })), user);
+  } else {
+    throw new Error(`Tipo de documento no compatible para confirmación: ${normalizedDoc.documentType}`);
+  }
+}
