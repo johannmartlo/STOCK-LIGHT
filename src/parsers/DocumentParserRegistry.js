@@ -1,15 +1,18 @@
 /**
- * STOCK-LIGHT — DocumentParserRegistry.js
+ * STOCK-LIGHT — DocumentParserRegistry.js (Calibrado Fase 2.1)
  * 
- * Orquestador de Detección, Parseo, Normalización y Revisión de Documentos.
- * Cumple con la regla de SEPARACIÓN ESTRICTA:
- * PDF RAW → PARSER → NORMALIZER → VALIDATOR → REVIEW → (Acción explícita) → MOVEMENT SERVICE
+ * Registro y Orquestador de Parsers de Documentos Oficiales.
+ * 
+ * CAMBIO DE ALCANCE MVP (Fase 2.1):
+ * - Flujo activo exclusivo:
+ *   1. ALBARÁN DE COMPRA (Entrada)
+ *   2. ALBARÁN DE SALIDA (Salida)
+ * - RECEPCIÓN DE MERCANCÍA queda aislada y fuera del flujo activo del MVP.
  */
 
 // Importaciones condicionales para Node.js
 if (typeof CompraParser === 'undefined' && typeof require !== 'undefined') {
   var { CompraParser } = require('./CompraParser');
-  var { RecepcionParser } = require('./RecepcionParser');
   var { SalidaParser } = require('./SalidaParser');
   var { DocumentValidator } = require('../DocumentValidator');
   var { MaestroResolver } = require('../MaestroResolver');
@@ -21,13 +24,15 @@ class DocumentParserRegistry {
    * @param {Array<Object>} [options.parsers]
    * @param {DocumentValidator} [options.validator]
    * @param {MaestroResolver} [options.maestroResolver]
+   * @param {boolean} [options.enableRecepcion=false] - Deshabilitado por defecto en MVP
    */
   constructor(options = {}) {
+    // En el MVP activo solo operan CompraParser y SalidaParser
     this.parsers = options.parsers || [
       new CompraParser(),
-      new RecepcionParser(),
       new SalidaParser()
     ];
+
     this.validator = options.validator || new DocumentValidator({
       maestroResolver: options.maestroResolver
     });
@@ -56,19 +61,18 @@ class DocumentParserRegistry {
   parseText(rawText, fileMeta = {}) {
     const parser = this.findParser(rawText);
     if (!parser) {
-      throw new Error('No se reconoció el tipo de documento Hispatec (no coincide con Compra, Recepción ni Salida).');
+      throw new Error('No se reconoció el tipo de documento Hispatec dentro del MVP activo (solo se admiten Albaranes de Compra y Albaranes de Salida).');
     }
     return parser.parse(rawText, fileMeta);
   }
 
   /**
    * Prepara la revisión del documento SIN modificar inventario ni persistir movimientos.
-   * Esta función es puramente analítica y de staging.
    * 
    * @param {string|Object} rawTextOrNormDoc 
    * @param {Object} [options]
    * @param {Object} [options.fileMeta]
-   * @param {Array<Object>} [options.existingDocuments] - Para comprobar duplicados
+   * @param {Array<Object>} [options.existingDocuments]
    * @returns {Object} ReviewPayload estructurado para interfaz humana
    */
   reviewDocument(rawTextOrNormDoc, options = {}) {

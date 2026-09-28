@@ -35,30 +35,25 @@ $$\text{EXISTENCIAS ACTUALES} = \sum \text{ENTRADAS} - \sum \text{SALIDAS} \pm \
 
 ## 3. Fuentes de Movimiento Documental
 
-### 3.1. Entradas de Mercancía
+### 3.1. Entradas de Mercancía en el MVP Activo
 
-Las entradas proceden exclusivamente de dos tipos de documentos generados en Hispatec:
+En el MVP actual de STOCK-LIGHT, las entradas de inventario proceden **únicamente de Albaranes de Compra**:
 
-#### A) Albarán de Compra
-* **Función:** Refleja compras directas de producto a proveedores o agricultores.
+#### A) Albarán de Compra (Fuente Activa Exclusiva de Entradas)
+* **Función:** Refleja compras directas de producto a proveedores o agricultores (Series `ACT`, `NT`, etc.).
 * **Extracción requerida:**
   * Fecha de albarán.
   * Serie y Número de documento.
   * Proveedor (Código y Razón Social).
   * Código de Artículo y Descripción.
   * Código de Envase y Descripción.
-  * **Número de Envases / Cajas** (Dato crítico de stock).
+  * **Número de Envases / Bultos / Cajas** (Dato crítico de stock).
   * Partida (si existe en el documento; se conserva como atributo informativo).
-  * Almacén de destino (si existe).
-* **Tratamiento:** Cada línea de artículo + envase genera una nueva capa FIFO y un movimiento tipo `ENTRADA`.
+* **Tratamiento:** Cada línea de artículo genera una nueva capa FIFO y un movimiento tipo `ENTRADA`.
 
-#### B) Documento de Recepción de Mercancía (Entradas por Medianería)
-* **Función:** Utilizado habitualmente para entradas en régimen de medianería o depósito.
-* **Regla de Medianería:**
-  * En una recepción de 100 cajas con reparto (ej. Propietario 60 cajas, Medianero 40 cajas), **STOCK-LIGHT computa la totalidad física de la entrada: +100 cajas**.
-  * El desglose entre propietarios o medianeros es contable/financiero y **NO afecta al stock físico del almacén**.
-* **Bloque de Totales:** Cuando el documento de recepción incluye un bloque inferior de resumen con los totales de envases/cajas, el parser debe priorizar y utilizar dichos totales para consolidar la entrada.
-* **Tratamiento:** Se normaliza y procesa exactamente igual que una `ENTRADA` estándar.
+#### B) Documento de Recepción de Mercancía (Fuera del MVP Activo)
+> [!NOTE]
+> La ingesta de documentos de recepción de mercancía (medianería) ha quedado **fuera del alcance del MVP activo** según la Fase 2.1. El parser correspondiente permanece desacoplado e inactivo y no forma parte del flujo de importación ni de la inicialización del sistema.
 
 ### 3.2. Salidas de Mercancía
 

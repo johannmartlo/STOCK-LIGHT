@@ -1,0 +1,20 @@
+[
+  { "codigo_articulo": "2112000", "codigo_envase": "EPS104", "nombre_articulo": "TOMATE ROSA I", "descripcion_envase": "EPS 104", "grupo_comercial": "TOMATE ROSA", "activo": true },
+  { "codigo_articulo": "2112000", "codigo_envase": "EPS106", "nombre_articulo": "TOMATE ROSA I M", "descripcion_envase": "EPS 106 9x500", "grupo_comercial": "TOMATE ROSA", "activo": true },
+  { "codigo_articulo": "2112001", "codigo_envase": "EPS106", "nombre_articulo": "TOMATE RAMA I M", "descripcion_envase": "EPS 106 9x500", "grupo_comercial": "TOMATE RAMA", "activo": true },
+  { "codigo_articulo": "2112002", "codigo_envase": "EPS104", "nombre_articulo": "TOMATE KUMATO I M", "descripcion_envase": "EPS 104 5x500", "grupo_comercial": "TOMATE KUMATO", "activo": true },
+  { "codigo_articulo": "2112003", "codigo_envase": "EPS154", "nombre_articulo": "TOMATE PERA SUELTA M", "descripcion_envase": "EPS 154", "grupo_comercial": "TOMATE PERA", "activo": true },
+  { "codigo_articulo": "2112004", "codigo_envase": "CARTON", "nombre_articulo": "TOMATE COCKTAIL I M", "descripcion_envase": "CARTON 40x30X9.7 MADERA 8X300", "grupo_comercial": "TOMATE COCKTAIL", "activo": true },
+  { "codigo_articulo": "2112004", "codigo_envase": "DEFAULT", "nombre_articulo": "TOMATE COCKTAIL I M", "descripcion_envase": "CAJA COMPRA", "grupo_comercial": "TOMATE COCKTAIL", "activo": true },
+  { "codigo_articulo": "2112005", "codigo_envase": "CT4395", "nombre_articulo": "TOMATE MORESCO I M", "descripcion_envase": "CT4395 MORESCO", "grupo_comercial": "TOMATE MORESCO", "activo": true },
+  { "codigo_articulo": "2112005", "codigo_envase": "CT4395", "nombre_articulo": "TOMATE MORESCO I G", "descripcion_envase": "CT4395 MORESCO", "grupo_comercial": "TOMATE MORESCO", "activo": true },
+  { "codigo_articulo": "2112005", "codigo_envase": "CT4395", "nombre_articulo": "TOMATE MORESCO I GG", "descripcion_envase": "CT4395 MORESCO", "grupo_comercial": "TOMATE MORESCO", "activo": true },
+  { "codigo_articulo": "2112005", "codigo_envase": "CT4395MAD", "nombre_articulo": "TOMATE MORESCO I MM", "descripcion_envase": "CT4395MAD", "grupo_comercial": "TOMATE MORESCO", "activo": true },
+  { "codigo_articulo": "2112006", "codigo_envase": "DEFAULT", "nombre_articulo": "TOMATE ROSA SABOR I G", "descripcion_envase": "CAJA COMPRA", "grupo_comercial": "TOMATE ROSA", "activo": true },
+  { "codigo_articulo": "2112006", "codigo_envase": "DEFAULT", "nombre_articulo": "TOMATE ROSA SABOR I GG", "descripcion_envase": "CAJA COMPRA", "grupo_comercial": "TOMATE ROSA", "activo": true },
+  { "codigo_articulo": "2112006", "codigo_envase": "DEFAULT", "nombre_articulo": "TOMATE ROSA SABOR I M", "descripcion_envase": "CAJA COMPRA", "grupo_comercial": "TOMATE ROSA", "activo": true },
+  { "codigo_articulo": "2112007", "codigo_envase": "CT6412MAD", "nombre_articulo": "TOMATE PERA RAMA CARREFOUR MG BJ/ 500G", "descripcion_envase": "CT6412MAD10x500", "grupo_comercial": "CARREFOUR", "activo": true },
+  { "codigo_articulo": "2112008", "codigo_envase": "CT6495MD", "nombre_articulo": "TOMATE COCKTAIL CARREFOUR MG T/300G", "descripcion_envase": "CT6495MD 10X300", "grupo_comercial": "CARREFOUR", "activo": true },
+  { "codigo_articulo": "2112009", "codigo_envase": "CT4397MAD", "nombre_articulo": "TOMATE CHERRY RAMA SUSNTREAM MG BJ/225G", "descripcion_envase": "CT4397MAD8X225", "grupo_comercial": "CHERRY", "activo": true },
+  { "codigo_articulo": "2112010", "codigo_envase": "CT6412MAD", "nombre_articulo": "TOMATE PERA RAMA ORIGEN PORTUGAL", "descripcion_envase": "CT6412MAD10x500", "grupo_comercial": "TOMATE PERA", "activo": true }
+]

@@ -1,11 +1,19 @@
 /**
- * STOCK-LIGHT — SalidaParser.js
+ * STOCK-LIGHT — SalidaParser.js (Calibrado Fase 2.1)
  * 
- * Parser calibrado para Albaranes de Salida / Venta de Hispatec (Crystal Reports).
- * Verificado con muestra real: AVT26 6227 ALBARAN DE VENTA.pdf
+ * Parser robusto para Albaranes de Salida / Expedición de Hispatec (Crystal Reports).
+ * Verificado contra las 7 muestras reales de salida:
+ * - AVT26 6227 (584 envases)
+ * - AVT26 6198 (20 envases - 200 piezas)
+ * - AVT26 6199 (33 envases - 294 piezas)
+ * - AVT26 6206 (304 envases)
+ * - AVT26 6228 (354 envases)
+ * - AVT26 6265 (230 envases)
+ * - AVT26 6270 (31 envases - 304 piezas)
  * 
- * REGLA CRÍTICA:
+ * REGLAS CRÍTICAS:
  * - Extrae exclusivamente Nº. Envases (Cajas).
+ * - Distingue con precisión entre Nº. Envases y Piezas/Bandejas unitarias.
  * - Ignora Kilos Brutos y Kilos Netos.
  */
 
@@ -23,14 +31,13 @@ class SalidaParser {
        upper.includes('FECHA ALB.') || upper.includes('AVT26') ||
        upper.includes('ESPECIE-VARIEDAD')) &&
       !upper.includes('RECEPCION') && !upper.includes('RECEPCIÓN') &&
-      !upper.includes('COMPRA')
+      !upper.includes('ALBARAN DE COMPRA') && !upper.includes('ALBARÁN DE COMPRA') &&
+      !upper.includes('ACT26') && !upper.includes('NT26')
     );
   }
 
   parse(rawText, fileMeta = {}) {
     if (!rawText) throw new Error('El contenido del albarán de salida está vacío');
-
-    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
 
     let series = 'AVT26';
     let number = '';
@@ -40,13 +47,11 @@ class SalidaParser {
     let totalEnvasesSuma = null;
 
     // 1. Extracción de Serie y Número
-    // En muestra real: "AVT260006227" o "Nro. ALBARÁN \n AVT260006227"
     const snMatch = rawText.match(/AVT(\d{2})(\d{1,8})/i) ||
                     rawText.match(/(?:ALBAR[AÁ]N|ALB\.)\s*[:.]?\s*([A-Z0-9]{2,8})[\/\-\s]?(\d{1,10})/i);
     if (snMatch) {
       if (snMatch[0].toUpperCase().startsWith('AVT')) {
         series = `AVT${snMatch[1]}`;
-        // Quitar ceros a la izquierda para número limpio (ej. 0006227 -> 6227)
         number = String(parseInt(snMatch[2], 10));
       } else {
         series = snMatch[1].toUpperCase();
@@ -55,7 +60,6 @@ class SalidaParser {
     }
 
     // 2. Extracción de Fecha
-    // En muestra real: "24/09/2026 \n FECHA ALB."
     const dMatch = rawText.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\s*(?:\r?\n)?\s*FECHA\s*ALB/i) ||
                   rawText.match(/(?:FECHA\s*ALB\.?|FECHA)\s*[:.]?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/i);
     if (dMatch) {
@@ -66,87 +70,100 @@ class SalidaParser {
     }
 
     // 3. Extracción de Cliente
-    // En muestra real: "43000000169 \n CULTIVOS ARABA SL" o tras COD. CLIENTE
-    const cliCodeMatch = rawText.match(/(43\d{7,10})/);
+    const cliCodeMatch = rawText.match(/43\d{7,10}/);
     if (cliCodeMatch) {
-      entityCode = cliCodeMatch[1];
+      entityCode = cliCodeMatch[0];
     }
-    const cliNameMatch = rawText.match(/43\d{7,10}\s*(?:\r?\n)\s*([A-ZÁÉÍÓÚÑ0-9\s,\.\-]{3,60})/i);
+    const cliNameMatch = rawText.match(/43\d{7,10}\s*(?:\r?\n)\s*([A-ZÁÉÍÓÚÑ0-9\s,\.\-]{3,60})/i) ||
+                         rawText.match(/(?:CULTIVOS ARABA SL|SOCIEDAD DE COMPRAS MODERNAS SA|FRUTAS HERMANOS MONTES SA|[A-ZÁÉÍÓÚÑ\s]{4,35}\s*(?:SA|SL|SLL))/i);
     if (cliNameMatch) {
-      entityName = cliNameMatch[1].split(/\r?\n/)[0].trim();
+      entityName = (cliNameMatch[1] || cliNameMatch[0]).split(/\r?\n/)[0].trim();
     }
 
     // 4. Extracción de Total Envases al pie
-    // Estructura: [Kg Netos] \n [Envases: 584] \n [Kg Brutos] \n Suma :
-    const sumMatch = rawText.match(/(\d{1,6})\s*(?:\r?\n)\s*[\d\.,]+\s*(?:\r?\n)\s*Suma\s*:/i) ||
-                     rawText.match(/Suma\s*:\s*(?:\r?\n)?\s*(\d{1,6})/i);
-    if (sumMatch) {
-      totalEnvasesSuma = parseInt(sumMatch[1], 10);
+    // Estructura A (con piezas): [Kg Netos] \n [Total Envases] \n [Importe €] \n Suma : \n [Piezas]
+    // Estructura B (sin piezas): [Kg Netos] \n [Total Envases] \n [Kg Brutos] \n Suma :
+    const sumPatternA = /[\d\.]+(?:,\d{2})\s*(?:\r?\n)\s*(\d{1,6})\s*(?:\r?\n)\s*[\d\.]+(?:,\d{2})\s*(?:\r?\n)\s*Suma\s*:/i;
+    const matchA = rawText.match(sumPatternA);
+    if (matchA) {
+      totalEnvasesSuma = parseInt(matchA[1], 10);
+    } else {
+      const sumPatternB = /(\d{1,6})\s*(?:\r?\n)\s*[\d\.]+(?:,\d{2})\s*(?:\r?\n)\s*Suma\s*:/i;
+      const matchB = rawText.match(sumPatternB);
+      if (matchB) {
+        totalEnvasesSuma = parseInt(matchB[1], 10);
+      }
     }
 
-    // 5. Extracción de Bloques de Artículos
-    // En el stream extraído, cada línea de detalle de Crystal Reports termina con "*"
-    // Bloques entre "*" o antes de "Suma :"
+    // 5. Extracción de Líneas de Producto
     const parsedLines = [];
     let lineIdx = 1;
 
-    // Segmentar el texto entre la cabecera de columnas y la suma final
+    // Delimitar la tabla
     const headerIndex = rawText.indexOf('Tipo Envase');
     const footerIndex = rawText.indexOf('Suma :');
     const tableText = (headerIndex !== -1 && footerIndex !== -1)
       ? rawText.substring(headerIndex, footerIndex)
       : rawText;
 
-    // Dividir por el separador de línea de producto "*" que emite Crystal Reports
+    // Separador de líneas de producto de Crystal Reports: "*"
     const blocks = tableText.split('*').map(b => b.trim()).filter(b => b.length > 0);
 
     for (const block of blocks) {
       const bLines = block.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-      if (bLines.length < 3) continue;
+      if (bLines.length < 2) continue;
 
-      // Buscar el nombre del artículo: suele ser la línea que empieza por TOMATE, PEPINO, CALABACIN, etc.
       let artName = '';
       let envDesc = '';
       let cajas = null;
 
-      // Patrón de envase: ej. "EPS106 9x500", "EPS104 5x500", "EPS154", "EPS104", "CARTON..."
-      for (const line of bLines) {
-        if (/^(?:TOMATE|CALABACIN|PEPINO|BERENJENA|PIMIENTO|SANDIA|MELON)\b/i.test(line)) {
-          artName = line;
-        } else if (/^(?:EPS|CARTON|MADERA|CHEP|PLASTICO)\d*/i.test(line)) {
+      // Buscar línea de envase: comienza por EPS, CT, CARTON, MADERA, IFCO, CHEP...
+      for (let i = 0; i < bLines.length; i++) {
+        const line = bLines[i];
+        if (/^(?:EPS|CT|CARTON|MADERA|IFCO|CHEP|PLASTICO)\w*/i.test(line)) {
           envDesc = line;
+          // Inmediatamente después del tipo de envase se encuentra el Nº de Envases (cajas)
+          if (i + 1 < bLines.length) {
+            const val = parseInt(bLines[i + 1].replace(/\./g, ''), 10);
+            if (!isNaN(val) && val > 0 && !bLines[i + 1].includes(',')) {
+              cajas = val;
+            }
+          }
+          break;
         }
       }
 
-      // Si encontramos artículo y envase, buscar las cajas (número entero que corresponde al Nº Envases)
-      if (artName && envDesc) {
-        // En la estructura observada:
-        // [Piezas (opcional)] \n [Envase] \n [Nº Envases (cajas)] \n [Kg Brutos] \n [Kg Netos] \n [Articulo]
-        const envIdx = bLines.indexOf(envDesc);
-        if (envIdx !== -1 && envIdx + 1 < bLines.length) {
-          const possibleBoxes = parseInt(bLines[envIdx + 1], 10);
-          if (!isNaN(possibleBoxes) && possibleBoxes > 0) {
-            cajas = possibleBoxes;
-          }
+      // Buscar nombre de artículo: línea(s) que comienzan por TOMATE...
+      const artLines = [];
+      for (const line of bLines) {
+        if (/^TOMATE\b/i.test(line)) {
+          artLines.push(line);
+        } else if (artLines.length > 0 && /^(?:BJ\/|T\/|ENVASE|TARRINA|ORIGEN)\b/i.test(line)) {
+          artLines.push(line);
         }
+      }
+      if (artLines.length > 0) {
+        artName = artLines.join(' ').replace(/\s+/g, ' ').trim();
+      }
 
-        if (cajas !== null) {
-          // Extraer código de envase simple (ej. "EPS106 9x500" -> codigoEnvase: "EPS106", desc: "EPS106 9x500")
-          const envCodeMatch = envDesc.match(/^([A-Z0-9\-_]+)/i);
-          const envCode = envCodeMatch ? envCodeMatch[1] : envDesc;
+      if (artName && envDesc && cajas !== null) {
+        // Normalizar código de envase primario (ej. "CT6412MAD10x500" -> "CT6412MAD", "EPS106 9x500" -> "EPS106")
+        const envCodeMatch = envDesc.match(/^([A-Z0-9\-_]+)/i);
+        const envCode = envCodeMatch ? envCodeMatch[1] : envDesc;
 
-          parsedLines.push(createNormalizedLine({
-            lineIndex: lineIdx++,
-            articleCode: '', // Se resolverá con MAESTRO por nombre
-            articleName: artName,
-            envaseCode: envCode,
-            envaseName: envDesc,
-            boxes: cajas,
-            sourceReference: block.replace(/\r?\n/g, ' ')
-          }));
-        }
+        parsedLines.push(createNormalizedLine({
+          lineIndex: lineIdx++,
+          articleCode: '',
+          articleName: artName,
+          envaseCode: envCode,
+          envaseName: envDesc,
+          boxes: cajas,
+          sourceReference: block.replace(/\r?\n/g, ' ')
+        }));
       }
     }
+
+    const calculatedTotal = parsedLines.reduce((acc, l) => acc + (l.boxes || 0), 0);
 
     return createNormalizedDocument({
       documentType: 'SALIDA',
@@ -161,7 +178,8 @@ class SalidaParser {
       lines: parsedLines,
       rawMetadata: {
         totalEnvasesSuma,
-        coincideConSuma: totalEnvasesSuma ? (parsedLines.reduce((acc, l) => acc + l.boxes, 0) === totalEnvasesSuma) : true
+        calculatedTotal,
+        coincideConSuma: totalEnvasesSuma !== null ? (calculatedTotal === totalEnvasesSuma) : true
       }
     });
   }

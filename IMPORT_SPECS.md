@@ -44,20 +44,13 @@ flowchart TD
 
 ---
 
-### 2.2. Documento de Recepción de Mercancía (Entrada - Medianería)
-* **Objetivo:** Registrar entradas en muelle, frecuentemente bajo régimen de medianería o depósito.
-* **Mapeo de Campos:**
-
-| Sección / Campo | Clasificación | Regla de Negocio en STOCK-LIGHT |
-| :--- | :---: | :--- |
-| Bloque Superior (Cabecera) | Seguro | Fecha de recepción, albarán provisional, origen/agricultor. |
-| Desglose Medianería (Propietarios) | **Filtrado** | **No separar propietarios.** Si el documento divide 100 cajas en 60 (Propietario A) y 40 (Medianero B), STOCK-LIGHT contabiliza **+100 cajas físicas**. |
-| **Bloque Inferior de Resumen de Envases** | **Prioritario** | Si el documento incluye un cuadro consolidado de envases al pie, **se toma dicho resumen** para determinar exactamente las cajas de cada envase. |
-| Normalización Final | Seguro | Se transforma en un movimiento `ENTRADA` estándar. |
+### 2.2. Documento de Recepción de Mercancía (Excluido del MVP Activo)
+> [!NOTE]
+> Conforme a la Fase 2.1, el Documento de Recepción de Mercancía (medianería) queda **fuera del MVP activo**. El parser se conserva como módulo desacoplado para uso futuro, pero no se registra en el procesador activo de documentos.
 
 ---
 
-### 2.3. Albarán de Salida (Salida)
+### 2.3. Albarán de Salida (Fuente Activa Exclusiva de Salidas)
 * **Objetivo:** Registrar la expedición de cajas vendidas o despachadas a clientes.
 * **Mapeo de Campos:**
 

@@ -6,7 +6,10 @@
 
 ## 1. Identidad y Alcance del Proyecto
 
-**STOCK-LIGHT** es una herramienta ágil, precisa y ligera diseñada exclusivamente para **controlar y conciliar existencias físicas de productos hortofrutícolas en cajas/envases**, calculadas a partir de documentos oficiales de entrada y salida emitidos por Hispatec (Albaranes de Compra, Recepciones de Mercancía y Albaranes de Salida).
+**STOCK-LIGHT** es una herramienta ágil, precisa y ligera diseñada exclusivamente para **controlar y conciliar existencias físicas de productos hortofrutícolas en cajas/envases**, calculadas a partir de documentos oficiales de entrada y salida emitidos por Hispatec:
+* **Entradas activas:** Albaranes de Compra (series `ACT`, `NT`).
+* **Salidas activas:** Albaranes de Salida (series `AVT`).
+*(Nota: Las recepciones de mercancía/medianería quedan fuera del MVP activo por decisión de diseño de la Fase 2.1).*
 
 ### ⚠️ Lo que STOCK-LIGHT NO ES
 * **NO es CCO**: CCO gestiona la operativa física del almacén, operarios en campo, tablets, flujos de trabajo en tiempo real y automatizaciones de planta. STOCK-LIGHT **no interfiere ni replica** la operativa de CCO.
