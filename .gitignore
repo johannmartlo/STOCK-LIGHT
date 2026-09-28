@@ -1,0 +1,25 @@
+# Clasp credentials & config
+.clasprc.json
+
+# Environment / Secrets
+.env
+.env.*
+
+# Operating System
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs & temp
+*.log
+tmp/
+temp/
+
+# Node (in case tools are added later)
+node_modules/
+package-lock.json
+
+# Sample documents containing potential business PII
+samples/
+*.pdf

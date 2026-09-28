@@ -1,0 +1,9 @@
+**/**
+!src/**
+!appsscript.json
+!**/*.js
+!**/*.html
+!**/*.json
+.git/**
+node_modules/**
+*.md
