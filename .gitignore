@@ -23,3 +23,6 @@ package-lock.json
 # Sample documents containing potential business PII
 samples/
 *.pdf
+
+# Design & conceptual diagrams
+ESQUEMA CONCEPTUAL.png

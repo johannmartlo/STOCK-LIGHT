@@ -117,7 +117,7 @@ Bitácora y trazabilidad de todos los archivos importados al sistema.
 | :--- | :--- | :---: | :--- |
 | `id_documento` | `VARCHAR(50)` | NO | Clave primaria autogenerada (ej. `DOC-20260928-0001`). |
 | `sha256_hash` | `VARCHAR(64)` | NO | Hash criptográfico del archivo PDF. Clave única de deduplicación binaria. |
-| `tipo_documento` | `ENUM` | NO | `COMPRA`, `RECEPCION`, `SALIDA`. |
+| `tipo_documento` | `ENUM` | NO | `COMPRA`, `SALIDA` (`RECEPCION` reservado/inactivo fuera del MVP). |
 | `serie` | `VARCHAR(20)` | NO | Serie del documento en Hispatec (ej. `ACT26`, `AVT26`). |
 | `numero` | `VARCHAR(30)` | NO | Número correlativo del albarán en Hispatec. |
 | `fecha_documento` | `DATE` | NO | Fecha de expedición del albarán (`YYYY-MM-DD`). |

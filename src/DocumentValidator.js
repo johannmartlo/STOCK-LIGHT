@@ -181,6 +181,16 @@ class DocumentValidator {
       });
     }
 
+    // 4. Validación de Consistencia de Bultos / Cajas con Pie de Documento
+    if (normDoc.rawMetadata && typeof normDoc.rawMetadata.cuadraConPie === 'boolean') {
+      if (!normDoc.rawMetadata.cuadraConPie) {
+        errors.push(
+          `Descuadre de bultos: La suma calculada de cajas de las líneas (${totalCajas}) ` +
+          `no coincide con el total de bultos declarado en el pie del documento (${normDoc.rawMetadata.totalBultosPie}).`
+        );
+      }
+    }
+
     const isValid = errors.length === 0;
     const status = isValid ? 'VALIDO' : 'PENDIENTE_REVISION';
 

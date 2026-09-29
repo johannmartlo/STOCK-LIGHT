@@ -75,9 +75,9 @@ class CompraParser {
 
     // 4. Extracción de Total de Bultos al pie de página (ej. "1.160 \n 4.716,00" o "492 \n 1.546,00")
     // Estructura universal Crystal Reports al pie: [Total Bultos] \n [Total Kilos (con coma)]
-    const totMatch = rawText.match(/([\d\.]+)\s*(?:\r?\n)\s*[\d\.]+(?:,\d{2})\s*(?:\r?\n)\s*[\d\.,]+\s*€/i) ||
-                     rawText.match(/([\d\.]+)\s*(?:\r?\n)\s*[\d\.]+(?:,\d{2})\s*(?:\r?\n)\s*(?:12,00|4,00|BASE|TOTAL|LÍQUIDO|CUOTA)/i) ||
-                     rawText.match(/(?:TOTAL|TOTALES)?\s*[:.]?\s*([\d\.]+)\s*(?:\r?\n)\s*[\d\.]+(?:,\d{2})/i);
+    const totMatch = rawText.match(/[\r\n]\s*(\d{1,3}(?:\.\d{3})?)\s*[\r\n]\s*[\d\.]+(?:,\d{2})\s*[\r\n]\s*[\d\.]+(?:,\d{2})\s*(?:€|\x80)/i) ||
+                     rawText.match(/[\r\n]\s*(\d{1,3}(?:\.\d{3})?)\s*[\r\n]\s*[\d\.]+(?:,\d{2})\s*[\r\n]\s*(?:12,00|4,00|BASE|TOTAL|CUOTA)/i) ||
+                     rawText.match(/(?:TOTAL|TOTALES)\s*[:.]?\s*(\d{1,3}(?:\.\d{3})?)\s*(?:\r?\n)\s*[\d\.]+(?:,\d{2})/i);
     if (totMatch) {
       totalBultosPie = parseInt(totMatch[1].replace(/\./g, ''), 10);
     }

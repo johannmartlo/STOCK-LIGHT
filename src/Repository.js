@@ -10,6 +10,11 @@
  * - Cero fórmulas de cálculo en celdas.
  */
 
+// Importaciones condicionales para entorno Node.js / Testing
+if (typeof resolveDatabaseSpreadsheet === 'undefined' && typeof require !== 'undefined') {
+  var { resolveDatabaseSpreadsheet } = require('./Config');
+}
+
 const SCHEMA_DEFINITIONS = {
   MAESTRO: [
     'codigo_articulo',
@@ -78,18 +83,29 @@ const SCHEMA_DEFINITIONS = {
 
 class SheetsRepository {
   /**
-   * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} [spreadsheet] 
+   * @param {GoogleAppsScript.Spreadsheet.Spreadsheet|Object} [spreadsheetOrOptions] 
    */
-  constructor(spreadsheet = null) {
-    this._spreadsheet = spreadsheet;
+  constructor(spreadsheetOrOptions = null) {
+    if (spreadsheetOrOptions && typeof spreadsheetOrOptions.getSheetByName === 'function') {
+      this._spreadsheet = spreadsheetOrOptions;
+      this._options = {};
+    } else {
+      this._options = (spreadsheetOrOptions && typeof spreadsheetOrOptions === 'object') ? spreadsheetOrOptions : {};
+      this._spreadsheet = this._options.spreadsheet || null;
+    }
   }
 
   /**
-   * Obtiene la hoja de cálculo activa o la inyectada.
+   * Obtiene la hoja de cálculo resolviendo determinísticamente según la jerarquía:
+   * 1. Inyección explícita
+   * 2. SpreadsheetApp.getActiveSpreadsheet() si existe
+   * 3. SPREADSHEET_ID desde ScriptProperties o configuración
    */
   getSpreadsheet() {
     if (!this._spreadsheet) {
-      if (typeof SpreadsheetApp !== 'undefined') {
+      if (typeof resolveDatabaseSpreadsheet === 'function') {
+        this._spreadsheet = resolveDatabaseSpreadsheet(this._options);
+      } else if (typeof SpreadsheetApp !== 'undefined') {
         this._spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       } else {
         throw new Error('SpreadsheetApp no está disponible en este entorno.');
@@ -224,8 +240,10 @@ class SheetsRepository {
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn() || headers.length;
 
-    // Limpiar contenido existente por debajo de la cabecera
-    if (lastRow > 1) {
+    // Asegurar cabeceras si la tabla estuviera vacía, o limpiar datos bajo la cabecera
+    if (lastRow === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    } else if (lastRow > 1) {
       sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
     }
 

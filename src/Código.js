@@ -5,6 +5,18 @@
  * Expone las funciones de inicialización, reconstrucción y servicio de inventario.
  */
 
+// Importaciones condicionales para entorno Node.js / Testing
+if (typeof SheetsRepository === 'undefined' && typeof require !== 'undefined') {
+  var { SheetsRepository } = require('./Repository');
+  var { MovementService } = require('./MovementService');
+  var { MaestroResolver } = require('./MaestroResolver');
+  var { DocumentValidator } = require('./DocumentValidator');
+  var { DocumentParserRegistry } = require('./parsers/DocumentParserRegistry');
+  var { processMovement, buildStockKey } = require('./InventoryEngine');
+  var { checkDocumentDuplicate, buildLineIdentityKey, filterBatchForOverlaps } = require('./DeduplicationService');
+  var { setSpreadsheetIdConfig, getSpreadsheetIdConfig, resolveDatabaseSpreadsheet } = require('./Config');
+}
+
 /**
  * Inicializa y aprovisiona las 5 hojas maestras de la base de datos en Google Sheets si no existen.
  */
@@ -32,7 +44,7 @@ function ejecutarReconstruccionStock() {
  */
 function registrarAjusteManual(ajuste) {
   const service = new MovementService();
-  const user = Session.getActiveUser().getEmail() || 'OPERADOR';
+  const user = typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR';
   return service.registrarAjuste(ajuste, user);
 }
 
@@ -95,17 +107,18 @@ function testNucleoAppsScript() {
  * Analiza el texto de un documento sin alterar inventario ni crear movimientos.
  * 
  * @param {string} rawText 
- * @param {Object} fileMeta 
+ * @param {Object} [fileMeta] 
+ * @param {Object} [options] - Opciones de inyección para dependencias/testing
  * @returns {Object} ReviewPayload estructurado
  */
-function revisarDocumentoHispatec(rawText, fileMeta) {
-  const repo = new SheetsRepository();
-  const existingDocs = repo.getDocumentos();
-  const maestro = repo.getMaestro();
+function revisarDocumentoHispatec(rawText, fileMeta, options = {}) {
+  const repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : null);
+  const existingDocs = repo ? repo.getDocumentos() : [];
+  const maestro = repo ? repo.getMaestro() : [];
   
-  const resolver = new MaestroResolver(maestro);
-  const validator = new DocumentValidator({ maestroResolver: resolver });
-  const registry = new DocumentParserRegistry({ validator, maestroResolver: resolver });
+  const resolver = options.maestroResolver || new MaestroResolver(maestro);
+  const validator = options.validator || new DocumentValidator({ maestroResolver: resolver });
+  const registry = options.registry || new DocumentParserRegistry({ validator, maestroResolver: resolver });
 
   return registry.reviewDocument(rawText, {
     fileMeta: fileMeta || {},
@@ -114,55 +127,133 @@ function revisarDocumentoHispatec(rawText, fileMeta) {
 }
 
 /**
- * Confirma un documento previamente revisado y aplica sus movimientos al inventario.
- * Acción explícita que conecta el Staging con el MovementService.
+ * Confirma un documento a partir de su ENTRADA CANÓNICA (rawText + fileMeta).
+ * Reconstruye y revalida íntegramente el documento en el servidor para garantizar
+ * que el cliente NO sea autoridad sobre ningún dato de inventario (Trust Boundary cerrado).
  * 
- * @param {Object} normalizedDoc 
- * @param {string} usuario 
- * @returns {Object} Resultado de la confirmación
+ * @param {string|Object} canonicalInput - rawText (string) o { rawText, fileMeta }
+ * @param {Object|string} [fileMetaOrUser] - fileMeta si arg1 es rawText, o usuario
+ * @param {string|Object} [usuarioOrOptions] - usuario o config options
+ * @param {Object} [optionsParam] - Opciones de inyección para testing
+ * @returns {Object} Resultado de la confirmación en MovementService
  */
-function confirmarDocumentoRevisado(normalizedDoc, usuario) {
-  const service = new MovementService();
-  const user = usuario || (typeof Session !== 'undefined' ? Session.getActiveUser().getEmail() : 'OPERADOR');
+function confirmarDocumentoRevisado(canonicalInput, fileMetaOrUser, usuarioOrOptions, optionsParam) {
+  let rawText = '';
+  let fileMeta = {};
+  let usuario = 'OPERADOR';
+  let options = {};
 
-  if (normalizedDoc.documentType === 'COMPRA' || normalizedDoc.documentType === 'RECEPCION') {
-    return service.registrarEntrada({
-      id_documento: normalizedDoc.sourceFileId || `DOC-${Date.now()}`,
-      sha256_hash: normalizedDoc.sha256Hash,
-      tipo_documento: normalizedDoc.documentType,
-      serie: normalizedDoc.series,
-      numero: normalizedDoc.number,
-      fecha_documento: normalizedDoc.date,
-      entidad_nombre: normalizedDoc.entityName,
-      drive_file_id: normalizedDoc.sourceFileId,
-      drive_url: ''
-    }, normalizedDoc.lines.map(l => ({
-      codigo_articulo: l.articleCode,
-      codigo_envase: l.envaseCode,
-      cajas: l.boxes,
-      partida: l.lot,
-      descripcion_articulo: l.articleName,
-      descripcion_envase: l.envaseName
-    })), user);
-  } else if (normalizedDoc.documentType === 'SALIDA') {
-    return service.registrarSalida({
-      id_documento: normalizedDoc.sourceFileId || `DOC-${Date.now()}`,
-      sha256_hash: normalizedDoc.sha256Hash,
-      tipo_documento: 'SALIDA',
-      serie: normalizedDoc.series,
-      numero: normalizedDoc.number,
-      fecha_documento: normalizedDoc.date,
-      entidad_nombre: normalizedDoc.entityName,
-      drive_file_id: normalizedDoc.sourceFileId,
-      drive_url: ''
-    }, normalizedDoc.lines.map(l => ({
-      codigo_articulo: l.articleCode,
-      codigo_envase: l.envaseCode,
-      cajas: l.boxes,
-      descripcion_articulo: l.articleName,
-      descripcion_envase: l.envaseName
-    })), user);
-  } else {
-    throw new Error(`Tipo de documento no compatible para confirmación: ${normalizedDoc.documentType}`);
+  if (typeof canonicalInput === 'string') {
+    rawText = canonicalInput;
+    if (typeof fileMetaOrUser === 'object' && fileMetaOrUser !== null) {
+      fileMeta = fileMetaOrUser;
+      usuario = typeof usuarioOrOptions === 'string' ? usuarioOrOptions : (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+      options = typeof optionsParam === 'object' && optionsParam !== null ? optionsParam : {};
+    } else {
+      usuario = typeof fileMetaOrUser === 'string' ? fileMetaOrUser : (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+      options = typeof usuarioOrOptions === 'object' && usuarioOrOptions !== null ? usuarioOrOptions : {};
+    }
+  } else if (typeof canonicalInput === 'object' && canonicalInput !== null) {
+    rawText = canonicalInput.rawText || '';
+    fileMeta = canonicalInput.fileMeta || {};
+    usuario = canonicalInput.usuario || (typeof fileMetaOrUser === 'string' ? fileMetaOrUser : (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR'));
+    options = (typeof fileMetaOrUser === 'object' && fileMetaOrUser !== null && !Array.isArray(fileMetaOrUser))
+      ? fileMetaOrUser
+      : (typeof usuarioOrOptions === 'object' && usuarioOrOptions !== null ? usuarioOrOptions : {});
   }
+
+  // REGLA DE TRUST BOUNDARY 1: La confirmación exige ENTRADA CANÓNICA (rawText)
+  if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
+    throw new Error('Trust Boundary violado: La confirmación requiere la entrada canónica original (rawText) para reconstruir y validar el documento en el servidor.');
+  }
+
+  // REGLA DE TRUST BOUNDARY 2: El servidor reconstruye y valida el documento de forma autónoma
+  const review = revisarDocumentoHispatec(rawText, fileMeta, options);
+
+  // REGLA DE TRUST BOUNDARY 3: Si no es apto para confirmar, o está en revisión o duplicado, bloquear antes de MovementService
+  if (!review.aptoParaConfirmar || review.estadoValidacion !== 'VALIDO') {
+    const errorDetails = (review.errores && review.errores.length > 0) ? review.errores.join('; ') : review.estadoValidacion;
+    throw new Error(`Trust Boundary violado: No se puede confirmar un documento no válido o en revisión. Estado: ${review.estadoValidacion}. Detalle: ${errorDetails}`);
+  }
+
+  // REGLA DE TRUST BOUNDARY 4: En el MVP activo solo se aceptan COMPRA y SALIDA (RECEPCION bloqueada)
+  if (review.documentoDetectado !== 'COMPRA' && review.documentoDetectado !== 'SALIDA') {
+    throw new Error(`Trust Boundary violado: Tipo de documento no admitido en el MVP activo: '${review.documentoDetectado}'`);
+  }
+
+  const normDoc = review.normalizedDocument;
+  if (!normDoc || !normDoc.lines || normDoc.lines.length === 0) {
+    throw new Error('Trust Boundary violado: El documento canónico no contiene líneas de stock válidas.');
+  }
+
+  const service = options.movementService || new MovementService({
+    repository: options.repository,
+    lockService: options.lockService,
+    deduplicationService: options.deduplicationService || (typeof checkDocumentDuplicate !== 'undefined' ? { checkDocumentDuplicate, buildLineIdentityKey, filterBatchForOverlaps } : null),
+    inventoryEngine: options.inventoryEngine || (typeof processMovement !== 'undefined' ? { buildStockKey, processMovement, rebuildStockFromMovements } : null)
+  });
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+
+  if (normDoc.documentType === 'COMPRA') {
+    return service.registrarEntrada({
+      id_documento: normDoc.sourceFileId || `DOC-${Date.now()}`,
+      sha256_hash: normDoc.sha256Hash,
+      tipo_documento: 'COMPRA',
+      serie: normDoc.series,
+      numero: normDoc.number,
+      fecha_documento: normDoc.date,
+      entidad_nombre: normDoc.entityName,
+      drive_file_id: normDoc.sourceFileId,
+      drive_url: ''
+    }, review.lineasDetectadas.map(l => ({
+      codigo_articulo: l.codigoArticulo,
+      codigo_envase: l.codigoEnvase,
+      cajas: l.cajas,
+      partida: l.partida && l.partida !== '-' ? l.partida : '',
+      descripcion_articulo: l.nombreArticulo,
+      descripcion_envase: l.nombreEnvase
+    })), user);
+  } else if (normDoc.documentType === 'SALIDA') {
+    return service.registrarSalida({
+      id_documento: normDoc.sourceFileId || `DOC-${Date.now()}`,
+      sha256_hash: normDoc.sha256Hash,
+      tipo_documento: 'SALIDA',
+      serie: normDoc.series,
+      numero: normDoc.number,
+      fecha_documento: normDoc.date,
+      entidad_nombre: normDoc.entityName,
+      drive_file_id: normDoc.sourceFileId,
+      drive_url: ''
+    }, review.lineasDetectadas.map(l => ({
+      codigo_articulo: l.codigoArticulo,
+      codigo_envase: l.codigoEnvase,
+      cajas: l.cajas,
+      descripcion_articulo: l.nombreArticulo,
+      descripcion_envase: l.nombreEnvase
+    })), user);
+  }
+}
+
+/**
+ * Utilidad administrativa para configurar el ID del Google Spreadsheet de forma persistente
+ * en ScriptProperties, evitando hardcodear credenciales en el código fuente.
+ * 
+ * @param {string} spreadsheetId 
+ * @returns {string} Mensaje de confirmación
+ */
+function configurarSpreadsheetId(spreadsheetId) {
+  setSpreadsheetIdConfig(spreadsheetId);
+  return `✅ SPREADSHEET_ID configurado correctamente en ScriptProperties: ${spreadsheetId}`;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    initDatabase,
+    ejecutarReconstruccionStock,
+    registrarAjusteManual,
+    testNucleoAppsScript,
+    revisarDocumentoHispatec,
+    confirmarDocumentoRevisado,
+    configurarSpreadsheetId
+  };
 }
