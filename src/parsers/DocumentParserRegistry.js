@@ -10,12 +10,12 @@
  * - RECEPCIÓN DE MERCANCÍA queda aislada y fuera del flujo activo del MVP.
  */
 
-// Importaciones condicionales para Node.js
-if (typeof CompraParser === 'undefined' && typeof require !== 'undefined') {
-  var { CompraParser } = require('./CompraParser');
-  var { SalidaParser } = require('./SalidaParser');
-  var { DocumentValidator } = require('../DocumentValidator');
-  var { MaestroResolver } = require('../MaestroResolver');
+// Importaciones condicionales para entorno Node.js / Testing (aisladas sin 'var' para evitar colisiones en Apps Script V8)
+if (typeof require !== 'undefined') {
+  global.CompraParser = global.CompraParser || require('./CompraParser').CompraParser;
+  global.SalidaParser = global.SalidaParser || require('./SalidaParser').SalidaParser;
+  global.DocumentValidator = global.DocumentValidator || require('../DocumentValidator').DocumentValidator;
+  global.MaestroResolver = global.MaestroResolver || require('../MaestroResolver').MaestroResolver;
 }
 
 class DocumentParserRegistry {

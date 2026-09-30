@@ -28,9 +28,11 @@
  * 9. Solo si el estado es 'VALIDO', invocar MovementService.
  */
 
-// Importaciones condicionales para entorno Node.js / Testing
-if (typeof getDriveFolderIdConfig === 'undefined' && typeof require !== 'undefined') {
-  var { getDriveFolderIdConfig, setDriveFolderIdConfig } = require('./Config');
+// Importaciones condicionales para entorno Node.js / Testing (aisladas sin 'var' para evitar colisiones en Apps Script V8)
+if (typeof require !== 'undefined') {
+  const confMod = require('./Config');
+  global.getDriveFolderIdConfig = global.getDriveFolderIdConfig || confMod.getDriveFolderIdConfig;
+  global.setDriveFolderIdConfig = global.setDriveFolderIdConfig || confMod.setDriveFolderIdConfig;
 }
 
 /**

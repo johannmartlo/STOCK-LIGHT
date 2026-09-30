@@ -17,9 +17,11 @@
  * - Ignora Kilos Brutos y Kilos Netos.
  */
 
-// Importación condicional para Node.js
-if (typeof createNormalizedDocument === 'undefined' && typeof require !== 'undefined') {
-  var { createNormalizedDocument, createNormalizedLine } = require('../NormalizedDocument');
+// Importación condicional para entorno Node.js / Testing (aislada sin 'var' para evitar colisiones en Apps Script V8)
+if (typeof require !== 'undefined') {
+  const normMod = require('../NormalizedDocument');
+  global.createNormalizedDocument = global.createNormalizedDocument || normMod.createNormalizedDocument;
+  global.createNormalizedLine = global.createNormalizedLine || normMod.createNormalizedLine;
 }
 
 class SalidaParser {

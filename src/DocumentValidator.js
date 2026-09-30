@@ -5,9 +5,9 @@
  * Evalúa documentos antes de permitir su paso a la bandeja de confirmación de movimientos.
  */
 
-// Importación condicional para Node.js
-if (typeof checkDocumentDuplicate === 'undefined' && typeof require !== 'undefined') {
-  var { checkDocumentDuplicate } = require('./DeduplicationService');
+// Importación condicional para entorno Node.js / Testing (aislada sin 'var' para evitar colisiones en Apps Script V8)
+if (typeof require !== 'undefined') {
+  global.checkDocumentDuplicate = global.checkDocumentDuplicate || require('./DeduplicationService').checkDocumentDuplicate;
 }
 
 class DocumentValidator {

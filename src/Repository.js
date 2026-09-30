@@ -10,9 +10,9 @@
  * - Cero fórmulas de cálculo en celdas.
  */
 
-// Importaciones condicionales para entorno Node.js / Testing
-if (typeof resolveDatabaseSpreadsheet === 'undefined' && typeof require !== 'undefined') {
-  var { resolveDatabaseSpreadsheet } = require('./Config');
+// Importaciones condicionales para entorno Node.js / Testing (aisladas sin 'var' para evitar colisiones en Apps Script V8)
+if (typeof require !== 'undefined') {
+  global.resolveDatabaseSpreadsheet = global.resolveDatabaseSpreadsheet || require('./Config').resolveDatabaseSpreadsheet;
 }
 
 const SCHEMA_DEFINITIONS = {

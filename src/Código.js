@@ -5,17 +5,34 @@
  * Expone las funciones de inicialización, reconstrucción y servicio de inventario.
  */
 
-// Importaciones condicionales para entorno Node.js / Testing
-if (typeof SheetsRepository === 'undefined' && typeof require !== 'undefined') {
-  var { SheetsRepository } = require('./Repository');
-  var { MovementService } = require('./MovementService');
-  var { MaestroResolver } = require('./MaestroResolver');
-  var { DocumentValidator } = require('./DocumentValidator');
-  var { DocumentParserRegistry } = require('./parsers/DocumentParserRegistry');
-  var { processMovement, buildStockKey } = require('./InventoryEngine');
-  var { checkDocumentDuplicate, buildLineIdentityKey, filterBatchForOverlaps } = require('./DeduplicationService');
-  var { setSpreadsheetIdConfig, getSpreadsheetIdConfig, setDriveFolderIdConfig, getDriveFolderIdConfig, resolveDatabaseSpreadsheet } = require('./Config');
-  var { DriveService } = require('./DriveService');
+// Importaciones condicionales para entorno Node.js / Testing (aisladas sin 'var' para evitar colisiones en Apps Script V8)
+if (typeof require !== 'undefined') {
+  const repoMod = require('./Repository');
+  const movMod = require('./MovementService');
+  const maestroMod = require('./MaestroResolver');
+  const valMod = require('./DocumentValidator');
+  const regMod = require('./parsers/DocumentParserRegistry');
+  const engMod = require('./InventoryEngine');
+  const dedupMod = require('./DeduplicationService');
+  const confMod = require('./Config');
+  const driveMod = require('./DriveService');
+
+  global.SheetsRepository = repoMod.SheetsRepository;
+  global.MovementService = movMod.MovementService;
+  global.MaestroResolver = maestroMod.MaestroResolver;
+  global.DocumentValidator = valMod.DocumentValidator;
+  global.DocumentParserRegistry = regMod.DocumentParserRegistry;
+  global.processMovement = engMod.processMovement;
+  global.buildStockKey = engMod.buildStockKey;
+  global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
+  global.buildLineIdentityKey = dedupMod.buildLineIdentityKey;
+  global.filterBatchForOverlaps = dedupMod.filterBatchForOverlaps;
+  global.setSpreadsheetIdConfig = confMod.setSpreadsheetIdConfig;
+  global.getSpreadsheetIdConfig = confMod.getSpreadsheetIdConfig;
+  global.setDriveFolderIdConfig = confMod.setDriveFolderIdConfig;
+  global.getDriveFolderIdConfig = confMod.getDriveFolderIdConfig;
+  global.resolveDatabaseSpreadsheet = confMod.resolveDatabaseSpreadsheet;
+  global.DriveService = driveMod.DriveService;
 }
 
 /**
