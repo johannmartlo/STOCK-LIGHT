@@ -8,6 +8,7 @@
 
 const CONFIG_KEYS = {
   SPREADSHEET_ID: 'SPREADSHEET_ID',
+  DRIVE_FOLDER_ID: 'DRIVE_FOLDER_ID',
   APP_ENV: 'APP_ENV'
 };
 
@@ -66,6 +67,62 @@ function setSpreadsheetIdConfig(spreadsheetId, options = {}) {
   }
 
   propService.setProperty(CONFIG_KEYS.SPREADSHEET_ID, cleanId);
+  return true;
+}
+
+/**
+ * Obtiene el DRIVE_FOLDER_ID desde las propiedades del script (PropertiesService)
+ * o desde las opciones inyectadas.
+ * 
+ * @param {Object} [options]
+ * @returns {string|null}
+ */
+function getDriveFolderIdConfig(options = {}) {
+  // 1. Inyección explícita en opciones (útil para pruebas)
+  if (options.driveFolderId && typeof options.driveFolderId === 'string' && options.driveFolderId.trim() !== '') {
+    return options.driveFolderId.trim();
+  }
+
+  // 2. Consulta a PropertiesService de Google Apps Script
+  const propService = options.propertiesService || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null);
+  if (propService && typeof propService.getProperty === 'function') {
+    const propVal = propService.getProperty(CONFIG_KEYS.DRIVE_FOLDER_ID);
+    if (propVal && typeof propVal === 'string' && propVal.trim() !== '') {
+      return propVal.trim();
+    }
+  }
+
+  // 3. Fallback de variables de entorno en entornos Node.js
+  if (typeof process !== 'undefined' && process.env && process.env.DRIVE_FOLDER_ID) {
+    return process.env.DRIVE_FOLDER_ID.trim();
+  }
+
+  return null;
+}
+
+/**
+ * Establece de forma segura el DRIVE_FOLDER_ID en las propiedades persistentes del script.
+ * 
+ * @param {string} driveFolderId 
+ * @param {Object} [options]
+ * @returns {boolean}
+ */
+function setDriveFolderIdConfig(driveFolderId, options = {}) {
+  if (!driveFolderId || typeof driveFolderId !== 'string' || driveFolderId.trim() === '') {
+    throw new Error('El DRIVE_FOLDER_ID proporcionado no es válido (debe ser una cadena no vacía).');
+  }
+
+  const cleanId = driveFolderId.trim();
+  if (cleanId.length < 10 || /\s/.test(cleanId)) {
+    throw new Error(`El formato del DRIVE_FOLDER_ID ('${cleanId}') no parece un identificador válido de Google Drive.`);
+  }
+
+  const propService = options.propertiesService || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null);
+  if (!propService || typeof propService.setProperty !== 'function') {
+    throw new Error('PropertiesService no está disponible para persistir la configuración.');
+  }
+
+  propService.setProperty(CONFIG_KEYS.DRIVE_FOLDER_ID, cleanId);
   return true;
 }
 
@@ -135,6 +192,8 @@ if (typeof module !== 'undefined' && module.exports) {
     CONFIG_KEYS,
     getSpreadsheetIdConfig,
     setSpreadsheetIdConfig,
+    getDriveFolderIdConfig,
+    setDriveFolderIdConfig,
     resolveDatabaseSpreadsheet
   };
 }

@@ -14,7 +14,8 @@ if (typeof SheetsRepository === 'undefined' && typeof require !== 'undefined') {
   var { DocumentParserRegistry } = require('./parsers/DocumentParserRegistry');
   var { processMovement, buildStockKey } = require('./InventoryEngine');
   var { checkDocumentDuplicate, buildLineIdentityKey, filterBatchForOverlaps } = require('./DeduplicationService');
-  var { setSpreadsheetIdConfig, getSpreadsheetIdConfig, resolveDatabaseSpreadsheet } = require('./Config');
+  var { setSpreadsheetIdConfig, getSpreadsheetIdConfig, setDriveFolderIdConfig, getDriveFolderIdConfig, resolveDatabaseSpreadsheet } = require('./Config');
+  var { DriveService } = require('./DriveService');
 }
 
 /**
@@ -246,6 +247,18 @@ function configurarSpreadsheetId(spreadsheetId) {
   return `✅ SPREADSHEET_ID configurado correctamente en ScriptProperties: ${spreadsheetId}`;
 }
 
+/**
+ * Utilidad administrativa para configurar el ID de la carpeta de almacenamiento de Google Drive
+ * en ScriptProperties, evitando hardcodear credenciales en el código fuente.
+ * 
+ * @param {string} driveFolderId 
+ * @returns {string} Mensaje de confirmación
+ */
+function configurarDriveFolderId(driveFolderId) {
+  setDriveFolderIdConfig(driveFolderId);
+  return `✅ DRIVE_FOLDER_ID configurado correctamente en ScriptProperties: ${driveFolderId}`;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     initDatabase,
@@ -254,6 +267,7 @@ if (typeof module !== 'undefined' && module.exports) {
     testNucleoAppsScript,
     revisarDocumentoHispatec,
     confirmarDocumentoRevisado,
-    configurarSpreadsheetId
+    configurarSpreadsheetId,
+    configurarDriveFolderId
   };
 }
