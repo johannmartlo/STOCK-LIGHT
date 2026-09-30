@@ -21,6 +21,14 @@ erDiagram
     MAESTRO ||--o{ CAPAS_FIFO : "identifica"
     DOCUMENTOS ||--o{ MOVIMIENTOS : "origina"
     MOVIMIENTOS ||--o| CAPAS_FIFO : "genera_capa_entrada"
+    GRUPOS_ENVASE ||--o{ STOCK_ACTUAL : "agrupa_para_consulta"
+    
+    GRUPOS_ENVASE {
+        string codigo_envase PK
+        string descripcion_envase
+        string grupo_envase
+        boolean activo
+    }
     
     MAESTRO {
         string codigo_articulo PK
@@ -196,6 +204,19 @@ Configuración operativa del entorno para evitar valores fijos en el código.
 | `DRIVE_FOLDER_ID` | `1a2b3c...` | ID de la carpeta de Google Drive donde se depositan los PDFs. |
 | `LOCK_TIMEOUT_MS` | `30000` | Tiempo máximo de espera para obtener el bloqueo con LockService (30 seg). |
 | `BATCH_SIZE` | `10` | Cantidad de documentos procesados por ciclo para evitar timeout de GAS. |
+
+---
+
+### 3.7. Tabla: `GRUPOS_ENVASE`
+Catálogo de clasificación de envases en familias o grupos para agregación visual, filtros y consultas analíticas.
+*Nota de Arquitectura:* Los grupos de envase **no intervienen** en el cómputo de saldo, deducciones FIFO ni movimientos. Constituyen una capa puramente consultiva.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `codigo_envase` | `VARCHAR(50)` | NO | Código oficial del envase (PK). |
+| `descripcion_envase` | `VARCHAR(100)`| SÍ | Descripción legible del formato o embalaje. |
+| `grupo_envase` | `VARCHAR(100)`| NO | Grupo de agregación asignado (ej. `EPS`, `JAPONÉS CARTÓN`, `JAPI`, `OTROS`). |
+| `activo` | `BOOLEAN` | NO | `TRUE` si la regla de agrupación está vigente; `FALSE` si está inactiva. |
 
 ---
 

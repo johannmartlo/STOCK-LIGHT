@@ -78,6 +78,12 @@ const SCHEMA_DEFINITIONS = {
     'cajas_actuales',
     'fecha_ultima_actualizacion',
     'ultimo_movimiento_id'
+  ],
+  GRUPOS_ENVASE: [
+    'codigo_envase',
+    'descripcion_envase',
+    'grupo_envase',
+    'activo'
   ]
 };
 
@@ -296,6 +302,18 @@ class SheetsRepository {
 
   getMaestro() {
     return this.readTable('MAESTRO');
+  }
+
+  getGruposEnvase() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('GRUPOS_ENVASE')) {
+      return [];
+    }
+    return this.readTable('GRUPOS_ENVASE');
+  }
+
+  saveGruposEnvase(records) {
+    return this.replaceTable('GRUPOS_ENVASE', records);
   }
 }
 

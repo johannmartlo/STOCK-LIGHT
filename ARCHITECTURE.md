@@ -119,6 +119,14 @@ flowchart TD
   * Hojas tratadas como tablas relacionales planas.
   * Cero fórmulas en la hoja para cálculos de negocio (la verdad la computa Apps Script).
 
+### 3.7. Stock Query Service (Capa de Consulta y Agrupación)
+* **Responsabilidad:** Proporcionar una interfaz de lectura rápida, agregación y filtrado de existencias para la interfaz de usuario y la API de Apps Script.
+* **Características Clave:**
+  * **Acceso Inmediato en $O(N)$:** Lee directamente de la vista materializada `STOCK_ACTUAL` sin reescanear `MOVIMIENTOS` ni recalcular capas FIFO en tiempo de lectura.
+  * **Agrupación por Familias de Envase:** Cruza el saldo vivo con el catálogo `GRUPOS_ENVASE` para consolidar existencias en categorías (`EPS`, `JAPONÉS CARTÓN`, `JAPI`, `OTROS`).
+  * **Clasificación Determinista:** Los envases sin grupo asignado se catalogan estrictamente como `SIN_CLASIFICAR`.
+  * **Aislamiento Total del Dominio:** Servicio puramente de consulta. No interviene en cálculos de saldo, creación de movimientos ni deducciones FIFO.
+
 ---
 
 ## 4. Control de Concurrencia y Atomicidad

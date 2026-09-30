@@ -19,6 +19,14 @@ $$\text{Unidad de Stock} = \langle \text{CÓDIGO DE ARTÍCULO HISPATEC}, \; \tex
 4. **Grupos Comerciales:**
    * Los grupos comerciales (ej. "TOMATE ROSA") son exclusivamente una **capa de consulta, agregación y filtro visual**.
    * **No participan en el cálculo de stock ni en las deducciones FIFO.**
+5. **Grupos de Envase:**
+   * Las agrupaciones de envase (ej. "EPS", "JAPONÉS CARTÓN", "JAPI", "OTROS") constituyen una **capa puramente consultiva, de agregación y filtro visual**.
+   * **No participan en:**
+     * Cálculo de saldo de stock (la unidad de inventario sigue siendo estrictamente `CODIGO_ARTICULO + CODIGO_ENVASE`).
+     * Creación de movimientos en la tabla `MOVIMIENTOS`.
+     * Consumo o deducción cronológica de capas FIFO.
+     * Reconciliación o reconstrucción de existencias (`rebuildStock`).
+   * Todo envase no mapeado formalmente en la tabla `GRUPOS_ENVASE` se clasifica sin conjeturas como `SIN_CLASIFICAR`.
 
 ---
 

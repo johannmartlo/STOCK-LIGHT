@@ -16,6 +16,7 @@ if (typeof require !== 'undefined') {
   const dedupMod = require('./DeduplicationService');
   const confMod = require('./Config');
   const driveMod = require('./DriveService');
+  const queryMod = require('./StockQueryService');
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -33,6 +34,7 @@ if (typeof require !== 'undefined') {
   global.getDriveFolderIdConfig = confMod.getDriveFolderIdConfig;
   global.resolveDatabaseSpreadsheet = confMod.resolveDatabaseSpreadsheet;
   global.DriveService = driveMod.DriveService;
+  global.StockQueryService = queryMod.StockQueryService;
 }
 
 /**
@@ -276,6 +278,55 @@ function configurarDriveFolderId(driveFolderId) {
   return `✅ DRIVE_FOLDER_ID configurado correctamente en ScriptProperties: ${driveFolderId}`;
 }
 
+/**
+ * Consulta el stock actual completo con su clasificación de grupos de envase.
+ * @param {Object} [options]
+ */
+function apiObtenerStockActual(options) {
+  const service = new StockQueryService(options);
+  return service.obtenerStockActual();
+}
+
+/**
+ * Consulta el resumen de existencias agregadas por grupo de envase.
+ * @param {Object} [options]
+ */
+function apiObtenerResumenPorGrupos(options) {
+  const service = new StockQueryService(options);
+  return service.obtenerResumenPorGrupos();
+}
+
+/**
+ * Consulta las existencias filtradas por un grupo específico.
+ * @param {string} grupo 
+ * @param {Object} [options]
+ */
+function apiObtenerStockPorGrupo(grupo, options) {
+  const service = new StockQueryService(options);
+  return service.obtenerStockPorGrupo(grupo);
+}
+
+/**
+ * Consulta el detalle desglosado de un grupo de envase.
+ * @param {string} grupo 
+ * @param {Object} [options]
+ */
+function apiObtenerDetalleGrupo(grupo, options) {
+  const service = new StockQueryService(options);
+  return service.obtenerDetalleGrupo(grupo);
+}
+
+/**
+ * Consulta el saldo específico para un par artículo + envase.
+ * @param {string} codigoArticulo 
+ * @param {string} codigoEnvase 
+ * @param {Object} [options]
+ */
+function apiObtenerDetalleStock(codigoArticulo, codigoEnvase, options) {
+  const service = new StockQueryService(options);
+  return service.obtenerDetalleStock(codigoArticulo, codigoEnvase);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     initDatabase,
@@ -285,6 +336,11 @@ if (typeof module !== 'undefined' && module.exports) {
     revisarDocumentoHispatec,
     confirmarDocumentoRevisado,
     configurarSpreadsheetId,
-    configurarDriveFolderId
+    configurarDriveFolderId,
+    apiObtenerStockActual,
+    apiObtenerResumenPorGrupos,
+    apiObtenerStockPorGrupo,
+    apiObtenerDetalleGrupo,
+    apiObtenerDetalleStock
   };
 }
