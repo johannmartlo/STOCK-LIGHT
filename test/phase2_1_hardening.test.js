@@ -59,13 +59,13 @@ console.log('  ✅ [PASS] Recepción de mercancía excluida del MVP activo segú
 console.log('--- TEST B: Batería Completa de Albaranes de Compra (7 Documentos) ---');
 
 const expectedCompras = [
-  { file: 'ALBARAN DE COMPRA POR PARTIDAS.pdf.extracted.txt', serie: 'ACT26', num: '3089', fecha: '2026-09-24', prov: 'CONSABOR BS SL', cajas: 240, lineas: 1 },
-  { file: 'COMPRA 1778.pdf.extracted.txt', dir: 'COMPRAS', serie: 'NT26', num: '1778', fecha: '2026-09-21', prov: 'CONSABOR BS SL', cajas: 160, lineas: 1 },
-  { file: 'COMPRA 3024.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3024', fecha: '2026-09-16', prov: 'HORTIPOR EXPORT LDA', cajas: 1160, lineas: 3 },
-  { file: 'COMPRA 3026.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3026', fecha: '2026-09-16', prov: 'PEREZ RAMON, JAVIER', cajas: 231, lineas: 4 },
-  { file: 'COMPRA 3072.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3072', fecha: '2026-09-21', prov: 'PEREZ RAMON, JAVIER', cajas: 492, lineas: 7 },
-  { file: 'COMPRA 3104.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3104', fecha: '2026-09-28', prov: 'HORTIPOR EXPORT LDA', cajas: 650, lineas: 5 },
-  { file: 'COMPRA 3108.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3108', fecha: '2026-09-28', prov: 'CONSABOR BS SL', cajas: 160, lineas: 1 }
+  { file: 'ALBARAN DE COMPRA POR PARTIDAS.pdf.extracted.txt', serie: 'ACT26', num: '3089', fecha: '2026-09-24', prov: 'CONSABOR BS SL', cajas: 240, lineas: 1, estado: 'PENDIENTE_REVISION' },
+  { file: 'COMPRA 1778.pdf.extracted.txt', dir: 'COMPRAS', serie: 'NT26', num: '1778', fecha: '2026-09-21', prov: 'CONSABOR BS SL', cajas: 160, lineas: 1, estado: 'PENDIENTE_REVISION' },
+  { file: 'COMPRA 3024.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3024', fecha: '2026-09-16', prov: 'HORTIPOR EXPORT LDA', cajas: 1160, lineas: 3, estado: 'PENDIENTE_REVISION' },
+  { file: 'COMPRA 3026.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3026', fecha: '2026-09-16', prov: 'PEREZ RAMON, JAVIER', cajas: 231, lineas: 4, estado: 'VALIDO' },
+  { file: 'COMPRA 3072.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3072', fecha: '2026-09-21', prov: 'PEREZ RAMON, JAVIER', cajas: 492, lineas: 7, estado: 'VALIDO' },
+  { file: 'COMPRA 3104.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3104', fecha: '2026-09-28', prov: 'HORTIPOR EXPORT LDA', cajas: 650, lineas: 5, estado: 'PENDIENTE_REVISION' },
+  { file: 'COMPRA 3108.pdf.extracted.txt', dir: 'COMPRAS', serie: 'ACT26', num: '3108', fecha: '2026-09-28', prov: 'CONSABOR BS SL', cajas: 160, lineas: 1, estado: 'PENDIENTE_REVISION' }
 ];
 
 let totalCajasCompras = 0;
@@ -79,7 +79,7 @@ expectedCompras.forEach((exp, idx) => {
     fileMeta: { fileName: exp.file, sha256Hash: `hash_compra_${idx}` }
   });
 
-  console.log(`  [Compra ${idx + 1}/7] ${review.serieNumero} | ${review.fecha} | ${review.entidad} | Cajas: ${review.totalCajasDetectadas}`);
+  console.log(`  [Compra ${idx + 1}/7] ${review.serieNumero} | ${review.fecha} | ${review.entidad} | Cajas: ${review.totalCajasDetectadas} | Estado: ${review.estadoValidacion}`);
 
   assert.strictEqual(review.documentoDetectado, 'COMPRA');
   assert.strictEqual(review.serie, exp.serie);
@@ -87,12 +87,12 @@ expectedCompras.forEach((exp, idx) => {
   assert.strictEqual(review.fecha, exp.fecha);
   assert.strictEqual(review.totalCajasDetectadas, exp.cajas);
   assert.strictEqual(review.lineasDetectadas.length, exp.lineas);
-  assert.strictEqual(review.estadoValidacion, 'VALIDO');
+  assert.strictEqual(review.estadoValidacion, exp.estado);
 
   totalCajasCompras += review.totalCajasDetectadas;
 });
 
-console.log(`  ✅ [PASS] 7/7 Albaranes de Compra validados rigurosamente: ${totalCajasCompras} cajas físicas ingresadas.\n`);
+console.log(`  ✅ [PASS] 7/7 Albaranes de Compra validados rigurosamente: ${totalCajasCompras} cajas físicas extraídas.\n`);
 
 
 // ----------------------------------------------------

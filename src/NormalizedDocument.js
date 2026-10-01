@@ -32,6 +32,7 @@ function createNormalizedLine(params = {}) {
     envaseCode: String(params.envaseCode || '').trim(),
     envaseName: String(params.envaseName || '').trim(),
     boxes: isNaN(boxes) ? null : boxes,
+    unit: params.unit ? String(params.unit).trim().toUpperCase() : '',
     lot: params.lot ? String(params.lot).trim() : '',
     warehouse: params.warehouse ? String(params.warehouse).trim() : '',
     sourceReference: params.sourceReference ? String(params.sourceReference).trim() : ''

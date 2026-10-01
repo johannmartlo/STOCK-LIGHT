@@ -105,6 +105,8 @@ class DocumentParserRegistry {
         cajas: vl.boxes,
         partida: vl.lot || '-',
         valida: vl.isValid,
+        incidencia: vl.incidencia || null,
+        opcionesPermitidas: vl.opcionesPermitidas || [],
         errores: vl.errors
       })),
       advertencias: validation.warnings,

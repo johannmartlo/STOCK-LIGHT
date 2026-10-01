@@ -276,6 +276,21 @@ class SheetsRepository {
     return this.appendRecords('DOCUMENTOS', [doc]);
   }
 
+  /**
+   * Actualiza el estado_proceso de un documento por su ID.
+   * @param {string} idDocumento 
+   * @param {string} nuevoEstado 
+   */
+  updateDocumentoEstado(idDocumento, nuevoEstado) {
+    const docs = this.getDocumentos();
+    const doc = docs.find(d => String(d.id_documento || '').trim() === String(idDocumento).trim());
+    if (!doc) {
+      throw new Error(`Documento con ID '${idDocumento}' no encontrado.`);
+    }
+    doc.estado_proceso = nuevoEstado;
+    return this.replaceTable('DOCUMENTOS', docs);
+  }
+
   getMovimientos() {
     return this.readTable('MOVIMIENTOS');
   }

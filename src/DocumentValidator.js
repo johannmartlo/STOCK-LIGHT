@@ -143,22 +143,64 @@ class DocumentValidator {
       // C. Resolución de Envase
       let envCode = line.envaseCode;
       let envName = line.envaseName;
-      if (this.resolver) {
-        const envRes = this.resolver.resolveEnvase(line.envaseCode, line.envaseName);
-        if (envRes.resolved) {
-          envCode = envRes.code;
-          envName = envRes.name;
+      let lineIncidencia = null;
+      let allowedOptions = [];
+
+      if (normDoc.documentType === 'COMPRA') {
+        if (envCode && envCode !== 'DEFAULT' && envCode !== 'ENVASE_NO_DETERMINABLE_DESDE_PDF') {
+          // Si ya viene un envase explícito (por ejemplo, resolución previa del operador)
+          if (this.resolver) {
+            if (this.resolver.isEnvasePermitidoParaArticulo(artCode, envCode)) {
+              const envRes = this.resolver.resolveEnvase(envCode, envName);
+              if (envRes.resolved) {
+                envCode = envRes.code;
+                envName = envRes.name;
+              }
+            } else {
+              lineErrors.push(`Línea ${lineIdx}: El envase '${envCode}' no está permitido para el artículo '${artCode}' en MAESTRO.`);
+              lineIncidencia = 'ENVASE_NO_PERMITIDO';
+              allowedOptions = this.resolver.getEnvasesPermitidos(artCode);
+            }
+          }
         } else {
-          lineErrors.push(`Línea ${lineIdx}: Envase no identificable inequívocamente ('${line.envaseCode}' / '${line.envaseName}')`);
+          // El PDF de compra no aporta envase: resolver mediante reglas deterministas homologadas
+          if (this.resolver) {
+            const compRes = this.resolver.resolveEnvaseCompra(artCode, artName, line.unit);
+            if (compRes.resolved) {
+              envCode = compRes.code;
+              envName = compRes.name;
+            } else {
+              envCode = null;
+              envName = null;
+              lineIncidencia = 'ENVASE_NO_DETERMINABLE_DESDE_PDF';
+              allowedOptions = this.resolver.getEnvasesPermitidos(artCode);
+              lineErrors.push(`Línea ${lineIdx}: Envase no determinable desde PDF de compra para '${artName || line.articleName}'. Requiere revisión humana.`);
+            }
+          } else {
+            envCode = null;
+            lineIncidencia = 'ENVASE_NO_DETERMINABLE_DESDE_PDF';
+            lineErrors.push(`Línea ${lineIdx}: Código de envase ausente en albarán de compra.`);
+          }
         }
       } else {
-        if (!envCode || String(envCode).trim() === '') {
-          lineErrors.push(`Línea ${lineIdx}: Código de envase ausente`);
+        // Para SALIDA y otros tipos con envase explícito en documento
+        if (this.resolver) {
+          const envRes = this.resolver.resolveEnvase(line.envaseCode, line.envaseName);
+          if (envRes.resolved && envRes.code !== 'DEFAULT') {
+            envCode = envRes.code;
+            envName = envRes.name;
+          } else {
+            lineErrors.push(`Línea ${lineIdx}: Envase no identificable inequívocamente ('${line.envaseCode}' / '${line.envaseName}')`);
+          }
+        } else {
+          if (!envCode || String(envCode).trim() === '' || envCode === 'DEFAULT' || envCode === 'ENVASE_NO_DETERMINABLE_DESDE_PDF') {
+            lineErrors.push(`Línea ${lineIdx}: Código de envase ausente o inválido`);
+          }
         }
       }
 
       // D. Validación de par en Maestro (advertencia si no existe la pareja específica)
-      if (this.resolver && artCode && envCode) {
+      if (this.resolver && artCode && envCode && envCode !== 'DEFAULT') {
         if (!this.resolver.isValidStockPair(artCode, envCode)) {
           warnings.push(`Línea ${lineIdx}: La combinación ${artCode}|${envCode} no figura actualmente en catálogo MAESTRO activo.`);
         }
@@ -176,7 +218,10 @@ class DocumentValidator {
         envaseCode: envCode,
         envaseName: envName,
         boxes: isNaN(boxes) ? null : boxes,
+        unit: line.unit || '',
         isValid: lineErrors.length === 0,
+        incidencia: lineIncidencia,
+        opcionesPermitidas: allowedOptions,
         errors: lineErrors
       });
     }

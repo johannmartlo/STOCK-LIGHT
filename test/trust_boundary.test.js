@@ -103,7 +103,7 @@ function createTestEnvironment() {
 }
 
 const samplesDir = path.join(__dirname, '..', 'docs', 'samples');
-const rawTextCompra3089 = fs.readFileSync(path.join(samplesDir, 'ALBARAN DE COMPRA POR PARTIDAS.pdf.extracted.txt'), 'utf8');
+const rawTextCompra3026 = fs.readFileSync(path.join(samplesDir, 'COMPRAS', 'COMPRA 3026.pdf.extracted.txt'), 'utf8');
 const rawTextRecepcion = fs.readFileSync(path.join(samplesDir, 'ENTRADA RECEPCION.pdf.extracted.txt'), 'utf8');
 
 let passed = 0;
@@ -131,21 +131,21 @@ runTest('A. Cliente altera artículo -> servidor rechaza dato alterado y extrae 
   assert.throws(() => {
     confirmarDocumentoRevisado({
       documentType: 'COMPRA',
-      lines: [{ articleCode: 'ARTICULO_HACKEADO', envaseCode: 'DEFAULT', boxes: 240 }]
+      lines: [{ articleCode: 'ARTICULO_HACKEADO', envaseCode: 'CT4395', boxes: 231 }]
     }, 'OPERADOR', env.options);
   }, /Trust Boundary violado: La confirmación requiere la entrada canónica original/);
 
   // Caso A2: Cliente envía la entrada canónica pero acompaña líneas falsas en el payload
   const result = confirmarDocumentoRevisado({
-    rawText: rawTextCompra3089,
-    fileMeta: { fileName: 'COMPRA_3089.pdf', fileId: 'DOC-CANONICAL-A' },
-    manipulatedLines: [{ articleCode: 'ARTICULO_HACKEADO', boxes: 240 }]
+    rawText: rawTextCompra3026,
+    fileMeta: { fileName: 'COMPRA_3026.pdf', fileId: 'DOC-CANONICAL-A' },
+    manipulatedLines: [{ articleCode: 'ARTICULO_HACKEADO', boxes: 999 }]
   }, 'OPERADOR', env.options);
 
   assert.strictEqual(result.success, true);
-  // El movimiento en la base de datos debe ser el código oficial canónico ('2112004'), NUNCA 'ARTICULO_HACKEADO'
+  // El movimiento en la base de datos debe ser el código oficial canónico ('2112005'), NUNCA 'ARTICULO_HACKEADO'
   const mov = env.repo.movimientos[0];
-  assert.strictEqual(mov.codigo_articulo, '2112004');
+  assert.strictEqual(mov.codigo_articulo, '2112005');
   assert.notStrictEqual(mov.codigo_articulo, 'ARTICULO_HACKEADO');
 });
 
@@ -156,40 +156,41 @@ runTest('B. Cliente altera envase -> servidor ignora envase alterado y extrae el
   const env = createTestEnvironment();
 
   const result = confirmarDocumentoRevisado({
-    rawText: rawTextCompra3089,
-    fileMeta: { fileName: 'COMPRA_3089.pdf', fileId: 'DOC-CANONICAL-B' },
+    rawText: rawTextCompra3026,
+    fileMeta: { fileName: 'COMPRA_3026.pdf', fileId: 'DOC-CANONICAL-B' },
     manipulatedEnvase: 'ENVASE_INEXISTENTE_999'
   }, 'OPERADOR', env.options);
 
   assert.strictEqual(result.success, true);
   const mov = env.repo.movimientos[0];
-  // El envase debe ser DEFAULT según el documento canónico de ACT26/3089
-  assert.strictEqual(mov.codigo_envase, 'DEFAULT');
+  // El envase debe ser CT4395 según la regla determinista canónica de ACT26/3026, NUNCA DEFAULT ni falso
+  assert.strictEqual(mov.codigo_envase, 'CT4395');
   assert.notStrictEqual(mov.codigo_envase, 'ENVASE_INEXISTENTE_999');
+  assert.notStrictEqual(mov.codigo_envase, 'DEFAULT');
 });
 
 // --------------------------------------------------------------------------
 // TEST C: Cliente intenta alterar la cantidad de cajas (ej. 9999 cajas)
 // --------------------------------------------------------------------------
-runTest('C. Cliente altera cajas (9999) -> servidor aplica estrictamente cajas canónicas (240)', () => {
+runTest('C. Cliente altera cajas (9999) -> servidor aplica estrictamente cajas canónicas (231)', () => {
   const env = createTestEnvironment();
 
   const result = confirmarDocumentoRevisado({
-    rawText: rawTextCompra3089,
-    fileMeta: { fileName: 'COMPRA_3089.pdf', fileId: 'DOC-CANONICAL-C' },
+    rawText: rawTextCompra3026,
+    fileMeta: { fileName: 'COMPRA_3026.pdf', fileId: 'DOC-CANONICAL-C' },
     cajas: 9999
   }, 'OPERADOR', env.options);
 
   assert.strictEqual(result.success, true);
-  assert.strictEqual(result.totalCajas, 240); // 240 cajas reales
+  assert.strictEqual(result.totalCajas, 231); // 231 cajas reales (78+131+16+6)
   assert.notStrictEqual(result.totalCajas, 9999);
 
   const mov = env.repo.movimientos[0];
-  assert.strictEqual(mov.cajas, 240);
+  assert.strictEqual(mov.cajas, 78);
 
-  const stock = env.repo.stockActual.find(s => s.stock_key === '2112004|DEFAULT');
-  assert.ok(stock, 'Debe existir registro en stockActual para 2112004|DEFAULT');
-  assert.strictEqual(stock.cajas_actuales, 240);
+  const stock = env.repo.stockActual.find(s => s.stock_key === '2112005|CT4395');
+  assert.ok(stock, 'Debe existir registro en stockActual para 2112005|CT4395');
+  assert.strictEqual(stock.cajas_actuales, 225); // 78 + 131 + 16 = 225 cajas de CT4395
 });
 
 // --------------------------------------------------------------------------
@@ -218,7 +219,7 @@ runTest('E. Documento con descuadre de bultos -> bloqueo antes de MovementServic
   const env = createTestEnvironment();
 
   // Documento real donde se altera el total de bultos del pie para provocar descuadre físico
-  const txtDescuadre = rawTextCompra3089.replace(' 240\n 720,00', ' 999\n 720,00');
+  const txtDescuadre = rawTextCompra3026.replace(' 231\n', ' 999\n');
 
   assert.throws(() => {
     confirmarDocumentoRevisado({
@@ -241,23 +242,23 @@ runTest('F. Documento duplicado -> servidor lo rechaza con 0 movimientos nuevos'
 
   // Confirmar por primera vez
   const r1 = confirmarDocumentoRevisado({
-    rawText: rawTextCompra3089,
-    fileMeta: { fileName: 'COMPRA_3089.pdf', fileId: 'DOC-DUPE-TEST', sha256Hash: 'hash3089' }
+    rawText: rawTextCompra3026,
+    fileMeta: { fileName: 'COMPRA_3026.pdf', fileId: 'DOC-DUPE-TEST', sha256Hash: 'hash3026' }
   }, 'OPERADOR', env.options);
   assert.strictEqual(r1.success, true);
-  assert.strictEqual(env.repo.movimientos.length, 1);
+  assert.strictEqual(env.repo.movimientos.length, 4);
 
   // Intentar confirmar exactamente el mismo documento de nuevo
   assert.throws(() => {
     confirmarDocumentoRevisado({
-      rawText: rawTextCompra3089,
-      fileMeta: { fileName: 'COMPRA_3089_COPIA.pdf', fileId: 'DOC-DUPE-TEST-2', sha256Hash: 'hash3089' }
+      rawText: rawTextCompra3026,
+      fileMeta: { fileName: 'COMPRA_3026_COPIA.pdf', fileId: 'DOC-DUPE-TEST-2', sha256Hash: 'hash3026' }
     }, 'OPERADOR', env.options);
   }, /Trust Boundary violado: No se puede confirmar un documento no válido o en revisión. Estado: DUPLICADO/);
 
-  // Garantía absoluta: sigue habiendo exactamente 1 movimiento, 0 movimientos nuevos
-  assert.strictEqual(env.repo.movimientos.length, 1);
-  assert.strictEqual(env.repo.stockActual.find(s => s.stock_key === '2112004|DEFAULT').cajas_actuales, 240);
+  // Garantía absoluta: sigue habiendo exactamente 4 movimientos, 0 movimientos nuevos
+  assert.strictEqual(env.repo.movimientos.length, 4);
+  assert.strictEqual(env.repo.stockActual.find(s => s.stock_key === '2112005|CT4395').cajas_actuales, 225);
 });
 
 // --------------------------------------------------------------------------
@@ -266,18 +267,19 @@ runTest('F. Documento duplicado -> servidor lo rechaza con 0 movimientos nuevos'
 runTest('G. Documento válido -> confirmación canónica exitosa y stock actualizado', () => {
   const env = createTestEnvironment();
 
-  const res = confirmarDocumentoRevisado(rawTextCompra3089, {
-    fileName: 'COMPRA_3089.pdf',
+  const res = confirmarDocumentoRevisado(rawTextCompra3026, {
+    fileName: 'COMPRA_3026.pdf',
     fileId: 'DOC-VALID-001',
     sha256Hash: 'valid_hash_001'
   }, 'OPERADOR', env.options);
 
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.status, 'CONFIRMADO');
-  assert.strictEqual(res.totalCajas, 240);
-  assert.strictEqual(res.lineasProcesadas, 1);
-  assert.strictEqual(env.repo.movimientos.length, 1);
-  assert.strictEqual(env.repo.stockActual[0].cajas_actuales, 240);
+  assert.strictEqual(res.totalCajas, 231);
+  assert.strictEqual(res.lineasProcesadas, 4);
+  assert.strictEqual(env.repo.movimientos.length, 4);
+  assert.strictEqual(env.repo.stockActual.find(s => s.stock_key === '2112005|CT4395').cajas_actuales, 225);
+  assert.strictEqual(env.repo.stockActual.find(s => s.stock_key === '2112005|CT4395MAD').cajas_actuales, 6);
 });
 
 console.log('\n================================================================');

@@ -31,8 +31,7 @@ const DEFAULT_GRUPOS_ENVASE = [
   { codigo_envase: 'CT4395MAD', descripcion_envase: 'CT4395MAD', grupo_envase: 'JAPONÉS CARTÓN', activo: true },
   { codigo_envase: 'CT6412MAD', descripcion_envase: 'CT6412MAD10x500', grupo_envase: 'JAPONÉS CARTÓN', activo: true },
   { codigo_envase: 'CT6495MD', descripcion_envase: 'CT6495MD 10X300', grupo_envase: 'JAPONÉS CARTÓN', activo: true },
-  { codigo_envase: 'CT4397MAD', descripcion_envase: 'CT4397MAD8X225', grupo_envase: 'JAPONÉS CARTÓN', activo: true },
-  { codigo_envase: 'DEFAULT', descripcion_envase: 'CAJA COMPRA', grupo_envase: 'OTROS', activo: true }
+  { codigo_envase: 'CT4397MAD', descripcion_envase: 'CT4397MAD8X225', grupo_envase: 'JAPONÉS CARTÓN', activo: true }
 ];
 
 class StockQueryService {

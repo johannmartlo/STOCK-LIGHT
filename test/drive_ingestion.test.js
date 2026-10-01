@@ -257,14 +257,16 @@ assert.strictEqual(parsedCompra.lines[0].boxes, 240);
 assert.strictEqual(parsedCompra.lines[0].lot, '336492');
 assert.strictEqual(parsedCompra.rawMetadata.cuadraConPie, true);
 
-// Validación cruzada con MaestroResolver y DocumentValidator
+// Validación cruzada con MaestroResolver y DocumentValidator:
+// Albarán con envase no determinable desde PDF queda rigurosamente en PENDIENTE_REVISION
 const reviewCompra = registry.reviewDocument(textCompra, {
   fileMeta: { sourceFileId: savedCompra.driveFileId, sha256Hash: savedCompra.sha256Hash }
 });
-assert.strictEqual(reviewCompra.estadoValidacion, 'VALIDO');
-assert.strictEqual(reviewCompra.aptoParaConfirmar, true);
+assert.strictEqual(reviewCompra.estadoValidacion, 'PENDIENTE_REVISION');
+assert.strictEqual(reviewCompra.aptoParaConfirmar, false);
 assert.strictEqual(reviewCompra.totalCajasDetectadas, 240);
-console.log('  ✅ [PASS] Test 6: CompraParser obtiene exactamente 240 cajas con cuadre de pie y metadatos válidos.\n');
+assert.strictEqual(reviewCompra.lineasDetectadas[0].incidencia, 'ENVASE_NO_DETERMINABLE_DESDE_PDF');
+console.log('  ✅ [PASS] Test 6: CompraParser obtiene exactamente 240 cajas con cuadre de pie y queda en PENDIENTE_REVISION (sin conjeturar DEFAULT).\n');
 
 // ----------------------------------------------------
 // TEST 7: SalidaParser recibe texto servidor y obtiene cajas exactas

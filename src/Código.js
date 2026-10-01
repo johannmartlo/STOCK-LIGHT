@@ -327,6 +327,38 @@ function apiObtenerDetalleStock(codigoArticulo, codigoEnvase, options) {
   return service.obtenerDetalleStock(codigoArticulo, codigoEnvase);
 }
 
+/**
+ * Confirma un documento de compra en estado PENDIENTE_REVISION tras resolución de envases.
+ * Valida en servidor el Trust Boundary:
+ * - El cliente envía exclusivamente: { idDocumento, lineResolutions }
+ * - El cliente NO puede enviar rawText ni manipular líneas, cajas ni artículos.
+ * - Las líneas originales proceden de fuentes controladas por el servidor (Drive o staging).
+ * 
+ * @param {Object} clientPayload - { idDocumento, lineResolutions } (procedente del cliente)
+ * @param {string} [usuario]
+ * @param {Object} [options] - Contexto de servidor (repository, driveService, canonicalLines de staging)
+ * @returns {Object} Resultado de la confirmación
+ */
+function confirmarCompraPendiente(clientPayload, usuario, options = {}) {
+  const repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : null);
+  const maestro = repo ? repo.getMaestro() : [];
+  const resolver = options.maestroResolver || (typeof MaestroResolver !== 'undefined' ? new MaestroResolver(maestro) : null);
+  const lock = options.lockService || (typeof LockService !== 'undefined' ? LockService.getScriptLock() : null);
+  const dedup = options.deduplicationService || (typeof checkDocumentDuplicate !== 'undefined' ? { checkDocumentDuplicate, buildLineIdentityKey, filterBatchForOverlaps } : null);
+  const engine = options.inventoryEngine || (typeof processMovement !== 'undefined' ? { buildStockKey, processMovement, rebuildStockFromMovements } : null);
+
+  const service = options.movementService || new MovementService({
+    repository: repo,
+    lockService: lock,
+    deduplicationService: dedup,
+    inventoryEngine: engine,
+    driveService: options.driveService
+  });
+
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  return service.confirmarCompraPendiente(clientPayload, user, resolver, options);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     initDatabase,
@@ -335,6 +367,7 @@ if (typeof module !== 'undefined' && module.exports) {
     testNucleoAppsScript,
     revisarDocumentoHispatec,
     confirmarDocumentoRevisado,
+    confirmarCompraPendiente,
     configurarSpreadsheetId,
     configurarDriveFolderId,
     apiObtenerStockActual,

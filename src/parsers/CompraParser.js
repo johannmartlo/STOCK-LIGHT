@@ -117,8 +117,10 @@ class CompraParser {
         // Buscar Bultos: un número entero (ej. 32, 528, 600, 78, 131, 16, 6...)
         // En la estructura: [Kilos (decimal)] \n [Bultos (entero)] \n [KG o UNID]
         let bultos = null;
+        let detectedUnit = '';
         for (let j = 0; j < cLines.length; j++) {
           if (cLines[j] === 'KG' || cLines[j] === 'UNID') {
+            detectedUnit = cLines[j];
             if (j > 0) {
               const val = parseInt(cLines[j - 1].replace(/\./g, ''), 10);
               if (!isNaN(val) && val > 0 && !cLines[j - 1].includes(',')) {
@@ -140,14 +142,24 @@ class CompraParser {
           }
         }
 
+        if (!detectedUnit) {
+          for (let j = 0; j < cLines.length; j++) {
+            if (cLines[j] === 'KG' || cLines[j] === 'UNID') {
+              detectedUnit = cLines[j];
+              break;
+            }
+          }
+        }
+
         if (artName && bultos) {
           parsedLines.push(createNormalizedLine({
             lineIndex: lineIdx++,
             articleCode: '',
             articleName: artName,
-            envaseCode: 'DEFAULT',
-            envaseName: 'CAJA',
+            envaseCode: '',
+            envaseName: '',
             boxes: bultos,
+            unit: detectedUnit,
             lot: partida,
             sourceReference: `PARTIDA:${partida}`
           }));
@@ -172,9 +184,10 @@ class CompraParser {
                 lineIndex: lineIdx++,
                 articleCode: '',
                 articleName: artName,
-                envaseCode: 'DEFAULT',
-                envaseName: 'CAJA',
+                envaseCode: '',
+                envaseName: '',
                 boxes: bultos,
+                unit: 'KG',
                 lot: '',
                 sourceReference: `LINEA:${lineNum}`
               }));

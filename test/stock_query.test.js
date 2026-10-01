@@ -35,7 +35,7 @@ class InMemoryRepository {
       { codigo_articulo: '2112002', codigo_envase: 'EPS104', nombre_articulo: 'TOMATE KUMATO I M', descripcion_envase: 'EPS 104 5x500' },
       { codigo_articulo: '2112003', codigo_envase: 'EPS154', nombre_articulo: 'TOMATE PERA SUELTA M', descripcion_envase: 'EPS 154' },
       { codigo_articulo: '2112004', codigo_envase: 'CARTON', nombre_articulo: 'TOMATE COCKTAIL I M', descripcion_envase: 'CARTON 40x30X9.7 MADERA 8X300' },
-      { codigo_articulo: '2112004', codigo_envase: 'DEFAULT', nombre_articulo: 'TOMATE COCKTAIL I M', descripcion_envase: 'CAJA COMPRA' },
+      { codigo_articulo: '2112004', codigo_envase: 'EPS104', nombre_articulo: 'TOMATE COCKTAIL I M', descripcion_envase: 'EPS 104' },
       { codigo_articulo: '2112005', codigo_envase: 'CT4395', nombre_articulo: 'TOMATE MORESCO I M', descripcion_envase: 'CT4395 MORESCO' }
     ];
     this.gruposEnvase = [...DEFAULT_GRUPOS_ENVASE];
@@ -155,11 +155,11 @@ runTest('Caso 2: Un artículo con dos envases de grupos diferentes', () => {
       cajas_actuales: 50
     },
     {
-      stock_key: '2112004|DEFAULT',
+      stock_key: '2112004|EPS104',
       codigo_articulo: '2112004',
       nombre_articulo: 'TOMATE COCKTAIL I M',
-      codigo_envase: 'DEFAULT',
-      descripcion_envase: 'CAJA COMPRA',
+      codigo_envase: 'EPS104',
+      descripcion_envase: 'EPS 104',
       cajas_actuales: 120
     }
   ]);
@@ -171,18 +171,18 @@ runTest('Caso 2: Un artículo con dos envases de grupos diferentes', () => {
   assert.strictEqual(stockCarton[0].codigo_envase, 'CARTON');
   assert.strictEqual(stockCarton[0].cajas_actuales, 50);
 
-  const stockOtros = queryService.obtenerStockPorGrupo('OTROS');
-  assert.strictEqual(stockOtros.length, 1);
-  assert.strictEqual(stockOtros[0].codigo_envase, 'DEFAULT');
-  assert.strictEqual(stockOtros[0].cajas_actuales, 120);
+  const stockEps = queryService.obtenerStockPorGrupo('EPS');
+  assert.strictEqual(stockEps.length, 1);
+  assert.strictEqual(stockEps[0].codigo_envase, 'EPS104');
+  assert.strictEqual(stockEps[0].cajas_actuales, 120);
 
   const detalleCarton = queryService.obtenerDetalleGrupo('JAPONÉS CARTÓN');
   assert.strictEqual(detalleCarton.totalCajas, 50);
   assert.strictEqual(detalleCarton.lineas.length, 1);
 
-  const detalleOtros = queryService.obtenerDetalleGrupo('OTROS');
-  assert.strictEqual(detalleOtros.totalCajas, 120);
-  assert.strictEqual(detalleOtros.lineas.length, 1);
+  const detalleEps = queryService.obtenerDetalleGrupo('EPS');
+  assert.strictEqual(detalleEps.totalCajas, 120);
+  assert.strictEqual(detalleEps.lineas.length, 1);
 });
 
 // --------------------------------------------------------------------------
