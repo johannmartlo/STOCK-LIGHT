@@ -17,9 +17,18 @@
  */
 
 // Importaciones condicionales para entorno Node.js / Testing (aisladas sin 'var' para evitar colisiones en Apps Script V8)
+let CommercialGroupResolverClass = null;
 if (typeof require !== 'undefined') {
   const repoMod = require('./Repository');
   global.SheetsRepository = global.SheetsRepository || repoMod.SheetsRepository;
+  try {
+    const commercialMod = require('./CommercialGroupResolver');
+    CommercialGroupResolverClass = commercialMod.CommercialGroupResolver;
+  } catch (e) {
+    // fallback
+  }
+} else if (typeof CommercialGroupResolver !== 'undefined') {
+  CommercialGroupResolverClass = CommercialGroupResolver;
 }
 
 const DEFAULT_GRUPOS_ENVASE = [
@@ -40,11 +49,15 @@ class StockQueryService {
    * @param {SheetsRepository|Object} [options.repository]
    * @param {Array<Object>} [options.gruposEnvase] - Inyección opcional para testing
    * @param {Array<Object>} [options.stockActual] - Inyección opcional para testing
+   * @param {Object} [options.commercialGroupResolver] - Instancia de CommercialGroupResolver
    */
   constructor(options = {}) {
     this.repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : null);
     this._gruposEnvaseOverride = options.gruposEnvase || null;
     this._stockActualOverride = options.stockActual || null;
+    this._capasFifoOverride = options.capasFifo || null;
+    this.commercialResolver = options.commercialGroupResolver || 
+      (CommercialGroupResolverClass ? new CommercialGroupResolverClass() : null);
   }
 
   /**
@@ -110,6 +123,16 @@ class StockQueryService {
       const grupo = (codEnvase && mapa.has(codEnvase)) ? mapa.get(codEnvase) : 'SIN_CLASIFICAR';
       const cajas = Number(rec.cajas_actuales !== undefined ? rec.cajas_actuales : (rec.cajas || 0));
 
+      let comm = null;
+      if (this.commercialResolver && typeof this.commercialResolver.resolve === 'function') {
+        comm = this.commercialResolver.resolve({
+          codigo_articulo: rec.codigo_articulo,
+          nombre_articulo: rec.nombre_articulo,
+          codigo_envase: codEnvase,
+          descripcion_envase: rec.descripcion_envase
+        });
+      }
+
       return {
         stock_key: rec.stock_key || `${rec.codigo_articulo}|${rec.codigo_envase}`,
         codigo_articulo: String(rec.codigo_articulo || ''),
@@ -120,6 +143,16 @@ class StockQueryService {
         cajas: cajas,
         grupo_envase: grupo,
         grupo: grupo,
+        // Enriquecimiento comercial Fase 4:
+        grupo_comercial_id: comm ? comm.groupId : 'NO_CLASIFICADO',
+        grupo_comercial: comm ? comm.groupName : 'PENDIENTE DE ASOCIACIÓN',
+        subgrupo_comercial_id: comm ? comm.subgroupId : null,
+        subgrupo_comercial: comm ? comm.subgroupName : null,
+        categoria: comm ? comm.categoria : 'ESTÁNDAR',
+        calibre: comm ? comm.calibre : 'S/C',
+        calibre_categoria: comm ? comm.calibreCategoria : 'ESTÁNDAR',
+        estado_comercial: comm ? comm.status : 'PENDIENTE_ASOCIACION',
+        regla_comercial_id: comm ? comm.ruleId : 'FALLBACK_PENDIENTE_ASOCIACION',
         fecha_ultima_actualizacion: rec.fecha_ultima_actualizacion || '',
         ultimo_movimiento_id: rec.ultimo_movimiento_id || ''
       };
@@ -255,6 +288,311 @@ class StockQueryService {
     const stock = this.obtenerStockActual();
     const item = stock.find(l => l.codigo_articulo === art && l.codigo_envase === env);
     return item || null;
+  }
+
+  /**
+   * Genera el resumen jerárquico visual de existencias por grupo comercial y subgrupo.
+   * Diseñado específicamente para pantallas visuales y usuarios no técnicos (responsivo PC/tablet/móvil).
+   * 
+   * @returns {{
+   *   grupos: Array<{
+   *     groupId: string,
+   *     groupName: string,
+   *     order: number,
+   *     totalCajas: number,
+   *     totalLineas: number,
+   *     tieneSubgrupos: boolean,
+   *     subgrupos: Array<{ subgroupId: string, subgroupName: string, order: number, totalCajas: number, totalLineas: number }>
+   *   }>,
+   *   granTotalCajas: number,
+   *   granTotalLineas: number,
+   *   fechaConsulta: string
+   * }}
+   */
+  obtenerStockVisualResumen() {
+    const stock = this.obtenerStockActual();
+
+    // Obtener grupos configurados desde el resolver comercial dinámico o base
+    let baseGroups = [];
+    if (this.commercialResolver && typeof this.commercialResolver.getGroups === 'function') {
+      baseGroups = this.commercialResolver.getGroups();
+    }
+    if (!baseGroups || baseGroups.length === 0) {
+      baseGroups = [
+        { id: 'EPS', name: 'TOMATE EN CAJA EPS', order: 1, subgroups: [] },
+        { id: 'HUEVO_TORO', name: 'TOMATE HUEVO DE TORO', order: 2, subgroups: [] },
+        { id: 'VOLLEY', name: 'TOMATE VOLLEY Y CORAZÓN DE BUEY', order: 3, subgroups: [] },
+        { id: 'JAPI_JAPONES', name: 'TOMATE JAPI Y JAPONÉS', order: 4, subgroups: [] },
+        { 
+          id: 'CARTON', 
+          name: 'TOMATES EN CAJA DE CARTÓN', 
+          order: 5, 
+          subgroups: [
+            { id: 'AZUL', name: 'AZUL', order: 1 },
+            { id: 'ROSA', name: 'ROSA', order: 2 },
+            { id: 'MORESCO', name: 'MORESCO', order: 3 },
+            { id: 'OTROS', name: 'OTROS', order: 4 }
+          ] 
+        },
+        { id: 'CARREFOUR', name: 'CARREFOUR', order: 6, subgroups: [] },
+        { id: 'NO_CLASIFICADO', name: 'PENDIENTE DE ASOCIACIÓN', order: 99, subgroups: [] }
+      ];
+    }
+
+    const groupMap = new Map();
+    baseGroups.forEach(bg => {
+      const subMap = new Map();
+      const rawSubgroups = bg.subgroups || bg.subgruposDefs || bg.subgrupos || [];
+      rawSubgroups.forEach(sg => {
+        const sId = String(sg.id || sg.nombre || '').toUpperCase();
+        const sName = String(sg.name || sg.nombre || sId);
+        const sOrder = sg.order != null ? Number(sg.order) : (sg.orden_visual != null ? Number(sg.orden_visual) : 50);
+        subMap.set(sId, {
+          subgroupId: sId,
+          subgroupName: sName,
+          order: sOrder,
+          totalCajas: 0,
+          totalLineas: 0
+        });
+      });
+
+      const gOrder = bg.order != null ? Number(bg.order) : (bg.orden_visual != null ? Number(bg.orden_visual) : 50);
+      groupMap.set(bg.id, {
+        groupId: bg.id,
+        groupName: bg.name || bg.nombre || bg.id,
+        order: gOrder,
+        totalCajas: 0,
+        totalLineas: 0,
+        tieneSubgrupos: rawSubgroups.length > 0,
+        subgruposMap: subMap
+      });
+    });
+
+    let granTotalCajas = 0;
+    let granTotalLineas = 0;
+
+    stock.forEach(item => {
+      const gId = item.grupo_comercial_id || 'NO_CLASIFICADO';
+      const sgId = item.subgrupo_comercial_id || null;
+      const cajas = Number(item.cajas_actuales || 0);
+
+      granTotalCajas += cajas;
+      granTotalLineas += 1;
+
+      if (!groupMap.has(gId)) {
+        groupMap.set(gId, {
+          groupId: gId,
+          groupName: item.grupo_comercial || gId,
+          order: 90,
+          totalCajas: 0,
+          totalLineas: 0,
+          tieneSubgrupos: false,
+          subgruposMap: new Map()
+        });
+      }
+
+      const grp = groupMap.get(gId);
+      grp.totalCajas += cajas;
+      grp.totalLineas += 1;
+
+      if (sgId && grp.subgruposMap) {
+        if (!grp.subgruposMap.has(sgId)) {
+          grp.subgruposMap.set(sgId, {
+            subgroupId: sgId,
+            subgroupName: item.subgrupo_comercial || sgId,
+            order: 50,
+            totalCajas: 0,
+            totalLineas: 0
+          });
+        }
+        const sgrp = grp.subgruposMap.get(sgId);
+        sgrp.totalCajas += cajas;
+        sgrp.totalLineas += 1;
+      }
+    });
+
+    const grupos = Array.from(groupMap.values()).map(g => {
+      const subgrupos = Array.from(g.subgruposMap.values()).sort((a, b) => a.order - b.order);
+      return {
+        groupId: g.groupId,
+        groupName: g.groupName,
+        order: g.order,
+        totalCajas: g.totalCajas,
+        totalLineas: g.totalLineas,
+        tieneSubgrupos: g.tieneSubgrupos || subgrupos.length > 0,
+        subgrupos
+      };
+    }).sort((a, b) => a.order - b.order);
+
+    return {
+      grupos,
+      granTotalCajas,
+      granTotalLineas,
+      fechaConsulta: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Obtiene el desglose detallado de existencias para un grupo o subgrupo específico.
+   * Permite llegar hasta el nivel de:
+   * ARTÍCULO + ENVASE + CALIBRE/CATEGORÍA + CAJAS.
+   * 
+   * @param {string} groupId - ID del grupo comercial (ej. 'CARTON', 'EPS', 'CARREFOUR')
+   * @param {string} [subgroupId=null] - ID opcional del subgrupo (ej. 'MORESCO', 'ROSA', 'AZUL')
+   * @returns {{
+   *   groupId: string,
+   *   groupName: string,
+   *   subgroupId: string|null,
+   *   subgroupName: string|null,
+   *   totalCajas: number,
+   *   totalLineas: number,
+   *   lineas: Array<Object>
+   * }}
+   */
+  obtenerStockVisualDetalle(groupId, subgroupId = null) {
+    if (!groupId) {
+      throw new Error('obtenerStockVisualDetalle: Se requiere groupId.');
+    }
+
+    const targetGId = String(groupId).trim().toUpperCase();
+    const targetSgId = subgroupId ? String(subgroupId).trim().toUpperCase() : null;
+
+    const stock = this.obtenerStockActual();
+
+    const lineasFiltradas = stock.filter(item => {
+      const itemGId = String(item.grupo_comercial_id || 'NO_CLASIFICADO').trim().toUpperCase();
+      if (itemGId !== targetGId) return false;
+
+      if (targetSgId) {
+        const itemSgId = String(item.subgrupo_comercial_id || '').trim().toUpperCase();
+        return itemSgId === targetSgId;
+      }
+      return true;
+    });
+
+    const totalCajas = lineasFiltradas.reduce((sum, l) => sum + Number(l.cajas_actuales || 0), 0);
+
+    let groupName = targetGId;
+    let subgroupName = targetSgId;
+
+    if (this.commercialResolver && this.commercialResolver.groups && this.commercialResolver.groups[targetGId]) {
+      const gDef = this.commercialResolver.groups[targetGId];
+      groupName = gDef.name;
+      if (targetSgId && Array.isArray(gDef.subgroups)) {
+        const sDef = gDef.subgroups.find(s => s.id.toUpperCase() === targetSgId);
+        if (sDef) subgroupName = sDef.name;
+      }
+    } else if (lineasFiltradas.length > 0) {
+      groupName = lineasFiltradas[0].grupo_comercial || targetGId;
+      if (targetSgId) {
+        subgroupName = lineasFiltradas[0].subgrupo_comercial || targetSgId;
+      }
+    }
+
+    return {
+      groupId: targetGId,
+      groupName,
+      subgroupId: targetSgId,
+      subgroupName,
+      totalCajas,
+      totalLineas: lineasFiltradas.length,
+      lineas: lineasFiltradas.map(l => ({
+        stockKey: l.stock_key,
+        codigoArticulo: l.codigo_articulo,
+        nombreArticulo: l.nombre_articulo,
+        codigoEnvase: l.codigo_envase,
+        descripcionEnvase: l.descripcion_envase,
+        cajas: l.cajas_actuales,
+        cajasActuales: l.cajas_actuales,
+        calibre: l.calibre || 'S/C',
+        categoria: l.categoria || 'ESTÁNDAR',
+        calibreCategoria: l.calibre_categoria || `${l.categoria || 'ESTÁNDAR'} - ${l.calibre || 'S/C'}`,
+        groupId: l.grupo_comercial_id,
+        groupName: l.grupo_comercial,
+        subgroupId: l.subgrupo_comercial_id,
+        subgroupName: l.subgrupo_comercial,
+        status: l.estado_comercial,
+        ruleId: l.regla_comercial_id
+      }))
+    };
+  }
+
+  /**
+   * Consulta las capas FIFO vivas de un artículo + envase concreto para mostrar partidas (Nivel 5 de Drill-down).
+   * Permite inspeccionar fecha de entrada, cajas iniciales, cajas consumidas y saldo restante por partida.
+   * 
+   * @param {string} codigoArticulo 
+   * @param {string} codigoEnvase 
+   * @param {Object} [options]
+   * @param {boolean} [options.soloVivas=true] - Si solo incluye capas con saldo > 0
+   * @returns {{
+   *   codigoArticulo: string,
+   *   codigoEnvase: string,
+   *   totalPartidas: number,
+   *   totalCajas: number,
+   *   partidas: Array<{
+   *     idCapa: string,
+   *     partida: string,
+   *     fechaEntrada: string,
+   *     cajasIniciales: number,
+   *     cajasConsumidas: number,
+   *     cajasRestantes: number,
+   *     saldo: number,
+   *     estadoCapa: string,
+   *     documentoRef: string
+   *   }>
+   * }}
+   */
+  obtenerDetallePartidas(codigoArticulo, codigoEnvase, options = {}) {
+    if (!codigoArticulo || !codigoEnvase) {
+      throw new Error('obtenerDetallePartidas: Se requiere codigoArticulo y codigoEnvase.');
+    }
+    const art = String(codigoArticulo).trim();
+    const env = String(codigoEnvase).trim();
+    const soloVivas = options.soloVivas !== false;
+
+    let rawCapas = [];
+    if (this._capasFifoOverride) {
+      rawCapas = this._capasFifoOverride;
+    } else if (this.repo && typeof this.repo.getCapasFifo === 'function') {
+      rawCapas = this.repo.getCapasFifo();
+    }
+
+    const capasFiltradas = (rawCapas || []).filter(c => {
+      const artMatch = String(c.codigo_articulo || '').trim() === art;
+      const envMatch = String(c.codigo_envase || '').trim() === env;
+      if (!artMatch || !envMatch) return false;
+      const restantes = Number(c.cajas_restantes !== undefined ? c.cajas_restantes : (c.cajas_saldo !== undefined ? c.cajas_saldo : (Number(c.cajas_iniciales || 0) - Number(c.cajas_consumidas || 0))));
+      if (soloVivas && restantes <= 0) return false;
+      return true;
+    });
+
+    const partidas = capasFiltradas.map(c => {
+      const iniciales = Number(c.cajas_iniciales || 0);
+      const consumidas = Number(c.cajas_consumidas || 0);
+      const restantes = Number(c.cajas_restantes !== undefined ? c.cajas_restantes : (c.cajas_saldo !== undefined ? c.cajas_saldo : (iniciales - consumidas)));
+      return {
+        idCapa: c.id_capa || c.capa_id,
+        partida: c.partida || c.partida_id || 'SIN_PARTIDA',
+        fechaEntrada: c.fecha_capa || c.fecha_entrada || '',
+        cajasIniciales: iniciales,
+        cajasConsumidas: consumidas,
+        cajasRestantes: restantes,
+        saldo: restantes,
+        estadoCapa: c.estado_capa || (restantes > 0 ? (consumidas > 0 ? 'PARCIAL' : 'ABIERTA') : 'AGOTADA'),
+        documentoRef: c.documento_ref || c.referencia_origen || ''
+      };
+    });
+
+    const totalCajas = partidas.reduce((sum, p) => sum + p.cajasRestantes, 0);
+
+    return {
+      codigoArticulo: art,
+      codigoEnvase: env,
+      totalPartidas: partidas.length,
+      totalCajas,
+      partidas
+    };
   }
 
   /**

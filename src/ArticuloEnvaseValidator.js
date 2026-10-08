@@ -98,6 +98,7 @@ class ArticuloEnvaseValidator {
     const mapping = headerRes.mapping;
     const seenRelationKeys = new Set();
     const articlePackagingGroups = new Map(); // codArticulo -> Array<{ codEnvase, descEnvase, activo }>
+    const defaultPackagingByArticle = new Map(); // codArticulo -> codEnvase
 
     dataRows.forEach((row, idx) => {
       const filaNum = idx + 2;
@@ -138,7 +139,20 @@ class ArticuloEnvaseValidator {
           descripcion: `Fila ${filaNum}: El código de envase no puede estar vacío.`
         });
         rowHasFatalError = true;
+      } else if (rawCodEnv === 'DEFAULT' || rawCodEnv === 'ENVASE_NO_DETERMINABLE_DESDE_PDF') {
+        report.addError({
+          fila: filaNum,
+          campo: 'codigo_envase',
+          valor: rawCodEnv,
+          codigoError: _DIAGNOSTIC_CODES_AE.ENVASE_COMERCIAL_INVALIDO,
+          descripcion: `Fila ${filaNum}: El envase '${rawCodEnv}' no es un envase comercial válido de stock.`
+        });
+        rowHasFatalError = true;
       }
+
+      const rawTenant = getVal('tenant_id');
+      const rawGrupoCom = getVal('grupo_comercial');
+      const tenant = rawTenant || fileMeta.tenantId || 'DEFAULT';
 
       if (rawCodArt && rawCodEnv) {
         const relationKey = `${rawCodArt}|${rawCodEnv}`;
@@ -220,6 +234,33 @@ class ArticuloEnvaseValidator {
         esPredeterminado = (pLower === 'true' || pLower === '1' || pLower === 'si' || pLower === 'sí');
       }
 
+      if (esPredeterminado) {
+        if (defaultPackagingByArticle.has(rawCodArt)) {
+          const prevEnv = defaultPackagingByArticle.get(rawCodArt);
+          report.addError({
+            fila: filaNum,
+            campo: 'es_predeterminado',
+            valor: rawCodEnv,
+            codigoError: _DIAGNOSTIC_CODES_AE.CONFLICTO_PREDETERMINADO_MULTIPLE,
+            descripcion: `Fila ${filaNum}: Conflicto de predeterminado en artículo '${rawCodArt}'. Ya se había definido '${prevEnv}' como predeterminado en el mismo archivo.`
+          });
+          rowHasFatalError = true;
+        } else {
+          defaultPackagingByArticle.set(rawCodArt, rawCodEnv);
+        }
+      }
+
+      if (fileMeta.expectedTenantId && tenant !== fileMeta.expectedTenantId) {
+        report.addError({
+          fila: filaNum,
+          campo: 'tenant_id',
+          valor: tenant,
+          codigoError: _DIAGNOSTIC_CODES_AE.TENANT_INVALIDO,
+          descripcion: `Fila ${filaNum}: El tenant '${tenant}' no coincide con el tenant autorizado '${fileMeta.expectedTenantId}'.`
+        });
+        rowHasFatalError = true;
+      }
+
       if (!rowHasFatalError) {
         report.addNormalizedRecord({
           relation_key: `${rawCodArt}|${rawCodEnv}`,
@@ -228,7 +269,9 @@ class ArticuloEnvaseValidator {
           codigo_envase: rawCodEnv,
           descripcion_envase: rawNomEnv,
           es_predeterminado: esPredeterminado,
-          activo
+          grupo_comercial: rawGrupoCom || '',
+          activo,
+          tenant_id: tenant
         });
 
         if (activo) {

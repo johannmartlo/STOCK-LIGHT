@@ -87,6 +87,8 @@ class MaestroResolver {
     this._envaseByCode = new Map();
     this._envaseByName = new Map();
     this._stockKeySet = new Set();
+    this._associationsByArticle = new Map();
+    this._defaultEnvaseByArticle = new Map();
 
     this._buildIndexes();
   }
@@ -97,6 +99,10 @@ class MaestroResolver {
       const artName = String(row.nombre_articulo || '').trim();
       const envCode = String(row.codigo_envase || '').trim();
       const envName = String(row.descripcion_envase || '').trim();
+      const tId = String(row.tenant_id || 'DEFAULT').trim();
+      const isActivo = (row.activo !== false && String(row.activo).toLowerCase() !== 'false' && row.activo !== 0);
+      const isPred = (row.es_predeterminado === true || String(row.es_predeterminado).toLowerCase() === 'true' || row.es_predeterminado === 1);
+      const isConfirmado = (row.confirmado === true || String(row.confirmado).toLowerCase() === 'true' || row.origen === 'CONFIRMACION_COMPRA' || row.es_confirmado === true);
 
       if (artCode) {
         if (!this._articleByCode.has(artCode)) {
@@ -117,6 +123,36 @@ class MaestroResolver {
         }
         if (artCode) {
           this._stockKeySet.add(`${artCode}|${envCode}`);
+
+          if (!this._associationsByArticle.has(artCode)) {
+            this._associationsByArticle.set(artCode, []);
+          }
+          this._associationsByArticle.get(artCode).push({
+            codigo_articulo: artCode,
+            codigo_envase: envCode,
+            descripcion_envase: envName,
+            es_predeterminado: isPred,
+            confirmado: isConfirmado,
+            activo: isActivo,
+            tenant_id: tId
+          });
+
+          if (isPred && isActivo) {
+            const tenantKey = `${tId}|${artCode}`;
+            this._defaultEnvaseByArticle.set(tenantKey, {
+              code: envCode,
+              name: envName,
+              tenant_id: tId
+            });
+            // Fallback genérico por artCode
+            if (!this._defaultEnvaseByArticle.has(artCode)) {
+              this._defaultEnvaseByArticle.set(artCode, {
+                code: envCode,
+                name: envName,
+                tenant_id: tId
+              });
+            }
+          }
         }
       }
     }
@@ -247,18 +283,47 @@ class MaestroResolver {
   }
 
   /**
-   * Resuelve el envase para una línea de ALBARÁN DE COMPRA mediante reglas deterministas homologadas.
-   * Si no existe regla que aplique determinísticamente, devuelve resolved: false con PENDIENTE_REVISION.
+   * Resuelve el envase para una línea de ALBARÁN DE COMPRA mediante la jerarquía oficial:
+   * 1. Asociación activa y predeterminada en MAESTRO
+   * 2. Regla determinista explícita existente (cuando siga siendo necesaria)
+   * 3. Asociación previamente confirmada y persistida (si existe un único envase activo para el artículo)
+   * 4. PENDIENTE_REVISION (REQUIERE_REVISION_HUMANA / ENVASE_NO_DETERMINABLE_DESDE_PDF)
    * 
    * @param {string} artCode - Código resuelto o raw del artículo
    * @param {string} artName - Nombre del artículo
    * @param {string} [unit] - Unidad ('KG' o 'UNID')
+   * @param {Object} [options]
+   * @param {string} [options.tenantId='DEFAULT']
    * @returns {Object} { resolved: boolean, code: string|null, name: string|null, method: string, reason?: string }
    */
-  resolveEnvaseCompra(artCode, artName, unit = '') {
+  resolveEnvaseCompra(artCode, artName, unit = '', options = {}) {
     const artC = String(artCode || '').trim();
     const artN = String(artName || '').trim();
+    const tenantId = String(options.tenantId || 'DEFAULT').trim();
 
+    // 1. Asociación activa y predeterminada en MAESTRO
+    if (artC) {
+      const tenantKey = `${tenantId}|${artC}`;
+      if (this._defaultEnvaseByArticle && this._defaultEnvaseByArticle.has(tenantKey)) {
+        const def = this._defaultEnvaseByArticle.get(tenantKey);
+        return {
+          resolved: true,
+          code: def.code,
+          name: def.name,
+          method: 'MAESTRO_PREDETERMINADO'
+        };
+      } else if (this._defaultEnvaseByArticle && this._defaultEnvaseByArticle.has(artC)) {
+        const def = this._defaultEnvaseByArticle.get(artC);
+        return {
+          resolved: true,
+          code: def.code,
+          name: def.name,
+          method: 'MAESTRO_PREDETERMINADO'
+        };
+      }
+    }
+
+    // 2. Reglas deterministas explícitas existentes (fallback compatible)
     for (const rule of DETERMINISTIC_COMPRA_RULES) {
       if (rule.matches(artC, artN, unit)) {
         // Verificar que la combinación sea válida en MAESTRO para este artículo
@@ -273,6 +338,27 @@ class MaestroResolver {
       }
     }
 
+    // 3. Asociación previamente confirmada y persistida:
+    // Si la asociación fue previamente confirmada por el usuario (o aprendida) y existe un único envase activo confirmado
+    if (artC && this._associationsByArticle && this._associationsByArticle.has(artC)) {
+      const activeAssocs = this._associationsByArticle.get(artC).filter(a => 
+        a.activo && 
+        (a.tenant_id === tenantId || a.tenant_id === 'DEFAULT') &&
+        a.codigo_envase !== 'DEFAULT' &&
+        a.codigo_envase !== 'ENVASE_NO_DETERMINABLE_DESDE_PDF'
+      );
+      const confirmedAssocs = activeAssocs.filter(a => a.confirmado);
+      if (confirmedAssocs.length === 1) {
+        return {
+          resolved: true,
+          code: confirmedAssocs[0].codigo_envase,
+          name: confirmedAssocs[0].descripcion_envase,
+          method: 'MAESTRO_CONFIRMADO_PREVIO'
+        };
+      }
+    }
+
+    // 4. Si no se puede resolver unívocamente -> PENDIENTE_REVISION
     return {
       resolved: false,
       code: null,
@@ -289,21 +375,28 @@ class MaestroResolver {
    * @param {string} codigoArticulo 
    * @returns {Array<{ codigo_envase: string, descripcion_envase: string }>}
    */
-  getEnvasesPermitidos(codigoArticulo) {
+  getEnvasesPermitidos(codigoArticulo, tenantId = 'DEFAULT') {
     const artCode = String(codigoArticulo || '').trim();
     if (!artCode) return [];
 
     const permitidos = [];
     const seen = new Set();
+    const tId = String(tenantId || 'DEFAULT').trim();
 
     for (const row of this.maestro) {
-      if (String(row.codigo_articulo || '').trim() === artCode && row.activo !== false) {
+      const rowArt = String(row.codigo_articulo || '').trim();
+      const rowTenant = String(row.tenant_id || 'DEFAULT').trim();
+      const isActivo = (row.activo !== false && String(row.activo).toLowerCase() !== 'false' && row.activo !== 0);
+
+      if (rowArt === artCode && isActivo && (rowTenant === tId || rowTenant === 'DEFAULT' || !row.tenant_id)) {
         const envCode = String(row.codigo_envase || '').trim();
         if (envCode && envCode !== 'DEFAULT' && envCode !== 'ENVASE_NO_DETERMINABLE_DESDE_PDF' && !seen.has(envCode)) {
           seen.add(envCode);
           permitidos.push({
             codigo_envase: envCode,
-            descripcion_envase: String(row.descripcion_envase || envCode).trim()
+            descripcion_envase: String(row.descripcion_envase || envCode).trim(),
+            es_predeterminado: Boolean(row.es_predeterminado === true || String(row.es_predeterminado).toLowerCase() === 'true' || row.es_predeterminado === 1),
+            tenant_id: rowTenant
           });
         }
       }
@@ -317,15 +410,16 @@ class MaestroResolver {
    * 
    * @param {string} codigoArticulo 
    * @param {string} codigoEnvase 
+   * @param {string} [tenantId='DEFAULT']
    * @returns {boolean}
    */
-  isEnvasePermitidoParaArticulo(codigoArticulo, codigoEnvase) {
+  isEnvasePermitidoParaArticulo(codigoArticulo, codigoEnvase, tenantId = 'DEFAULT') {
     const artCode = String(codigoArticulo || '').trim();
     const envCode = String(codigoEnvase || '').trim();
     if (!artCode || !envCode || envCode === 'DEFAULT' || envCode === 'ENVASE_NO_DETERMINABLE_DESDE_PDF') {
       return false;
     }
-    const permitidos = this.getEnvasesPermitidos(artCode);
+    const permitidos = this.getEnvasesPermitidos(artCode, tenantId);
     return permitidos.some(p => p.codigo_envase === envCode);
   }
 

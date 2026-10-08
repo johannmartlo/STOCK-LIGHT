@@ -35,8 +35,10 @@ erDiagram
         string codigo_envase PK
         string nombre_articulo
         string descripcion_envase
+        boolean es_predeterminado
         string grupo_comercial
         boolean activo
+        string tenant_id
         datetime fecha_alta
     }
 
@@ -112,8 +114,10 @@ Catálogo de referencia para validación y enriquecimiento de nombres de artícu
 | `codigo_envase` | `VARCHAR(50)` | NO | Código o identificador del envase/caja (PK compuesta). |
 | `nombre_articulo` | `VARCHAR(150)`| NO | Nombre legible de la variedad o producto. |
 | `descripcion_envase` | `VARCHAR(100)`| NO | Descripción del formato (ej. "EPS 104", "Madera 50x30"). |
+| `es_predeterminado` | `BOOLEAN` | SÍ | `TRUE` si es el envase predeterminado/habitual de compras para este artículo. |
 | `grupo_comercial` | `VARCHAR(100)`| SÍ | Agrupación analítica (ej. "Tomate Rosa", "Calabacín"). Solo para filtros visuales. |
 | `activo` | `BOOLEAN` | NO | `TRUE` si se encuentra en uso activo; `FALSE` si está descontinuado. |
+| `tenant_id` | `VARCHAR(50)` | NO | Identificador del tenant/empresa (ej. "DEFAULT", "TENANT_PRINCIPAL"). |
 | `fecha_alta` | `DATETIME` | NO | Fecha y hora de registro en el catálogo (`YYYY-MM-DD HH:mm:ss`). |
 
 ---

@@ -17,12 +17,16 @@ if (typeof require !== 'undefined') {
   const confMod = require('./Config');
   const driveMod = require('./DriveService');
   const queryMod = require('./StockQueryService');
+  const aeIngestMod = require('./ArticuloEnvaseIngestionService');
+  const safetyMod = require('./OperationalSafetyService');
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
   global.MaestroResolver = maestroMod.MaestroResolver;
   global.DocumentValidator = valMod.DocumentValidator;
   global.DocumentParserRegistry = regMod.DocumentParserRegistry;
+  global.ArticuloEnvaseIngestionService = aeIngestMod.ArticuloEnvaseIngestionService;
+  global.OperationalSafetyService = safetyMod.OperationalSafetyService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -359,6 +363,325 @@ function confirmarCompraPendiente(clientPayload, usuario, options = {}) {
   return service.confirmarCompraPendiente(clientPayload, user, resolver, options);
 }
 
+/**
+ * Ingesta una matriz de asociaciones artículo-envase en MAESTRO con validación e idempotencia.
+ * @param {string|Array<Object>} input 
+ * @param {Object} [options]
+ */
+function apiIngestarMatrizArticuloEnvase(input, options = {}) {
+  const service = new ArticuloEnvaseIngestionService(options);
+  return service.ingestarMatriz(input, options);
+}
+
+/**
+ * Cambia el envase predeterminado de un artículo en MAESTRO de forma atómica y explícita.
+ * @param {string} codigoArticulo 
+ * @param {string} nuevoEnvasePredeterminado 
+ * @param {Object} [options]
+ */
+/**
+ * Cambia el envase predeterminado de un artículo en MAESTRO de forma atómica y explícita.
+ * @param {string} codigoArticulo 
+ * @param {string} nuevoEnvasePredeterminado 
+ * @param {Object} [options]
+ */
+function apiCambiarEnvasePredeterminado(codigoArticulo, nuevoEnvasePredeterminado, options = {}) {
+  const service = new ArticuloEnvaseIngestionService(options);
+  return service.cambiarEnvasePredeterminado(codigoArticulo, nuevoEnvasePredeterminado, options);
+}
+
+/**
+ * Obtiene el resumen visual simplificado de existencias agrupado comercialmente (Fase 4).
+ * Apto para usuarios no técnicos y diseño responsivo móvil/tablet/PC.
+ * @param {Object} [options]
+ */
+function apiObtenerStockVisualResumen(options = {}) {
+  const service = new StockQueryService(options);
+  return service.obtenerStockVisualResumen();
+}
+
+/**
+ * Obtiene el desglose detallado de existencias de un grupo comercial (Fase 4).
+ * Permite llegar hasta el nivel de Artículo + Envase + Calibre/Categoría + Cajas.
+ * @param {string} groupId 
+ * @param {string} [subgroupId] 
+ * @param {Object} [options] 
+ */
+function apiObtenerStockVisualDetalle(groupId, subgroupId, options = {}) {
+  const service = new StockQueryService(options);
+  return service.obtenerStockVisualDetalle(groupId, subgroupId);
+}
+
+/**
+ * Clasifica una combinación artículo-envase utilizando el CommercialGroupResolver (Fase 4).
+ * @param {string|Object} articulo 
+ * @param {string} [envase] 
+ * @param {Object} [options] 
+ */
+function apiClasificarArticuloEnvase(articulo, envase, options = {}) {
+  const resolver = (typeof CommercialGroupResolver !== 'undefined')
+    ? new CommercialGroupResolver(options)
+    : (typeof require !== 'undefined' ? new (require('./CommercialGroupResolver').CommercialGroupResolver)(options) : null);
+  if (!resolver) throw new Error('CommercialGroupResolver no disponible.');
+  return resolver.resolve(articulo, envase, options);
+}
+
+/**
+ * Carga un catálogo histórico adicional sin inventar asociaciones automáticas.
+ * Las combinaciones no contempladas quedan marcadas como 'PENDIENTE DE ASOCIACIÓN'.
+ * @param {Array<Object>|string} catalogData
+ * @param {Object} [options]
+ */
+function apiCargarCatalogoHistorico(catalogData, options = {}) {
+  const resolver = (typeof CommercialGroupResolver !== 'undefined')
+    ? new CommercialGroupResolver(options)
+    : (typeof require !== 'undefined' ? new (require('./CommercialGroupResolver').CommercialGroupResolver)(options) : null);
+  if (!resolver) throw new Error('CommercialGroupResolver no disponible.');
+  return resolver.loadHistoricalCatalog(catalogData, options);
+}
+
+/**
+ * Obtiene la lista de combinaciones pendientes de asociación para posterior revisión.
+ * @param {Object} [options]
+ */
+function apiObtenerCombinacionesPendientesAsociacion(options = {}) {
+  const resolver = (typeof CommercialGroupResolver !== 'undefined')
+    ? new CommercialGroupResolver(options)
+    : (typeof require !== 'undefined' ? new (require('./CommercialGroupResolver').CommercialGroupResolver)(options) : null);
+  if (!resolver) throw new Error('CommercialGroupResolver no disponible.');
+  return resolver.getCombinacionesPendientes();
+}
+
+/**
+ * Consulta las capas FIFO vivas de un artículo + envase concreto para mostrar partidas (Fase 5 - Drill Down Nivel 5).
+ * @param {string} codigoArticulo 
+ * @param {string} codigoEnvase 
+ * @param {Object} [options] 
+ */
+function apiObtenerDetallePartidas(codigoArticulo, codigoEnvase, options = {}) {
+  const service = new StockQueryService(options);
+  return service.obtenerDetallePartidas(codigoArticulo, codigoEnvase, options);
+}
+
+/**
+ * Registra un ajuste positivo manual en el inventario (Fase 5).
+ * @param {Object} params 
+ * @param {string} [usuario] 
+ */
+function apiRegistrarAjustePositivo(params, usuario) {
+  const service = new MovementService();
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  return service.registrarAjustePositivo(params, user);
+}
+
+/**
+ * Registra un ajuste negativo manual en el inventario (Fase 5).
+ * @param {Object} params 
+ * @param {string} [usuario] 
+ */
+function apiRegistrarAjusteNegativo(params, usuario) {
+  const service = new MovementService();
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  return service.registrarAjusteNegativo(params, user);
+}
+
+/**
+ * Registra una reclasificación u operación de traspaso entre dos formatos (Fase 5).
+ * @param {Object} params 
+ * @param {string} [usuario] 
+ */
+function apiRegistrarReclasificacion(params, usuario) {
+  const service = new MovementService();
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  return service.registrarReclasificacion(params, user);
+}
+
+/**
+ * Obtiene la lista de grupos comerciales configurados en la persistencia (Fase 5).
+ * @param {Object} [options]
+ */
+function apiGetGruposComerciales(options = {}) {
+  const repo = options.repository || new SheetsRepository();
+  return repo.getGruposComerciales();
+}
+
+/**
+ * Inserta o actualiza un grupo comercial en la persistencia (Fase 5).
+ * @param {Object} grupo 
+ * @param {Object} [options]
+ */
+function apiUpsertGrupoComercial(grupo, options = {}) {
+  const repo = options.repository || new SheetsRepository();
+  return repo.upsertGrupoComercial(grupo);
+}
+
+/**
+ * Obtiene las asociaciones de la matriz artículo + envase configurables (Fase 5).
+ * @param {Object} [options]
+ */
+function apiGetMatrizArticuloEnvase(options = {}) {
+  const repo = options.repository || new SheetsRepository();
+  return repo.getMatrizArticuloEnvase();
+}
+
+/**
+ * Inserta o actualiza una asociación en la matriz artículo + envase (Fase 5).
+ * @param {Object} asociacion 
+ * @param {Object} [options]
+ */
+function apiUpsertMatrizArticuloEnvase(asociacion, options = {}) {
+  const repo = options.repository || new SheetsRepository();
+  return repo.upsertMatrizArticuloEnvase(asociacion);
+}
+
+/**
+ * Valida un documento y sus líneas antes de cualquier mutación de inventario (Fase 6.0).
+ * @param {Object} docPayload 
+ * @param {Array<Object>} lineas 
+ * @param {string} [tipoDocumento='ENTRADA'] 
+ * @param {Object} [options]
+ */
+function apiValidarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA', options = {}) {
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.validarDocumento(docPayload, lineas, tipoDocumento);
+}
+
+/**
+ * Genera la previsualización interactiva con semáforo (OK/PENDIENTE/ERROR) (Fase 6.0).
+ * @param {Object} docPayload 
+ * @param {Array<Object>} lineas 
+ * @param {string} [tipoDocumento='ENTRADA'] 
+ * @param {Object} [options]
+ */
+function apiPrevisualizarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA', options = {}) {
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.previsualizarDocumento(docPayload, lineas, tipoDocumento);
+}
+
+/**
+ * Procesa una entrada tras validación previa obligatoria y control de duplicados (Fase 6.0).
+ * @param {Object} docPayload 
+ * @param {Array<Object>} lineas 
+ * @param {string} [usuario] 
+ * @param {Object} [options]
+ */
+function apiProcesarEntradaDocumento(docPayload, lineas, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.procesarEntradaDocumento(docPayload, lineas, user);
+}
+
+/**
+ * Procesa una salida tras validación previa y comprobación estricta de stock disponible (Fase 6.0).
+ * @param {Object} docPayload 
+ * @param {Array<Object>} lineas 
+ * @param {string} [usuario] 
+ * @param {Object} [options]
+ */
+function apiProcesarSalidaDocumento(docPayload, lineas, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.procesarSalidaDocumento(docPayload, lineas, user);
+}
+
+/**
+ * Concilia existencias de STOCK-LIGHT contra un inventario externo de forma no destructiva (Fase 6.0).
+ * @param {Array<Object>} stockExterno 
+ * @param {Object} [options]
+ */
+function apiConciliarStock(stockExterno, options = {}) {
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.conciliarStock(stockExterno, options);
+}
+
+/**
+ * Ejecuta de forma unificada cualquier ajuste manual o reclasificación (Fase 6.0).
+ * @param {Object} ajustePayload 
+ * @param {string} [usuario] 
+ * @param {Object} [options]
+ */
+function apiEjecutarAjusteOperativo(ajustePayload, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.ejecutarAjusteOperativo(ajustePayload, user);
+}
+
+/**
+ * Obtiene el log de trazabilidad operativa simple (Fase 6.0).
+ * @param {Object} [options]
+ */
+function apiObtenerLogOperaciones(options = {}) {
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.obtenerLogOperaciones();
+}
+
+/**
+ * Previsualiza una corrección histórica de forma 100% analítica y sin mutar datos (Fase 6.1).
+ * @param {Object} correccionPayload
+ * @param {Object} [options]
+ */
+function apiPrevisualizarCorreccionHistorica(correccionPayload, options = {}) {
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.previsualizarCorreccionHistorica(correccionPayload);
+}
+
+/**
+ * Ejecuta una corrección histórica determinista y segura con motivo obligatorio y conciliación (Fase 6.1).
+ * @param {Object} correccionPayload
+ * @param {string} [usuario]
+ * @param {Object} [options]
+ */
+function apiEjecutarCorreccionHistorica(correccionPayload, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.ejecutarCorreccionHistorica(correccionPayload, user);
+}
+
+/**
+ * Anula una entrada sin consumos posteriores (Fase 6.1).
+ */
+function apiAnularEntrada(params, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.anularEntrada(params, user);
+}
+
+/**
+ * Anula una salida restituyendo capas FIFO (Fase 6.1).
+ */
+function apiAnularSalida(params, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.anularSalida(params, user);
+}
+
+/**
+ * Corrige una entrada parcialmente consumida o modifica artículo/envase (Fase 6.1).
+ */
+function apiCorregirEntrada(params, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.corregirEntrada(params, user);
+}
+
+/**
+ * Corrige la cantidad de una salida histórica (Fase 6.1).
+ */
+function apiCorregirSalida(params, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.corregirSalida(params, user);
+}
+
+/**
+ * Divide una entrada histórica en múltiples combinaciones (Fase 6.1).
+ */
+function apiDividirEntrada(params, usuario, options = {}) {
+  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  return service.dividirEntrada(params, user);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     initDatabase,
@@ -374,6 +697,38 @@ if (typeof module !== 'undefined' && module.exports) {
     apiObtenerResumenPorGrupos,
     apiObtenerStockPorGrupo,
     apiObtenerDetalleGrupo,
-    apiObtenerDetalleStock
+    apiObtenerDetalleStock,
+    apiIngestarMatrizArticuloEnvase,
+    apiCambiarEnvasePredeterminado,
+    apiObtenerStockVisualResumen,
+    apiObtenerStockVisualDetalle,
+    apiClasificarArticuloEnvase,
+    apiCargarCatalogoHistorico,
+    apiObtenerCombinacionesPendientesAsociacion,
+    apiObtenerDetallePartidas,
+    apiRegistrarAjustePositivo,
+    apiRegistrarAjusteNegativo,
+    apiRegistrarReclasificacion,
+    apiGetGruposComerciales,
+    apiUpsertGrupoComercial,
+    apiGetMatrizArticuloEnvase,
+    apiUpsertMatrizArticuloEnvase,
+    apiValidarDocumento,
+    apiPrevisualizarDocumento,
+    apiProcesarEntradaDocumento,
+    apiProcesarSalidaDocumento,
+    apiConciliarStock,
+    apiEjecutarAjusteOperativo,
+    apiObtenerLogOperaciones,
+    apiPrevisualizarCorreccionHistorica,
+    apiEjecutarCorreccionHistorica,
+    apiAnularEntrada,
+    apiAnularSalida,
+    apiCorregirEntrada,
+    apiCorregirSalida,
+    apiDividirEntrada,
+    ArticuloEnvaseIngestionService,
+    CommercialGroupResolver: typeof CommercialGroupResolver !== 'undefined' ? CommercialGroupResolver : (typeof require !== 'undefined' ? require('./CommercialGroupResolver').CommercialGroupResolver : null),
+    OperationalSafetyService: typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : (typeof require !== 'undefined' ? require('./OperationalSafetyService').OperationalSafetyService : null)
   };
 }

@@ -21,8 +21,10 @@ const SCHEMA_DEFINITIONS = {
     'codigo_envase',
     'nombre_articulo',
     'descripcion_envase',
+    'es_predeterminado',
     'grupo_comercial',
     'activo',
+    'tenant_id',
     'fecha_alta'
   ],
   DOCUMENTOS: [
@@ -84,6 +86,52 @@ const SCHEMA_DEFINITIONS = {
     'descripcion_envase',
     'grupo_envase',
     'activo'
+  ],
+  MAESTRO_ARTICULOS: [
+    'id',
+    'nombre',
+    'activo'
+  ],
+  MAESTRO_ENVASES: [
+    'id',
+    'nombre',
+    'tara_kg',
+    'peso_unitario_kg',
+    'activo'
+  ],
+  GRUPOS_COMERCIALES: [
+    'id',
+    'nombre',
+    'orden_visual',
+    'activo',
+    'tipo'
+  ],
+  MATRIZ_ARTICULO_ENVASE: [
+    'id',
+    'articulo',
+    'envase',
+    'grupo_comercial',
+    'subgrupo',
+    'prioridad',
+    'activo',
+    'observaciones'
+  ],
+  LOG_OPERACIONES: [
+    'id_log',
+    'fecha_hora',
+    'usuario',
+    'operacion',
+    'codigo_articulo',
+    'nombre_articulo',
+    'codigo_envase',
+    'descripcion_envase',
+    'cantidad_cajas',
+    'origen',
+    'destino',
+    'motivo',
+    'referencia',
+    'estado',
+    'observaciones'
   ]
 };
 
@@ -319,6 +367,125 @@ class SheetsRepository {
     return this.readTable('MAESTRO');
   }
 
+  saveMaestro(records) {
+    return this.replaceTable('MAESTRO', records);
+  }
+
+  appendMaestro(records) {
+    return this.appendRecords('MAESTRO', records);
+  }
+
+  /**
+   * Actualiza o inserta un registro en MAESTRO garantizando idempotencia por:
+   * (tenant_id, codigo_articulo, codigo_envase)
+   * @param {Object} record 
+   */
+  upsertMaestroRecord(record) {
+    if (!record || !record.codigo_articulo || !record.codigo_envase) {
+      throw new Error('Registro de MAESTRO inválido: codigo_articulo y codigo_envase son obligatorios.');
+    }
+    const tenant = String(record.tenant_id || 'DEFAULT').trim();
+    const art = String(record.codigo_articulo).trim();
+    const env = String(record.codigo_envase).trim();
+
+    const maestro = this.getMaestro();
+    const existingIdx = maestro.findIndex(m => 
+      String(m.codigo_articulo || '').trim() === art &&
+      String(m.codigo_envase || '').trim() === env &&
+      String(m.tenant_id || 'DEFAULT').trim() === tenant
+    );
+
+    const merged = {
+      codigo_articulo: art,
+      codigo_envase: env,
+      nombre_articulo: record.nombre_articulo !== undefined ? record.nombre_articulo : (existingIdx >= 0 ? maestro[existingIdx].nombre_articulo : ''),
+      descripcion_envase: record.descripcion_envase !== undefined ? record.descripcion_envase : (existingIdx >= 0 ? maestro[existingIdx].descripcion_envase : ''),
+      es_predeterminado: record.es_predeterminado !== undefined ? record.es_predeterminado : (existingIdx >= 0 ? maestro[existingIdx].es_predeterminado : false),
+      grupo_comercial: record.grupo_comercial !== undefined ? record.grupo_comercial : (existingIdx >= 0 ? maestro[existingIdx].grupo_comercial : ''),
+      activo: record.activo !== undefined ? record.activo : (existingIdx >= 0 ? maestro[existingIdx].activo : true),
+      tenant_id: tenant,
+      fecha_alta: (existingIdx >= 0 && maestro[existingIdx].fecha_alta) ? maestro[existingIdx].fecha_alta : (record.fecha_alta || new Date().toISOString())
+    };
+
+    if (existingIdx >= 0) {
+      maestro[existingIdx] = merged;
+      this.saveMaestro(maestro);
+    } else {
+      maestro.push(merged);
+      this.saveMaestro(maestro);
+    }
+    return merged;
+  }
+
+  /**
+   * Establece un envase como predeterminado para un artículo, desmarcando otros predeterminados
+   * sin eliminar asociaciones existentes ni desactivarlas.
+   * @param {string} codigoArticulo 
+   * @param {string} codigoEnvase 
+   * @param {string} [tenantId='DEFAULT'] 
+   */
+  setEnvasePredeterminado(codigoArticulo, codigoEnvase, tenantId = 'DEFAULT') {
+    const art = String(codigoArticulo || '').trim();
+    const env = String(codigoEnvase || '').trim();
+    const tenant = String(tenantId || 'DEFAULT').trim();
+
+    if (!art || !env) {
+      throw new Error(`setEnvasePredeterminado requiere codigoArticulo y codigoEnvase.`);
+    }
+
+    const maestro = this.getMaestro();
+    let targetFound = false;
+
+    maestro.forEach(m => {
+      const mArt = String(m.codigo_articulo || '').trim();
+      const mEnv = String(m.codigo_envase || '').trim();
+      const mTenant = String(m.tenant_id || 'DEFAULT').trim();
+
+      if (mArt === art && mTenant === tenant) {
+        if (mEnv === env) {
+          m.es_predeterminado = true;
+          m.activo = true;
+          targetFound = true;
+        } else {
+          m.es_predeterminado = false;
+        }
+      }
+    });
+
+    if (!targetFound) {
+      maestro.push({
+        codigo_articulo: art,
+        codigo_envase: env,
+        nombre_articulo: '',
+        descripcion_envase: '',
+        es_predeterminado: true,
+        grupo_comercial: '',
+        activo: true,
+        tenant_id: tenant,
+        fecha_alta: new Date().toISOString()
+      });
+    }
+
+    this.saveMaestro(maestro);
+    return true;
+  }
+
+  /**
+   * Obtiene todas las asociaciones activas de un artículo para un tenant.
+   * @param {string} codigoArticulo 
+   * @param {string} [tenantId='DEFAULT'] 
+   */
+  getAsociacionesArticulo(codigoArticulo, tenantId = 'DEFAULT') {
+    const art = String(codigoArticulo || '').trim();
+    const tenant = String(tenantId || 'DEFAULT').trim();
+    const maestro = this.getMaestro();
+    return maestro.filter(m => 
+      String(m.codigo_articulo || '').trim() === art &&
+      String(m.tenant_id || 'DEFAULT').trim() === tenant &&
+      (m.activo === true || String(m.activo).toLowerCase() === 'true' || m.activo === 1)
+    );
+  }
+
   getGruposEnvase() {
     const ss = this.getSpreadsheet();
     if (!ss.getSheetByName('GRUPOS_ENVASE')) {
@@ -329,6 +496,200 @@ class SheetsRepository {
 
   saveGruposEnvase(records) {
     return this.replaceTable('GRUPOS_ENVASE', records);
+  }
+
+  // --- MÉTODOS OPERATIVOS FASE 5: CATÁLOGOS COMERCIALES CONFIGURABLES ---
+
+  getMaestroArticulos() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('MAESTRO_ARTICULOS')) return [];
+    return this.readTable('MAESTRO_ARTICULOS');
+  }
+
+  saveMaestroArticulos(records) {
+    return this.replaceTable('MAESTRO_ARTICULOS', records);
+  }
+
+  upsertMaestroArticulo(articulo) {
+    if (!articulo || (!articulo.id && !articulo.nombre)) {
+      throw new Error('upsertMaestroArticulo: Se requiere id o nombre.');
+    }
+    const id = String(articulo.id || articulo.codigo || articulo.nombre).trim();
+    const nombre = String(articulo.nombre || articulo.id).trim();
+    const activo = articulo.activo !== false;
+
+    const list = this.getMaestroArticulos();
+    const idx = list.findIndex(a => String(a.id || '').trim().toUpperCase() === id.toUpperCase());
+    const record = { id, nombre, activo };
+
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.push(record);
+    }
+    this.saveMaestroArticulos(list);
+    return record;
+  }
+
+  getMaestroEnvases() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('MAESTRO_ENVASES')) return [];
+    return this.readTable('MAESTRO_ENVASES');
+  }
+
+  saveMaestroEnvases(records) {
+    return this.replaceTable('MAESTRO_ENVASES', records);
+  }
+
+  upsertMaestroEnvase(envase) {
+    if (!envase || (!envase.id && !envase.nombre)) {
+      throw new Error('upsertMaestroEnvase: Se requiere id o nombre.');
+    }
+    const id = String(envase.id || envase.codigo || envase.nombre).trim();
+    const nombre = String(envase.nombre || envase.id).trim();
+    const taraKg = envase.tara_kg !== undefined ? Number(envase.tara_kg) : 0;
+    const pesoUnitarioKg = envase.peso_unitario_kg !== undefined ? Number(envase.peso_unitario_kg) : 0;
+    const activo = envase.activo !== false;
+
+    const list = this.getMaestroEnvases();
+    const idx = list.findIndex(e => String(e.id || '').trim().toUpperCase() === id.toUpperCase());
+    const record = { id, nombre, tara_kg: taraKg, peso_unitario_kg: pesoUnitarioKg, activo };
+
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.push(record);
+    }
+    this.saveMaestroEnvases(list);
+    return record;
+  }
+
+  getGruposComerciales() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('GRUPOS_COMERCIALES')) return [];
+    return this.readTable('GRUPOS_COMERCIALES');
+  }
+
+  saveGruposComerciales(records) {
+    return this.replaceTable('GRUPOS_COMERCIALES', records);
+  }
+
+  upsertGrupoComercial(grupo) {
+    if (!grupo || (!grupo.id && !grupo.nombre)) {
+      throw new Error('upsertGrupoComercial: Se requiere id o nombre.');
+    }
+    const id = String(grupo.id || grupo.nombre).trim().toUpperCase();
+    const nombre = String(grupo.nombre || grupo.id).trim();
+    const ordenVisual = grupo.orden_visual !== undefined ? Number(grupo.orden_visual) : 50;
+    const activo = grupo.activo !== false;
+    const tipo = String(grupo.tipo || 'COMERCIAL').trim();
+
+    const list = this.getGruposComerciales();
+    const idx = list.findIndex(g => String(g.id || '').trim().toUpperCase() === id);
+    const record = { id, nombre, orden_visual: ordenVisual, activo, tipo };
+
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.push(record);
+    }
+    this.saveGruposComerciales(list);
+    return record;
+  }
+
+  getMatrizArticuloEnvase() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('MATRIZ_ARTICULO_ENVASE')) return [];
+    return this.readTable('MATRIZ_ARTICULO_ENVASE');
+  }
+
+  saveMatrizArticuloEnvase(records) {
+    return this.replaceTable('MATRIZ_ARTICULO_ENVASE', records);
+  }
+
+  upsertMatrizArticuloEnvase(asoc) {
+    if (!asoc || !asoc.articulo) {
+      throw new Error('upsertMatrizArticuloEnvase: Se requiere articulo.');
+    }
+    const art = String(asoc.articulo).trim();
+    const env = String(asoc.envase || '').trim();
+    const id = asoc.id || `${art}|${env}`;
+    const grp = String(asoc.grupo_comercial || '').trim();
+    const subgrp = asoc.subgrupo !== undefined && asoc.subgrupo !== null ? String(asoc.subgrupo).trim() : '';
+    const prioridad = asoc.prioridad !== undefined ? Number(asoc.prioridad) : 20;
+    const activo = asoc.activo !== false;
+    const observaciones = String(asoc.observaciones || '').trim();
+
+    const list = this.getMatrizArticuloEnvase();
+    const idx = list.findIndex(m => 
+      String(m.articulo || '').trim().toUpperCase() === art.toUpperCase() &&
+      String(m.envase || '').trim().toUpperCase() === env.toUpperCase()
+    );
+
+    const record = {
+      id,
+      articulo: art,
+      envase: env,
+      grupo_comercial: grp,
+      subgrupo: subgrp,
+      prioridad,
+      activo,
+      observaciones
+    };
+
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.push(record);
+    }
+    this.saveMatrizArticuloEnvase(list);
+    return record;
+  }
+
+  /**
+   * Obtiene el registro operativo de trazabilidad simple.
+   * @returns {Array<Object>}
+   */
+  getLogOperaciones() {
+    return this.readTable('LOG_OPERACIONES');
+  }
+
+  /**
+   * Añade registros al log de operaciones.
+   * @param {Array<Object>} logs 
+   * @returns {number}
+   */
+  appendLogOperaciones(logs = []) {
+    if (!Array.isArray(logs) || logs.length === 0) return 0;
+    return this.appendRecords('LOG_OPERACIONES', logs);
+  }
+
+  /**
+   * Añade un único registro al log de operaciones.
+   * @param {Object} log 
+   * @returns {Object}
+   */
+  appendLogOperacion(log) {
+    if (!log) return null;
+    const record = {
+      id_log: log.id_log || `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      fecha_hora: log.fecha_hora || new Date().toISOString(),
+      usuario: log.usuario || 'SISTEMA',
+      operacion: log.operacion || '',
+      codigo_articulo: log.codigo_articulo || '',
+      nombre_articulo: log.nombre_articulo || '',
+      codigo_envase: log.codigo_envase || '',
+      descripcion_envase: log.descripcion_envase || '',
+      cantidad_cajas: log.cantidad_cajas != null ? Number(log.cantidad_cajas) : (log.cajas != null ? Number(log.cajas) : 0),
+      origen: log.origen || '',
+      destino: log.destino || '',
+      motivo: log.motivo || '',
+      referencia: log.referencia || '',
+      estado: log.estado || 'CORRECTA',
+      observaciones: log.observaciones || ''
+    };
+    this.appendLogOperaciones([record]);
+    return record;
   }
 }
 

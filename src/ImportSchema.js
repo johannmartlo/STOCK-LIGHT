@@ -66,6 +66,12 @@ const ARTICULO_ENVASE_HEADER_SYNONYMS = {
   ],
   activo: [
     'activo', 'estado', 'baja', 'is_active'
+  ],
+  tenant_id: [
+    'tenantid', 'tenant_id', 'tenant', 'empresa', 'company_id'
+  ],
+  grupo_comercial: [
+    'grupocomercial', 'grupo_comercial', 'grupocom', 'grupo'
   ]
 };
 
@@ -77,7 +83,7 @@ const ENVASES_SCHEMA_SPEC = {
 
 const ARTICULO_ENVASE_SCHEMA_SPEC = {
   mandatory: ['codigo_articulo', 'nombre_articulo', 'codigo_envase', 'nombre_envase'],
-  optional: ['es_predeterminado', 'activo']
+  optional: ['es_predeterminado', 'activo', 'tenant_id', 'grupo_comercial']
 };
 
 /**
