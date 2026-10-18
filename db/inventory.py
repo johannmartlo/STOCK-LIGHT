@@ -117,18 +117,44 @@ def _next_balance(
     packaging_code: str,
     delta: int,
 ) -> None:
-    conn.execute(
+    if delta > 0:
+        conn.execute(
+            """
+            INSERT INTO stock_balances (article_code, packaging_code, boxes, version)
+            VALUES (%s, %s, %s, 1)
+            ON CONFLICT (article_code, packaging_code)
+            DO UPDATE SET
+                boxes = stock_balances.boxes + EXCLUDED.boxes,
+                version = stock_balances.version + 1,
+                updated_at = now()
+            """,
+            (article_code, packaging_code, delta),
+        )
+        return
+
+    if delta == 0:
+        return
+
+    # PostgreSQL evaluates CHECK constraints on the proposed INSERT row before
+    # ON CONFLICT resolution. A negative delta must therefore use UPDATE, not an
+    # upsert with a negative VALUES row.
+    updated = conn.execute(
         """
-        INSERT INTO stock_balances (article_code, packaging_code, boxes, version)
-        VALUES (%s, %s, %s, 1)
-        ON CONFLICT (article_code, packaging_code)
-        DO UPDATE SET
-            boxes = stock_balances.boxes + EXCLUDED.boxes,
-            version = stock_balances.version + 1,
+        UPDATE stock_balances
+        SET boxes = boxes - %s,
+            version = version + 1,
             updated_at = now()
+        WHERE article_code = %s
+          AND packaging_code = %s
+          AND boxes >= %s
+        RETURNING boxes
         """,
-        (article_code, packaging_code, delta),
-    )
+        (-delta, article_code, packaging_code, -delta),
+    ).fetchone()
+    if updated is None:
+        raise InsufficientStock(
+            f"Insufficient stock for {article_code}|{packaging_code} during balance update"
+        )
 
 
 def _validate_lines(lines: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
