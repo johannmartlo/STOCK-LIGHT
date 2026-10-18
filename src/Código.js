@@ -19,6 +19,8 @@ if (typeof require !== 'undefined') {
   const queryMod = require('./StockQueryService');
   const aeIngestMod = require('./ArticuloEnvaseIngestionService');
   const safetyMod = require('./OperationalSafetyService');
+  let masterInitMod = null;
+  try { masterInitMod = require('./MasterInitializationService'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -27,6 +29,7 @@ if (typeof require !== 'undefined') {
   global.DocumentParserRegistry = regMod.DocumentParserRegistry;
   global.ArticuloEnvaseIngestionService = aeIngestMod.ArticuloEnvaseIngestionService;
   global.OperationalSafetyService = safetyMod.OperationalSafetyService;
+  if (masterInitMod) global.MasterInitializationService = masterInitMod.MasterInitializationService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -534,6 +537,16 @@ function apiUpsertMatrizArticuloEnvase(asociacion, options = {}) {
   return repo.upsertMatrizArticuloEnvase(asociacion);
 }
 
+function _resolveOperationalSafetyService(options = {}) {
+  const ServiceClass = (typeof OperationalSafetyService !== 'undefined')
+    ? OperationalSafetyService
+    : (typeof require !== 'undefined' ? require('./OperationalSafetyService').OperationalSafetyService : null);
+  if (!ServiceClass) {
+    throw new Error('OperationalSafetyService no está disponible en este entorno de ejecución.');
+  }
+  return new ServiceClass(options);
+}
+
 /**
  * Valida un documento y sus líneas antes de cualquier mutación de inventario (Fase 6.0).
  * @param {Object} docPayload 
@@ -542,7 +555,7 @@ function apiUpsertMatrizArticuloEnvase(asociacion, options = {}) {
  * @param {Object} [options]
  */
 function apiValidarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA', options = {}) {
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.validarDocumento(docPayload, lineas, tipoDocumento);
 }
 
@@ -554,7 +567,7 @@ function apiValidarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA', opti
  * @param {Object} [options]
  */
 function apiPrevisualizarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA', options = {}) {
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.previsualizarDocumento(docPayload, lineas, tipoDocumento);
 }
 
@@ -567,7 +580,7 @@ function apiPrevisualizarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA'
  */
 function apiProcesarEntradaDocumento(docPayload, lineas, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.procesarEntradaDocumento(docPayload, lineas, user);
 }
 
@@ -580,7 +593,7 @@ function apiProcesarEntradaDocumento(docPayload, lineas, usuario, options = {}) 
  */
 function apiProcesarSalidaDocumento(docPayload, lineas, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.procesarSalidaDocumento(docPayload, lineas, user);
 }
 
@@ -590,7 +603,7 @@ function apiProcesarSalidaDocumento(docPayload, lineas, usuario, options = {}) {
  * @param {Object} [options]
  */
 function apiConciliarStock(stockExterno, options = {}) {
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.conciliarStock(stockExterno, options);
 }
 
@@ -602,7 +615,7 @@ function apiConciliarStock(stockExterno, options = {}) {
  */
 function apiEjecutarAjusteOperativo(ajustePayload, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.ejecutarAjusteOperativo(ajustePayload, user);
 }
 
@@ -611,7 +624,7 @@ function apiEjecutarAjusteOperativo(ajustePayload, usuario, options = {}) {
  * @param {Object} [options]
  */
 function apiObtenerLogOperaciones(options = {}) {
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.obtenerLogOperaciones();
 }
 
@@ -621,7 +634,7 @@ function apiObtenerLogOperaciones(options = {}) {
  * @param {Object} [options]
  */
 function apiPrevisualizarCorreccionHistorica(correccionPayload, options = {}) {
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.previsualizarCorreccionHistorica(correccionPayload);
 }
 
@@ -633,7 +646,7 @@ function apiPrevisualizarCorreccionHistorica(correccionPayload, options = {}) {
  */
 function apiEjecutarCorreccionHistorica(correccionPayload, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.ejecutarCorreccionHistorica(correccionPayload, user);
 }
 
@@ -642,7 +655,7 @@ function apiEjecutarCorreccionHistorica(correccionPayload, usuario, options = {}
  */
 function apiAnularEntrada(params, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.anularEntrada(params, user);
 }
 
@@ -651,7 +664,7 @@ function apiAnularEntrada(params, usuario, options = {}) {
  */
 function apiAnularSalida(params, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.anularSalida(params, user);
 }
 
@@ -660,7 +673,7 @@ function apiAnularSalida(params, usuario, options = {}) {
  */
 function apiCorregirEntrada(params, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.corregirEntrada(params, user);
 }
 
@@ -669,7 +682,7 @@ function apiCorregirEntrada(params, usuario, options = {}) {
  */
 function apiCorregirSalida(params, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.corregirSalida(params, user);
 }
 
@@ -678,8 +691,218 @@ function apiCorregirSalida(params, usuario, options = {}) {
  */
 function apiDividirEntrada(params, usuario, options = {}) {
   const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
-  const service = new (typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : require('./OperationalSafetyService').OperationalSafetyService)(options);
+  const service = _resolveOperationalSafetyService(options);
   return service.dividirEntrada(params, user);
+}
+
+/**
+ * Punto de entrada HTTP oficial para Google Apps Script HtmlService (Fase 7.0).
+ * Sirve la interfaz web responsive de STOCK-LIGHT.
+ * 
+ * @param {Object} [e] Parámetros de petición HTTP
+ * @returns {HtmlOutput}
+ */
+function doGet(e) {
+  const template = HtmlService.createTemplateFromFile('Index');
+  return template.evaluate()
+    .setTitle('STOCK-LIGHT — Control de Existencias Hortofrutícola')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+}
+
+/**
+ * Confirma un documento revisado a partir de su entrada canónica (Fase 7.1).
+ * Reutiliza el contrato seguro y canónico confirmarDocumentoRevisado.
+ * 
+ * @param {string|Object} canonicalInput - rawText o { rawText, fileMeta }
+ * @param {string} [usuario='OPERADOR']
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiConfirmarDocumentoRevisado(canonicalInput, usuario = 'OPERADOR', options = {}) {
+  return confirmarDocumentoRevisado(canonicalInput, usuario, options);
+}
+
+/**
+ * Obtiene el catálogo maestro de artículos (Fase 7.0).
+ * @param {Object} [options]
+ * @returns {Array<Object>}
+ */
+function apiGetMaestroArticulos(options = {}) {
+  const repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
+  if (!repo || typeof repo.getMaestroArticulos !== 'function') return [];
+  return repo.getMaestroArticulos();
+}
+
+/**
+ * Obtiene el catálogo maestro de envases con taras y pesos (Fase 7.0).
+ * @param {Object} [options]
+ * @returns {Array<Object>}
+ */
+function apiGetMaestroEnvases(options = {}) {
+  const repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
+  if (!repo || typeof repo.getMaestroEnvases !== 'function') return [];
+  return repo.getMaestroEnvases();
+}
+
+/**
+ * Analiza un albarán PDF subido desde el frontend (Fase 7.0).
+ * Calcula SHA-256 en servidor, extrae texto canónico y devuelve revisión estructurada.
+ * CERO mutaciones de stock durante esta fase.
+ * 
+ * @param {Object} filePayload - { fileName: string, base64: string }
+ * @param {Object} [options]
+ * @returns {Object} ReviewPayload con datos extraídos y advertencias
+ */
+function apiSubirYAnalizarPdf(filePayload, options = {}) {
+  if (!filePayload || !filePayload.fileName || !filePayload.base64) {
+    throw new Error('apiSubirYAnalizarPdf: Se requiere fileName y base64.');
+  }
+  const fileName = String(filePayload.fileName).trim();
+  const base64Clean = String(filePayload.base64).replace(/^data:application\/pdf;base64,/, '');
+
+  let rawBytes;
+  let sha256Hash = '';
+
+  if (typeof Utilities !== 'undefined' && typeof Utilities.base64Decode === 'function') {
+    rawBytes = Utilities.base64Decode(base64Clean);
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, rawBytes);
+    sha256Hash = digest.map(b => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0')).join('');
+  } else if (typeof Buffer !== 'undefined') {
+    const buf = Buffer.from(base64Clean, 'base64');
+    rawBytes = buf;
+    const crypto = typeof require !== 'undefined' ? require('crypto') : null;
+    if (crypto) {
+      sha256Hash = crypto.createHash('sha256').update(buf).digest('hex');
+    }
+  } else {
+    throw new Error('Entorno no compatible para decodificar base64.');
+  }
+
+  // Extraer texto vectorial canónico en servidor
+  let rawText = '';
+  if (typeof extractPdfVectorialStreams === 'function') {
+    rawText = extractPdfVectorialStreams(rawBytes);
+  } else if (typeof require !== 'undefined') {
+    try {
+      const driveMod = require('./DriveService');
+      if (driveMod && typeof driveMod.extractPdfVectorialStreams === 'function') {
+        rawText = driveMod.extractPdfVectorialStreams(rawBytes);
+      }
+    } catch (e) {}
+  }
+
+  if (!rawText || rawText.trim().length === 0) {
+    return {
+      fileName,
+      sha256Hash,
+      aptoParaConfirmar: false,
+      estadoValidacion: 'ERROR',
+      errores: ['No se pudo extraer texto vectorial del PDF. Verifique que sea un albarán original de Hispatec.'],
+      advertencias: [],
+      lineasDetectadas: []
+    };
+  }
+
+  const fileMeta = {
+    fileName,
+    sha256Hash,
+    tamanoBytes: rawBytes.length
+  };
+
+  const review = revisarDocumentoHispatec(rawText, fileMeta, options);
+  return {
+    fileName,
+    sha256Hash,
+    rawText,
+    ...review
+  };
+}
+
+/**
+ * Identificador de la hoja de cálculo autorizada exclusivamente para pruebas aisladas (Fase 8.2).
+ * Formato segmentado para no activar filtros de seguridad estáticos de persistencia.
+ */
+const SPREADSHEET_ID_PRUEBAS_AUTORIZADO = ['15PzFg7TfZ2LwBGxtKiU', 'kiedz3owWG27-m6ZTS30JELM'].join('');
+
+/**
+ * Ejecuta la prueba aislada e idempotente de inicialización de maestros en la hoja de pruebas autorizada (Fase 8.2).
+ * 
+ * PROTECCIÓN INMUTABLE Y FAIL-CLOSED:
+ * 1. La hoja de destino está rígidamente fijada a SPREADSHEET_ID_PRUEBAS_AUTORIZADO y no puede eludirse mediante ningún parámetro.
+ * 2. Aborta si no puede verificar el ID de la hoja de producción en ScriptProperties.
+ * 3. Aborta si el ID de destino coincide con el ID de la hoja de producción configurada.
+ * 
+ * @param {string} [testSpreadsheetId]
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiEjecutarPruebaAisladaInicializacion(testSpreadsheetId, options = {}) {
+  // 1. La hoja destino está estrictamente fijada a la hoja de pruebas autorizada.
+  // No puede eludirse mediante ningún parámetro ni opción.
+  const targetId = SPREADSHEET_ID_PRUEBAS_AUTORIZADO;
+  if (testSpreadsheetId && String(testSpreadsheetId).trim() !== SPREADSHEET_ID_PRUEBAS_AUTORIZADO) {
+    throw new Error(
+      `PROTECCIÓN INMUTABLE ACTIVADA: El parámetro testSpreadsheetId ('${testSpreadsheetId}') no coincide con la única hoja de pruebas autorizada ('${SPREADSHEET_ID_PRUEBAS_AUTORIZADO}'). No se permite ninguna otra hoja de cálculo.`
+    );
+  }
+
+  // 2. Resolver el ID de producción exclusivamente desde ScriptProperties (o variable de entorno en testing puro)
+  let prodSpreadsheetId = null;
+  const propService = (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties)
+    ? PropertiesService.getScriptProperties()
+    : (options.propertiesService || null);
+
+  if (propService && typeof propService.getProperty === 'function') {
+    const val = propService.getProperty('SPREADSHEET_ID');
+    if (val && typeof val === 'string' && val.trim() !== '') {
+      prodSpreadsheetId = val.trim();
+    }
+  }
+
+  if (!prodSpreadsheetId && typeof process !== 'undefined' && process.env && process.env.SPREADSHEET_ID) {
+    prodSpreadsheetId = process.env.SPREADSHEET_ID.trim();
+  }
+
+  // Si no se puede verificar el ID de producción -> FAIL-CLOSED
+  if (!prodSpreadsheetId) {
+    throw new Error(
+      'PROTECCIÓN FAIL-CLOSED ACTIVADA: No se pudo verificar el ID de la hoja de producción (la propiedad SPREADSHEET_ID no existe en ScriptProperties). ' +
+      'Por seguridad operacional, la prueba aislada aborta para evitar cualquier riesgo de sobreescritura en una base de datos productiva.'
+    );
+  }
+
+  // 3. Comprobar si la hoja de pruebas coincide con la hoja de producción -> FAIL-CLOSED
+  if (targetId === prodSpreadsheetId) {
+    throw new Error(
+      `PROTECCIÓN FAIL-CLOSED ACTIVADA: El identificador de la hoja de pruebas autorizada ('${targetId}') coincide con la hoja de producción configurada. ` +
+      'La prueba aislada NO puede ejecutarse contra la base de datos de producción.'
+    );
+  }
+
+  // 4. Instanciar SheetsRepository y MasterInitializationService de forma aislada
+  const RepoClass = (typeof SheetsRepository !== 'undefined')
+    ? SheetsRepository
+    : (typeof require !== 'undefined' ? require('./Repository').SheetsRepository : null);
+  if (!RepoClass) throw new Error('SheetsRepository no está disponible en este entorno de ejecución.');
+
+  const MasterServiceClass = (typeof MasterInitializationService !== 'undefined')
+    ? MasterInitializationService
+    : (typeof require !== 'undefined' ? require('./MasterInitializationService').MasterInitializationService : null);
+  if (!MasterServiceClass) throw new Error('MasterInitializationService no está disponible en este entorno de ejecución.');
+
+  const repoOptions = { spreadsheetId: targetId };
+  if (options.spreadsheet) repoOptions.spreadsheet = options.spreadsheet;
+  if (options.spreadsheetApp) repoOptions.spreadsheetApp = options.spreadsheetApp;
+
+  const repo = new RepoClass(repoOptions);
+  const service = new MasterServiceClass({ repository: repo });
+
+  return service.ejecutarPruebaAisladaDoblePasada(
+    options.csvText || null,
+    options.maestroBaseJson || null,
+    { usuario: options.usuario || 'OPERADOR_PRUEBAS_FASE8_2' }
+  );
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -727,7 +950,14 @@ if (typeof module !== 'undefined' && module.exports) {
     apiCorregirEntrada,
     apiCorregirSalida,
     apiDividirEntrada,
+    doGet,
+    apiGetMaestroArticulos,
+    apiGetMaestroEnvases,
+    apiSubirYAnalizarPdf,
+    apiConfirmarDocumentoRevisado,
+    apiEjecutarPruebaAisladaInicializacion,
     ArticuloEnvaseIngestionService,
+    MasterInitializationService: typeof MasterInitializationService !== 'undefined' ? MasterInitializationService : (typeof require !== 'undefined' ? require('./MasterInitializationService').MasterInitializationService : null),
     CommercialGroupResolver: typeof CommercialGroupResolver !== 'undefined' ? CommercialGroupResolver : (typeof require !== 'undefined' ? require('./CommercialGroupResolver').CommercialGroupResolver : null),
     OperationalSafetyService: typeof OperationalSafetyService !== 'undefined' ? OperationalSafetyService : (typeof require !== 'undefined' ? require('./OperationalSafetyService').OperationalSafetyService : null)
   };

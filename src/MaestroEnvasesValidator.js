@@ -10,29 +10,59 @@ if (typeof require !== 'undefined') {
   global.ImportDiagnostics = global.ImportDiagnostics || require('./ImportDiagnostics');
 }
 
-const _resolveHeaderMapping = (typeof resolveHeaderMapping !== 'undefined')
-  ? resolveHeaderMapping
-  : (typeof ImportSchema !== 'undefined' ? ImportSchema.resolveHeaderMapping : require('./ImportSchema').resolveHeaderMapping);
+function _getResolveHeaderMappingME() {
+  if (typeof resolveHeaderMapping !== 'undefined') return resolveHeaderMapping;
+  if (typeof ImportSchema !== 'undefined' && ImportSchema.resolveHeaderMapping) return ImportSchema.resolveHeaderMapping;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportSchema').resolveHeaderMapping; } catch (e) {}
+  }
+  return null;
+}
 
-const _parseCSV = (typeof parseCSV !== 'undefined')
-  ? parseCSV
-  : (typeof ImportSchema !== 'undefined' ? ImportSchema.parseCSV : require('./ImportSchema').parseCSV);
+function _getParseCSVME() {
+  if (typeof parseCSV !== 'undefined') return parseCSV;
+  if (typeof ImportSchema !== 'undefined' && ImportSchema.parseCSV) return ImportSchema.parseCSV;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportSchema').parseCSV; } catch (e) {}
+  }
+  return null;
+}
 
-const _ENVASES_HEADER_SYNONYMS = (typeof ENVASES_HEADER_SYNONYMS !== 'undefined')
-  ? ENVASES_HEADER_SYNONYMS
-  : (typeof ImportSchema !== 'undefined' ? ImportSchema.ENVASES_HEADER_SYNONYMS : require('./ImportSchema').ENVASES_HEADER_SYNONYMS);
+function _getEnvasesHeaderSynonyms() {
+  if (typeof ENVASES_HEADER_SYNONYMS !== 'undefined') return ENVASES_HEADER_SYNONYMS;
+  if (typeof ImportSchema !== 'undefined' && ImportSchema.ENVASES_HEADER_SYNONYMS) return ImportSchema.ENVASES_HEADER_SYNONYMS;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportSchema').ENVASES_HEADER_SYNONYMS; } catch (e) {}
+  }
+  return {};
+}
 
-const _ENVASES_SCHEMA_SPEC = (typeof ENVASES_SCHEMA_SPEC !== 'undefined')
-  ? ENVASES_SCHEMA_SPEC
-  : (typeof ImportSchema !== 'undefined' ? ImportSchema.ENVASES_SCHEMA_SPEC : require('./ImportSchema').ENVASES_SCHEMA_SPEC);
+function _getEnvasesSchemaSpec() {
+  if (typeof ENVASES_SCHEMA_SPEC !== 'undefined') return ENVASES_SCHEMA_SPEC;
+  if (typeof ImportSchema !== 'undefined' && ImportSchema.ENVASES_SCHEMA_SPEC) return ImportSchema.ENVASES_SCHEMA_SPEC;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportSchema').ENVASES_SCHEMA_SPEC; } catch (e) {}
+  }
+  return {};
+}
 
-const _DIAGNOSTIC_CODES = (typeof DIAGNOSTIC_CODES !== 'undefined')
-  ? DIAGNOSTIC_CODES
-  : (typeof ImportDiagnostics !== 'undefined' ? ImportDiagnostics.DIAGNOSTIC_CODES : require('./ImportDiagnostics').DIAGNOSTIC_CODES);
+function _getDiagnosticCodesME() {
+  if (typeof DIAGNOSTIC_CODES !== 'undefined') return DIAGNOSTIC_CODES;
+  if (typeof ImportDiagnostics !== 'undefined' && ImportDiagnostics.DIAGNOSTIC_CODES) return ImportDiagnostics.DIAGNOSTIC_CODES;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportDiagnostics').DIAGNOSTIC_CODES; } catch (e) {}
+  }
+  return {};
+}
 
-const _DiagnosticReport = (typeof DiagnosticReport !== 'undefined')
-  ? DiagnosticReport
-  : (typeof ImportDiagnostics !== 'undefined' ? ImportDiagnostics.DiagnosticReport : require('./ImportDiagnostics').DiagnosticReport);
+function _getDiagnosticReportClassME() {
+  if (typeof DiagnosticReport !== 'undefined') return DiagnosticReport;
+  if (typeof ImportDiagnostics !== 'undefined' && ImportDiagnostics.DiagnosticReport) return ImportDiagnostics.DiagnosticReport;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportDiagnostics').DiagnosticReport; } catch (e) {}
+  }
+  return null;
+}
 
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,7 +90,13 @@ class MaestroEnvasesValidator {
   validate(rawInput, fileMeta = {}) {
     const fileName = fileMeta.fileName || 'MAESTRO_ENVASES.csv';
     const sha256Hash = fileMeta.sha256Hash || '';
-    const report = new _DiagnosticReport(fileName);
+    const DiagnosticReportClass = _getDiagnosticReportClassME();
+    if (!DiagnosticReportClass) {
+      throw new Error('DiagnosticReport no está disponible en este entorno de ejecución.');
+    }
+    const report = new DiagnosticReportClass(fileName);
+    const _DIAGNOSTIC_CODES = _getDiagnosticCodesME();
+    const parseCSVFn = _getParseCSVME();
 
     // 1. Control criptográfico de duplicidad documental
     if (sha256Hash && this.knownSha256List.includes(sha256Hash)) {
@@ -77,7 +113,7 @@ class MaestroEnvasesValidator {
     // 2. Extracción de matriz de filas
     let rows = [];
     if (typeof rawInput === 'string') {
-      rows = _parseCSV(rawInput);
+      rows = parseCSVFn ? parseCSVFn(rawInput) : [];
     } else if (Array.isArray(rawInput)) {
       rows = rawInput;
     }
@@ -98,7 +134,13 @@ class MaestroEnvasesValidator {
     report.totalFilas = dataRows.length;
 
     // 3. Resolución de encabezados
-    const headerRes = _resolveHeaderMapping(headerRow, _ENVASES_HEADER_SYNONYMS, _ENVASES_SCHEMA_SPEC);
+    const resolveHeaderMappingFn = _getResolveHeaderMappingME();
+    const synonyms = _getEnvasesHeaderSynonyms();
+    const schemaSpec = _getEnvasesSchemaSpec();
+    const headerRes = resolveHeaderMappingFn
+      ? resolveHeaderMappingFn(headerRow, synonyms, schemaSpec)
+      : { ok: false, errors: ['resolveHeaderMapping no disponible en este entorno.'] };
+
     if (!headerRes.ok) {
       headerRes.errors.forEach(err => {
         report.addError({

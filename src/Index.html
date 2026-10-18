@@ -1,0 +1,2737 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>STOCK-LIGHT — Control de Existencias Hortofrutícola</title>
+  <style>
+    /* ==========================================================================
+       STOCK-LIGHT — SISTEMA VISUAL Y ESTILOS (FASE 7.0)
+       Diseño: Profesional, limpio, premium, adaptativo para almacén hortofrutícola.
+       ========================================================================== */
+    :root {
+      --bg-canvas: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-sidebar: #0f172a;
+      --bg-sidebar-hover: #1e293b;
+      --bg-sidebar-active: #2563eb;
+      
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-white: #ffffff;
+      --text-sidebar: #94a3b8;
+      
+      --border-color: #e2e8f0;
+      --border-focus: #3b82f6;
+      
+      --color-primary: #2563eb;
+      --color-primary-hover: #1d4ed8;
+      --color-success: #10b981;
+      --color-warning: #f59e0b;
+      --color-danger: #ef4444;
+      --color-purple: #8b5cf6;
+      
+      /* Tarjetas de Grupos Comerciales */
+      --grp-eps-bg: #ecfdf5;
+      --grp-eps-border: #a7f3d0;
+      --grp-eps-text: #065f46;
+      --grp-eps-badge: #10b981;
+      
+      --grp-huevo-bg: #fffbeb;
+      --grp-huevo-border: #fde68a;
+      --grp-huevo-text: #92400e;
+      --grp-huevo-badge: #f59e0b;
+      
+      --grp-volley-bg: #fff1f2;
+      --grp-volley-border: #fecdd3;
+      --grp-volley-text: #9f1239;
+      --grp-volley-badge: #f43f5e;
+      
+      --grp-japi-bg: #faf5ff;
+      --grp-japi-border: #e9d5ff;
+      --grp-japi-text: #6b21a8;
+      --grp-japi-badge: #a855f7;
+      
+      --grp-carton-bg: #f0f9ff;
+      --grp-carton-border: #bae6fd;
+      --grp-carton-text: #0369a1;
+      --grp-carton-badge: #0284c7;
+      
+      --grp-carrefour-bg: #f0fdfa;
+      --grp-carrefour-border: #99f6e4;
+      --grp-carrefour-text: #115e59;
+      --grp-carrefour-badge: #14b8a6;
+      
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-full: 9999px;
+      
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+      
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Layout principal */
+    #app {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Barra lateral (Sidebar) */
+    .sidebar {
+      width: 250px;
+      background-color: var(--bg-sidebar);
+      color: var(--text-sidebar);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: transform 0.25s ease;
+      z-index: 50;
+    }
+
+    .sidebar-brand {
+      padding: 20px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 16px 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      color: var(--text-sidebar);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 13.5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover {
+      background-color: var(--bg-sidebar-hover);
+      color: #fff;
+    }
+
+    .nav-item.active {
+      background-color: var(--bg-sidebar-active);
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+    }
+
+    .nav-icon {
+      font-size: 16px;
+      width: 20px;
+      text-align: center;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      background-color: rgba(255, 255, 255, 0.15);
+      padding: 2px 7px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .sidebar-footer {
+      padding: 14px 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11.5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .system-status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--color-success);
+      box-shadow: 0 0 6px var(--color-success);
+    }
+
+    /* Área de Contenido Principal */
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background-color: var(--bg-canvas);
+    }
+
+    /* Topbar */
+    .topbar {
+      height: 60px;
+      background-color: #fff;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .btn-menu-toggle {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--text-main);
+      padding: 4px;
+    }
+
+    .breadcrumbs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .breadcrumb-item {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .breadcrumb-item:hover {
+      color: var(--color-primary);
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-main);
+      font-weight: 600;
+      cursor: default;
+    }
+
+    .breadcrumb-sep {
+      color: #cbd5e1;
+      font-size: 11px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .timestamp-tag {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      background-color: #f1f5f9;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+    }
+
+    .btn-action {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      padding: 7px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      color: var(--text-main);
+    }
+
+    .btn-action:hover {
+      background-color: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .btn-primary {
+      background-color: var(--color-primary);
+      color: #fff;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--color-primary-hover);
+      color: #fff;
+    }
+
+    .btn-danger {
+      background-color: var(--color-danger);
+      color: #fff;
+      border: 1px solid transparent;
+    }
+
+    .btn-danger:hover {
+      background-color: #dc2626;
+      color: #fff;
+    }
+
+    /* Contenedor de Vistas */
+    .view-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .view-section {
+      display: none;
+    }
+
+    .view-section.active {
+      display: block;
+    }
+
+    /* Métricas superiores del Dashboard */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .stat-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    .stat-subtext {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Cuadrícula de Grupos Comerciales */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .section-subtitle {
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    .groups-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 18px;
+    }
+
+    .group-card {
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      border: 1.5px solid transparent;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 175px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .group-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .group-card.grp-eps {
+      background-color: var(--grp-eps-bg);
+      border-color: var(--grp-eps-border);
+      color: var(--grp-eps-text);
+    }
+
+    .group-card.grp-huevo-toro {
+      background-color: var(--grp-huevo-bg);
+      border-color: var(--grp-huevo-border);
+      color: var(--grp-huevo-text);
+    }
+
+    .group-card.grp-volley {
+      background-color: var(--grp-volley-bg);
+      border-color: var(--grp-volley-border);
+      color: var(--grp-volley-text);
+    }
+
+    .group-card.grp-japi {
+      background-color: var(--grp-japi-bg);
+      border-color: var(--grp-japi-border);
+      color: var(--grp-japi-text);
+    }
+
+    .group-card.grp-carton {
+      background-color: var(--grp-carton-bg);
+      border-color: var(--grp-carton-border);
+      color: var(--grp-carton-text);
+    }
+
+    .group-card.grp-carrefour {
+      background-color: var(--grp-carrefour-bg);
+      border-color: var(--grp-carrefour-border);
+      color: var(--grp-carrefour-text);
+    }
+
+    .group-card.grp-default {
+      background-color: #f8fafc;
+      border-color: #cbd5e1;
+      color: #334155;
+    }
+
+    .group-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .group-name {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.3;
+      max-width: 80%;
+    }
+
+    .group-boxes-block {
+      margin: 10px 0;
+    }
+
+    .group-boxes-number {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    .group-boxes-unit {
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0.85;
+      margin-left: 4px;
+    }
+
+    .group-card-subgroups {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 12px 0 8px 0;
+    }
+
+    .subgroup-pill {
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      background-color: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .group-card-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 12px;
+      border-top: 1px solid rgba(0, 0, 0, 0.07);
+      margin-top: auto;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .group-action-link {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: gap 0.15s;
+    }
+
+    .group-card:hover .group-action-link {
+      gap: 7px;
+    }
+
+    /* Estado Vacío (Empty State) */
+    .empty-state {
+      background-color: #fff;
+      border: 1px dashed #cbd5e1;
+      border-radius: var(--radius-lg);
+      padding: 48px 24px;
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .empty-icon {
+      font-size: 38px;
+      margin-bottom: 12px;
+      opacity: 0.6;
+    }
+
+    .empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .empty-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 420px;
+      margin: 0 auto;
+    }
+
+    /* Tablas de Datos */
+    .table-container {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .data-table th {
+      background-color: #f8fafc;
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .data-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .data-table tr:hover td {
+      background-color: #f8fafc;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-ok {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+
+    .badge-warn {
+      background-color: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-err {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge-info {
+      background-color: #e0f2fe;
+      color: #075985;
+    }
+
+    /* Formularios */
+    .form-card {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      max-width: 760px;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text-main);
+    }
+
+    .form-label-hint {
+      font-weight: 400;
+      color: var(--text-muted);
+      font-size: 11.5px;
+      margin-left: 4px;
+    }
+
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      color: var(--text-main);
+      background-color: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .tabs-nav {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border: none;
+      background: none;
+      cursor: pointer;
+      position: relative;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn.active {
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background-color: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(2px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-card {
+      background-color: #fff;
+      border-radius: var(--radius-lg);
+      max-width: 580px;
+      width: 100%;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: modalFadeIn 0.18s ease;
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-header {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+
+    .modal-body {
+      padding: 20px 22px;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      padding: 14px 22px;
+      border-top: 1px solid var(--border-color);
+      background-color: #f8fafc;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 200;
+    }
+
+    .toast {
+      background-color: #fff;
+      border: 1px solid var(--border-color);
+      border-left: 4px solid var(--color-primary);
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-md);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 280px;
+      max-width: 420px;
+      animation: toastIn 0.2s ease;
+    }
+
+    .toast.toast-success { border-left-color: var(--color-success); }
+    .toast.toast-error { border-left-color: var(--color-danger); }
+    .toast.toast-warning { border-left-color: var(--color-warning); }
+
+    @keyframes toastIn {
+      from { transform: translateX(50px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Mobile Bottom Navigation */
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background-color: #fff;
+      border-top: 1px solid var(--border-color);
+      z-index: 40;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .mobile-nav-items {
+      display: flex;
+      height: 100%;
+    }
+
+    .mobile-nav-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .mobile-nav-btn.active {
+      color: var(--color-primary);
+      font-weight: 600;
+    }
+
+    .mobile-nav-btn span.m-icon {
+      font-size: 18px;
+    }
+
+    /* Responsive Media Queries */
+    @media (max-width: 900px) {
+      .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        transform: translateX(-100%);
+        box-shadow: var(--shadow-lg);
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      .btn-menu-toggle {
+        display: block;
+      }
+
+      .mobile-nav {
+        display: block;
+      }
+
+      .content-area {
+        padding-bottom: 60px;
+      }
+
+      .groups-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- BARRA LATERAL (SIDEBAR ESCRITORIO) -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">📦</div>
+        <div>
+          <div class="brand-title">STOCK-LIGHT</div>
+          <div class="brand-subtitle">Almacén Hortofrutícola</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span>
+          <span>Existencias</span>
+          <span id="badgeTotalStock" class="nav-badge">-</span>
+        </button>
+
+        <button class="nav-item" data-view="movimientos">
+          <span class="nav-icon">🔄</span>
+          <span>Movimientos</span>
+        </button>
+
+        <button class="nav-item" data-view="documentos">
+          <span class="nav-icon">📄</span>
+          <span>Documentos PDF</span>
+        </button>
+
+        <button class="nav-item" data-view="incidencias">
+          <span class="nav-icon">⚠️</span>
+          <span>Incidencias</span>
+          <span id="badgeIncidencias" class="nav-badge" style="background-color: rgba(245, 158, 11, 0.25); color: #fef3c7;">0</span>
+        </button>
+
+        <button class="nav-item" data-view="configuracion">
+          <span class="nav-icon">⚙️</span>
+          <span>Maestros & Matriz</span>
+        </button>
+
+        <button class="nav-item" data-view="auditoria">
+          <span class="nav-icon">📜</span>
+          <span>Log Operaciones</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-status-indicator">
+          <span class="status-dot"></span>
+          <span>Sheets / FIFO Activo</span>
+        </div>
+        <span style="opacity: 0.6;">v7.0</span>
+      </div>
+    </aside>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="content-area">
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="btnMenuToggle" class="btn-menu-toggle" aria-label="Menú">☰</button>
+          <nav id="breadcrumbs" class="breadcrumbs">
+            <span class="breadcrumb-item active">Existencias</span>
+          </nav>
+        </div>
+
+        <div class="topbar-right">
+          <span id="lblUltimaActualizacion" class="timestamp-tag">Actualizando...</span>
+          <button id="btnRefresh" class="btn-action" title="Recargar existencias">
+            <span>↻</span>
+            <span class="hide-mobile">Actualizar</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- VISTA DINÁMICA -->
+      <main class="view-container">
+
+        <!-- ==========================================
+             1. VISTA: DASHBOARD DE EXISTENCIAS
+             ========================================== -->
+        <section id="viewDashboard" class="view-section active">
+          <div class="stats-strip">
+            <div class="stat-card">
+              <span class="stat-label">Total Cajas en Stock</span>
+              <span id="metricTotalCajas" class="stat-value">-</span>
+              <span class="stat-subtext">Inventario físico neto</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Líneas de Stock</span>
+              <span id="metricTotalLineas" class="stat-value">-</span>
+              <span class="stat-subtext">Combinaciones activas</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Grupos Comerciales</span>
+              <span id="metricGrupos" class="stat-value">6</span>
+              <span class="stat-subtext">Clasificación homologada</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Estado de Revisión</span>
+              <span id="metricPendientes" class="stat-value" style="color: var(--color-success);">0</span>
+              <span class="stat-subtext">Asociaciones sin resolver</span>
+            </div>
+          </div>
+
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Existencias por Grupo Comercial</h2>
+              <p class="section-subtitle">Haz clic en cualquier tarjeta para desglosar subgrupos, artículos y partidas FIFO</p>
+            </div>
+          </div>
+
+          <!-- Cuadrícula dinámica de tarjetas -->
+          <div id="groupsGrid" class="groups-grid">
+            <!-- Las tarjetas se generan dinámicamente según apiObtenerStockVisualResumen -->
+          </div>
+
+          <div id="emptyDashboardState" class="empty-state" style="display: none;">
+            <div class="empty-icon">📦</div>
+            <h3 class="empty-title">Sin existencias registradas</h3>
+            <p class="empty-desc">No hay cajas activas registradas en el inventario actual. Puedes registrar entradas de mercancía o importar albaranes de compra para comenzar.</p>
+          </div>
+        </section>
+
+
+        <!-- ==========================================
+             2. VISTA: DETALLE DE GRUPO (DRILL-DOWN NIVEL 2 Y 3)
+             ========================================== -->
+        <section id="viewDetalleGrupo" class="view-section">
+          <div class="section-header">
+            <div>
+              <h2 id="detalleGrupoTitulo" class="section-title">Detalle de Grupo</h2>
+              <p id="detalleGrupoSubtitulo" class="section-subtitle">Desglose por artículo, envase, calibre y categoría</p>
+            </div>
+            <button id="btnVolverDashboard" class="btn-action">
+              <span>← Volver a Grupos</span>
+            </button>
+          </div>
+
+          <!-- Filtro de subgrupos (píldoras dinámicas para CARTON, etc.) -->
+          <div id="subgroupsFilterContainer" style="display: none; margin-bottom: 16px;">
+            <div id="subgroupsChips" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Artículo</th>
+                  <th>Envase</th>
+                  <th>Calibre / Cat.</th>
+                  <th style="text-align: right;">Cajas</th>
+                  <th>Estado</th>
+                  <th style="text-align: center;">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tblDetalleGrupoBody">
+                <!-- Líneas dinámicas -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+
+        <!-- ==========================================
+             3. VISTA: DETALLE DE PARTIDAS (DRILL-DOWN NIVEL 4 FIFO)
+             ========================================== -->
+        <section id="viewDetallePartidas" class="view-section">
+          <div class="section-header">
+            <div>
+              <h2 id="detallePartidasTitulo" class="section-title">Partidas y Capas FIFO Vivas</h2>
+              <p id="detallePartidasSubtitulo" class="section-subtitle">Trazabilidad cronológica de entradas y consumo por antigüedad</p>
+            </div>
+            <button id="btnVolverDetalleGrupo" class="btn-action">
+              <span>← Volver a Artículos</span>
+            </button>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID Capa</th>
+                  <th>Partida</th>
+                  <th>Fecha Entrada</th>
+                  <th>Albarán Origen</th>
+                  <th style="text-align: right;">Iniciales</th>
+                  <th style="text-align: right;">Consumidas</th>
+                  <th style="text-align: right;">Saldo Vivo</th>
+                  <th>Estado Capa</th>
+                </tr>
+              </thead>
+              <tbody id="tblPartidasBody">
+                <!-- Partidas dinámicas -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+
+        <!-- ==========================================
+             4. VISTA: MOVIMIENTOS Y OPERACIONES
+             ========================================== -->
+        <section id="viewMovimientos" class="view-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Operaciones de Movimiento</h2>
+              <p class="section-subtitle">Registro validado de entradas, salidas y ajustes de almacén</p>
+            </div>
+          </div>
+
+          <div class="tabs-nav">
+            <button class="tab-btn active" data-tab="tabEntrada">📥 Nueva Entrada</button>
+            <button class="tab-btn" data-tab="tabSalida">📤 Nueva Salida</button>
+            <button class="tab-btn" data-tab="tabAjuste">⚖️ Ajuste Operativo</button>
+            <button class="tab-btn" data-tab="tabCorrecciones">🛡️ Correcciones Históricas</button>
+          </div>
+
+          <!-- TAB 1: ENTRADA -->
+          <div id="tabEntrada" class="tab-content">
+            <div class="form-card">
+              <h3 style="margin-bottom: 16px; font-size: 15px;">Registrar Entrada Manual</h3>
+              <form id="formEntrada" onsubmit="return false;">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Referencia / Albarán Compra *</label>
+                    <input type="text" id="ent_docRef" class="form-input" placeholder="ej. ACT26/3089" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Proveedor / Origen</label>
+                    <input type="text" id="ent_entidad" class="form-input" placeholder="ej. AGRICOLA CORTIJO LA LOMA">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Código / Nombre Artículo *</label>
+                    <input type="text" id="ent_articulo" class="form-input" placeholder="ej. TOMATE ROSA I M" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Código / Formato Envase *</label>
+                    <input type="text" id="ent_envase" class="form-input" placeholder="ej. EPS106" required>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Partida</label>
+                    <input type="text" id="ent_partida" class="form-input" placeholder="ej. 303828">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Cantidad de Cajas *</label>
+                    <input type="number" id="ent_cajas" class="form-input" min="1" placeholder="ej. 150" required>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                  <button type="button" id="btnPrevisualizarEntrada" class="btn-action">Previsualizar</button>
+                  <button type="button" id="btnConfirmarEntrada" class="btn-action btn-primary">Registrar Entrada</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- TAB 2: SALIDA -->
+          <div id="tabSalida" class="tab-content" style="display: none;">
+            <div class="form-card">
+              <h3 style="margin-bottom: 16px; font-size: 15px;">Registrar Salida de Mercancía</h3>
+              <form id="formSalida" onsubmit="return false;">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Albarán de Salida Ref *</label>
+                    <input type="text" id="sal_docRef" class="form-input" placeholder="ej. AVT26/6227" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Cliente / Destino</label>
+                    <input type="text" id="sal_entidad" class="form-input" placeholder="ej. CULTIVOS ARABA SL">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Artículo *</label>
+                    <input type="text" id="sal_articulo" class="form-input" placeholder="ej. TOMATE ROSA I M" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Envase *</label>
+                    <input type="text" id="sal_envase" class="form-input" placeholder="ej. EPS106" required>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Cajas Solicitadas *</label>
+                    <input type="number" id="sal_cajas" class="form-input" min="1" placeholder="ej. 92" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Disponibilidad en Stock</label>
+                    <div id="sal_stockDisponible" style="padding: 10px; background-color: #f1f5f9; border-radius: var(--radius-sm); font-weight: 600;">
+                      Consultando...
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                  <button type="button" id="btnPrevisualizarSalida" class="btn-action">Previsualizar Deducción</button>
+                  <button type="button" id="btnConfirmarSalida" class="btn-action btn-primary">Registrar Salida</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- TAB 3: AJUSTE OPERATIVO -->
+          <div id="tabAjuste" class="tab-content" style="display: none;">
+            <div class="form-card">
+              <h3 style="margin-bottom: 16px; font-size: 15px;">Ajustes y Reclasificaciones</h3>
+              <form id="formAjuste" onsubmit="return false;">
+                <div class="form-group">
+                  <label class="form-label">Tipo de Ajuste *</label>
+                  <select id="aj_tipo" class="form-select">
+                    <option value="POSITIVO">Ajuste Positivo (+ cajas al inventario)</option>
+                    <option value="NEGATIVO">Ajuste Negativo (Merma / rotura / baja FIFO)</option>
+                    <option value="RECLASIFICACION">Reclasificación entre artículos / envases</option>
+                  </select>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Artículo *</label>
+                    <input type="text" id="aj_articulo" class="form-input" placeholder="Código o Nombre" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Envase *</label>
+                    <input type="text" id="aj_envase" class="form-input" placeholder="Código o Formato" required>
+                  </div>
+                </div>
+
+                <!-- Campos específicos para Reclasificación -->
+                <div id="aj_camposReclasificacion" class="form-row" style="display: none; background-color: #f8fafc; padding: 12px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Artículo Destino *</label>
+                    <input type="text" id="aj_artDestino" class="form-input" placeholder="Artículo Reclasificado">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Envase Destino *</label>
+                    <input type="text" id="aj_envDestino" class="form-input" placeholder="Envase Reclasificado">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Cajas *</label>
+                    <input type="number" id="aj_cajas" class="form-input" min="1" placeholder="Número de cajas" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Motivo Obligatorio *</label>
+                    <input type="text" id="aj_motivo" class="form-input" placeholder="ej. Merma en cámara 2 / Error clasificación" required>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                  <button type="button" id="btnEjecutarAjuste" class="btn-action btn-primary">Aplicar Ajuste</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- TAB 4: CORRECCIONES HISTÓRICAS (FASE 6.1) -->
+          <div id="tabCorrecciones" class="tab-content" style="display: none;">
+            <div class="form-card" style="border-left: 4px solid var(--color-warning);">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <span style="font-size: 20px;">🛡️</span>
+                <h3 style="font-size: 15px; font-weight: 700;">Área de Corrección Histórica Determinista</h3>
+              </div>
+              <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px;">
+                Esta sección permite corregir o anular entradas y salidas ya registradas. Se exige <strong>previsualización analítica obligatoria</strong> y registro de motivo para mantener la auditoría inalterable.
+              </p>
+
+              <form id="formCorreccion" onsubmit="return false;">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Operación Histórica *</label>
+                    <select id="corr_accion" class="form-select">
+                      <option value="ANULAR_ENTRADA">Anular Entrada (valida si no tiene consumos)</option>
+                      <option value="ANULAR_SALIDA">Anular Salida (restituye cajas a capas FIFO originales)</option>
+                      <option value="CORRECCION_CANTIDAD_ENTRADA">Corregir Cantidad de Entrada</option>
+                      <option value="CORRECCION_CANTIDAD_SALIDA">Corregir Cantidad de Salida</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Referencia / ID Documento *</label>
+                    <input type="text" id="corr_docRef" class="form-input" placeholder="ej. ACT26/3089 o ID movimiento" required>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Nueva Cantidad <span class="form-label-hint">(si aplica)</span></label>
+                    <input type="number" id="corr_nuevaCantidad" class="form-input" min="1" placeholder="Cajas corregidas">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Motivo Obligatorio de Corrección *</label>
+                    <input type="text" id="corr_motivo" class="form-input" placeholder="Justificación técnica de la rectificación" required>
+                  </div>
+                </div>
+
+                <div id="corr_previewResult" style="display: none; margin: 16px 0; padding: 14px; background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                  <!-- Previsualización analítica -->
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                  <button type="button" id="btnPrevisualizarCorreccion" class="btn-action">1. Previsualizar Impacto</button>
+                  <button type="button" id="btnEjecutarCorreccion" class="btn-action btn-danger" disabled>2. Confirmar Corrección</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ==========================================
+             5. VISTA: DOCUMENTOS (IMPORTACIÓN PDF)
+             ========================================== -->
+        <section id="viewDocumentos" class="view-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Importación de Albaranes PDF</h2>
+              <p class="section-subtitle">Extracción canónica, validación y confirmación en staging de albaranes de Hispatec</p>
+            </div>
+          </div>
+
+          <!-- Zona de Drag & Drop -->
+          <div id="pdfDropZone" class="empty-state" style="border: 2px dashed #94a3b8; cursor: pointer; transition: all 0.2s;">
+            <div class="empty-icon">📄</div>
+            <h3 class="empty-title">Arrastra aquí albaranes de Compra o Salida (PDF)</h3>
+            <p class="empty-desc">Solo se admiten documentos originales de Hispatec. Haz clic para seleccionar archivos desde tu dispositivo.</p>
+            <input type="file" id="pdfFileInput" multiple accept=".pdf" style="display: none;">
+            <div style="margin-top: 16px;">
+              <button type="button" class="btn-action btn-primary" onclick="document.getElementById('pdfFileInput').click();">
+                Seleccionar Archivos PDF
+              </button>
+            </div>
+          </div>
+
+          <!-- Archivos en cola -->
+          <div id="pdfQueueContainer" style="display: none; margin-bottom: 24px;">
+            <div class="section-header">
+              <h3 style="font-size: 14px; font-weight: 600;">Archivos seleccionados (<span id="queueCount">0</span>)</h3>
+              <button type="button" id="btnProcesarLote" class="btn-action btn-primary">
+                ⚡ Analizar y Validar en Servidor
+              </button>
+            </div>
+            <div id="pdfQueueList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+          </div>
+
+          <!-- Bandeja de Staging para Revisión Humana -->
+          <div id="stagingReviewContainer" style="display: none;">
+            <div class="section-header">
+              <div>
+                <h3 style="font-size: 15px; font-weight: 700;">Bandeja de Staging y Validación de Lote</h3>
+                <p class="section-subtitle">Revisa artículos, cajas y envases resueltos antes de incorporarlos a existencias</p>
+              </div>
+              <button type="button" id="btnConfirmarTodoLote" class="btn-action btn-primary">
+                ✅ Confirmar e Incorporar a Stock
+              </button>
+            </div>
+
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Archivo / Doc</th>
+                    <th>Tipo</th>
+                    <th>Tercero</th>
+                    <th>Artículo Detectado</th>
+                    <th>Envase Resuelto</th>
+                    <th style="text-align: right;">Cajas</th>
+                    <th>Semáforo</th>
+                  </tr>
+                </thead>
+                <tbody id="tblStagingBody">
+                  <!-- Líneas de staging -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ==========================================
+             6. VISTA: CENTRO DE INCIDENCIAS
+             ========================================== -->
+        <section id="viewIncidencias" class="view-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Centro de Incidencias Operativas</h2>
+              <p class="section-subtitle">Anomalías que requieren revisión humana para no comprometer el stock físico</p>
+            </div>
+          </div>
+
+          <div id="incidenciasList" style="display: flex; flex-direction: column; gap: 12px;">
+            <!-- Incidencias generadas dinámicamente -->
+          </div>
+
+          <div id="emptyIncidenciasState" class="empty-state" style="display: none;">
+            <div class="empty-icon">✅</div>
+            <h3 class="empty-title">Cero Incidencias Activas</h3>
+            <p class="empty-desc">Todas las combinaciones y operaciones del almacén se encuentran plenamente conciliadas y clasificadas.</p>
+          </div>
+        </section>
+
+
+        <!-- ==========================================
+             7. VISTA: CONFIGURACIÓN Y MAESTROS
+             ========================================== -->
+        <section id="viewConfiguracion" class="view-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Catálogos Maestros y Matriz</h2>
+              <p class="section-subtitle">Consulta autoritativa de artículos, envases y reglas comerciales</p>
+            </div>
+          </div>
+
+          <div class="tabs-nav">
+            <button class="tab-btn active" data-tab="tabCfgArticulos">Artículos (162)</button>
+            <button class="tab-btn" data-tab="tabCfgEnvases">Envases (83)</button>
+            <button class="tab-btn" data-tab="tabCfgGrupos">Grupos Comerciales (6)</button>
+            <button class="tab-btn" data-tab="tabCfgMatriz">Matriz Artículo-Envase (300)</button>
+          </div>
+
+          <div id="tabCfgArticulos" class="tab-content">
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr><th>ID</th><th>Nombre Artículo</th><th>Estado</th></tr>
+                </thead>
+                <tbody id="tblCfgArticulosBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="tabCfgEnvases" class="tab-content" style="display: none;">
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr><th>ID</th><th>Descripción Envase</th><th style="text-align: right;">Tara (kg)</th><th>Activo</th></tr>
+                </thead>
+                <tbody id="tblCfgEnvasesBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="tabCfgGrupos" class="tab-content" style="display: none;">
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr><th>ID Grupo</th><th>Nombre Oficial</th><th>Orden</th><th>Subgrupos</th></tr>
+                </thead>
+                <tbody id="tblCfgGruposBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="tabCfgMatriz" class="tab-content" style="display: none;">
+            <div class="table-container">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Artículo</th><th>Envase</th><th>Grupo Comercial</th><th>Subgrupo</th><th>Predeterminado</th></tr>
+                </thead>
+                <tbody id="tblCfgMatrizBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ==========================================
+             8. VISTA: LOG DE OPERACIONES (AUDITORÍA)
+             ========================================== -->
+        <section id="viewAuditoria" class="view-section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Registro de Auditoría Operativa</h2>
+              <p class="section-subtitle">Historial cronológico inmutable de movimientos y correcciones</p>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Fecha/Hora</th>
+                  <th>Operación</th>
+                  <th>Usuario</th>
+                  <th>Artículo</th>
+                  <th>Envase</th>
+                  <th style="text-align: right;">Cajas</th>
+                  <th>Motivo / Ref</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="tblLogBody">
+                <!-- Log dinámico -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- NAVEGACIÓN MÓVIL (BOTTOM NAV) -->
+    <nav class="mobile-nav">
+      <div class="mobile-nav-items">
+        <button class="mobile-nav-btn active" data-view="dashboard">
+          <span class="m-icon">📊</span>
+          <span>Stock</span>
+        </button>
+        <button class="mobile-nav-btn" data-view="movimientos">
+          <span class="m-icon">🔄</span>
+          <span>Mover</span>
+        </button>
+        <button class="mobile-nav-btn" data-view="documentos">
+          <span class="m-icon">📄</span>
+          <span>PDFs</span>
+        </button>
+        <button class="mobile-nav-btn" data-view="incidencias">
+          <span class="m-icon">⚠️</span>
+          <span>Alertas</span>
+        </button>
+        <button class="mobile-nav-btn" data-view="configuracion">
+          <span class="m-icon">⚙️</span>
+          <span>Ajustes</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- MODAL DE CONFIRMACIÓN REFORZADA -->
+  <div id="confirmModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalTitle" class="modal-title">Confirmar Operación</h3>
+        <button id="btnModalClose" class="modal-close">&times;</button>
+      </div>
+      <div id="modalBody" class="modal-body">
+        <!-- Contenido dinámico -->
+      </div>
+      <div class="modal-footer">
+        <button id="btnModalCancel" class="btn-action">Cancelar</button>
+        <button id="btnModalConfirm" class="btn-action btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENEDOR DE TOAST NOTIFICATIONS -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- ==========================================================================
+       LÓGICA DEL CLIENTE (CONTROLADOR SPA & INTEGRACIÓN CON BACKEND)
+       ========================================================================== -->
+  <script>
+    (function () {
+      // --- MODO DEMOSTRACIÓN LOCAL OFFLINE (SOLO LECTURA, FICTICIO, CERO PERSISTENCIA) ---
+      if (typeof window !== 'undefined' && !window.localApiBridge && (typeof google === 'undefined' || !google.script || !google.script.run)) {
+        window.localApiBridge = function (fnName, args, resolve, reject) {
+          let banner = document.getElementById('demoModeBanner');
+          if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'demoModeBanner';
+            banner.style.cssText = 'background: #fef3c7; color: #92400e; padding: 7px 12px; font-size: 12px; font-weight: 700; text-align: center; border-bottom: 1px solid #fde68a; z-index: 10000;';
+            banner.innerHTML = '⚠️ MODO DEMOSTRACIÓN LOCAL (DATOS FICTICIOS — CERO CONEXIÓN A PRODUCCIÓN)';
+            const appEl = document.getElementById('app');
+            if (appEl && appEl.parentNode) {
+              appEl.parentNode.insertBefore(banner, appEl);
+            }
+          }
+
+          // Bloqueo estricto de mutaciones en modo DEMO
+          const MUTATION_FNS = [
+            'apiProcesarEntradaDocumento',
+            'apiProcesarSalidaDocumento',
+            'apiEjecutarAjusteOperativo',
+            'apiEjecutarCorreccionHistorica',
+            'confirmarDocumentoRevisado',
+            'apiConfirmarDocumentoRevisado'
+          ];
+          if (MUTATION_FNS.includes(fnName)) {
+            return reject(new Error(`[MODO DEMO] Operación '${fnName}' bloqueada: El entorno local es estrictamente de demostración y no modifica Google Sheets ni existencias reales.`));
+          }
+
+          if (fnName === 'apiObtenerStockVisualResumen') {
+            return resolve({
+              granTotalCajas: 3700,
+              granTotalLineas: 18,
+              fechaConsulta: new Date().toISOString(),
+              grupos: [
+                { groupId: 'EPS', groupName: '[DEMO] TOMATE EN CAJA EPS', order: 1, totalCajas: 1250, totalLineas: 4, tieneSubgrupos: false, subgrupos: [] },
+                { groupId: 'HUEVO_DE_TORO', groupName: '[DEMO] TOMATE HUEVO DE TORO', order: 2, totalCajas: 320, totalLineas: 2, tieneSubgrupos: false, subgrupos: [] },
+                { groupId: 'VOLLEY', groupName: '[DEMO] TOMATE VOLLEY Y CORAZÓN DE BUEY', order: 3, totalCajas: 450, totalLineas: 3, tieneSubgrupos: false, subgrupos: [] },
+                { groupId: 'JAPI', groupName: '[DEMO] TOMATE JAPI Y JAPONÉS', order: 4, totalCajas: 610, totalLineas: 3, tieneSubgrupos: false, subgrupos: [] },
+                {
+                  groupId: 'CARTON',
+                  groupName: '[DEMO] TOMATES EN CAJA DE CARTÓN',
+                  order: 5,
+                  totalCajas: 890,
+                  totalLineas: 4,
+                  tieneSubgrupos: true,
+                  subgrupos: [
+                    { subgroupId: 'ROSA', subgroupName: 'ROSA', totalCajas: 450, totalLineas: 2, order: 1 },
+                    { subgroupId: 'AZUL', subgroupName: 'AZUL', totalCajas: 200, totalLineas: 1, order: 2 },
+                    { subgroupId: 'MORESCO', subgroupName: 'MORESCO', totalCajas: 150, totalLineas: 1, order: 3 },
+                    { subgroupId: 'OTROS', subgroupName: 'OTROS', totalCajas: 90, totalLineas: 1, order: 4 }
+                  ]
+                },
+                { groupId: 'CARREFOUR', groupName: '[DEMO] CARREFOUR', order: 6, totalCajas: 180, totalLineas: 2, tieneSubgrupos: false, subgrupos: [] }
+              ]
+            });
+          }
+
+          if (fnName === 'apiObtenerStockVisualDetalle') {
+            const groupId = args[0] || 'EPS';
+            const subgroupId = args[1] || null;
+            return resolve({
+              groupId,
+              groupName: `[DEMO] ${groupId}`,
+              subgroupId,
+              subgroupName: subgroupId,
+              totalCajas: 450,
+              totalLineas: 2,
+              lineas: [
+                { stockKey: '2112000|EPS104', codigoArticulo: '2112000', nombreArticulo: '[DEMO] TOMATE ROSA M', codigoEnvase: 'EPS104', descripcionEnvase: 'EPS 104', cajas: 250, cajasActuales: 250, calibreCategoria: '1ª - M', status: 'CLASIFICADO' },
+                { stockKey: '2112000|EPS106', codigoArticulo: '2112000', nombreArticulo: '[DEMO] TOMATE ROSA G', codigoEnvase: 'EPS106', descripcionEnvase: 'EPS 106 9x500', cajas: 200, cajasActuales: 200, calibreCategoria: '1ª - G', status: 'CLASIFICADO' }
+              ]
+            });
+          }
+
+          if (fnName === 'apiObtenerDetallePartidas') {
+            return resolve({
+              codigoArticulo: args[0],
+              codigoEnvase: args[1],
+              totalPartidas: 2,
+              totalCajas: 250,
+              partidas: [
+                { idCapa: 'CAPA-DEMO-01', partida: 'PART-DEMO-A', fechaEntrada: '2026-10-01', documentoRef: 'ACT26/3089', cajasIniciales: 150, cajasConsumidas: 0, cajasRestantes: 150, estadoCapa: 'ACTIVA' },
+                { idCapa: 'CAPA-DEMO-02', partida: 'PART-DEMO-B', fechaEntrada: '2026-10-03', documentoRef: 'ACT26/3104', cajasIniciales: 100, cajasConsumidas: 0, cajasRestantes: 100, estadoCapa: 'ACTIVA' }
+              ]
+            });
+          }
+
+          if (fnName === 'apiGetMaestroArticulos') {
+            return resolve([
+              { id: '2112000', nombre: '[DEMO] TOMATE ROSA M', activo: true },
+              { id: '2111000', nombre: '[DEMO] TOMATE HUEVO DE TORO', activo: true }
+            ]);
+          }
+
+          if (fnName === 'apiGetMaestroEnvases') {
+            return resolve([
+              { id: 'EPS104', nombre: '[DEMO] EPS 104', tara_kg: 0.25, peso_unitario_kg: 6.0, activo: true },
+              { id: 'CRT01', nombre: '[DEMO] CARTON 30X40', tara_kg: 0.30, peso_unitario_kg: 5.0, activo: true }
+            ]);
+          }
+
+          if (fnName === 'apiGetGruposComerciales') {
+            return resolve([
+              { id: 'EPS', nombre: '[DEMO] TOMATE EN CAJA EPS', orden_visual: 1, tipo: 'COMERCIAL', activo: true },
+              { id: 'CARTON', nombre: '[DEMO] TOMATES EN CAJA DE CARTÓN', orden_visual: 5, tipo: 'COMERCIAL', activo: true }
+            ]);
+          }
+
+          if (fnName === 'apiObtenerCombinacionesPendientesAsociacion') {
+            return resolve([]);
+          }
+
+          if (fnName === 'apiObtenerLogOperaciones') {
+            return resolve([
+              { fecha_hora: '2026-10-09 10:00', operacion: '[DEMO] ENTRADA', usuario: 'DEMO', nombre_articulo: 'TOMATE ROSA M', descripcion_envase: 'EPS 104', cantidad_cajas: 150, motivo: 'Demostración', estado: 'CORRECTA' }
+            ]);
+          }
+
+          if (fnName === 'apiPrevisualizarCorreccionHistorica') {
+            return resolve({
+              estado: 'DEMO_PREVISUALIZACION',
+              impactoPotencial: '[DEMO] Simulación analítica: Cero mutaciones en base real.',
+              aptoParaConfirmar: false,
+              diagnostico: 'Modo demostración local activo.'
+            });
+          }
+
+          if (fnName === 'apiSubirYAnalizarPdf') {
+            const p = args[0] || {};
+            return resolve({
+              fileName: p.fileName || 'demo.pdf',
+              sha256Hash: 'demo_sha256_hash_12345',
+              rawText: 'ALBARAN COMPRA DEMO\nLOTE 100 CAJAS',
+              documentoDetectado: 'COMPRA',
+              serieNumero: 'ACT26/DEMO',
+              aptoParaConfirmar: true,
+              estadoValidacion: 'VALIDO',
+              lineasDetectadas: [
+                { codigoArticulo: '2112000', nombreArticulo: '[DEMO] TOMATE ROSA M', codigoEnvase: 'EPS104', nombreEnvase: 'EPS 104', cajas: 100, partida: 'DEMO-01' }
+              ]
+            });
+          }
+
+          reject(new Error(`[MODO DEMO] Función '${fnName}' no implementada en simulación local.`));
+        };
+      }
+
+      // --- PUENTE SEGURO DE API (CLIENTE-SERVIDOR) ---
+      const api = {
+        call: function (fnName, ...args) {
+          return new Promise(function (resolve, reject) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+              google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(function (err) {
+                  reject(new Error(err && err.message ? err.message : String(err)));
+                })
+                [fnName](...args);
+            } else if (window.localApiBridge) {
+              window.localApiBridge(fnName, args, resolve, reject);
+            } else {
+              reject(new Error('Backend no conectado (entorno estático).'));
+            }
+          });
+        }
+      };
+
+      // --- ESTADO GLOBAL DE LA APLICACIÓN ---
+      const state = {
+        currentView: 'dashboard',
+        selectedGroupId: null,
+        selectedSubgroupId: null,
+        selectedArticle: null,
+        stockSummary: null,
+        groupDetail: null,
+        stagedDocuments: [],
+        incidencias: []
+      };
+
+      // --- UTILIDADES DE FORMATO ---
+      function formatNumber(num) {
+        if (num === null || num === undefined || isNaN(num)) return '0';
+        return Number(num).toLocaleString('es-ES');
+      }
+
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `<span>${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span><span>${escapeHtml(message)}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transition = 'opacity 0.25s ease';
+          setTimeout(() => toast.remove(), 250);
+        }, 4000);
+      }
+
+      function escapeHtml(text) {
+        if (!text) return '';
+        return String(text)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      // --- CONTROLADOR DE VISTAS Y NAVEGACIÓN ---
+      function switchView(viewName) {
+        state.currentView = viewName;
+
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-item, .mobile-nav-btn').forEach(el => {
+          if (el.dataset.view === viewName) el.classList.add('active');
+          else el.classList.remove('active');
+        });
+
+        const target = document.getElementById('view' + viewName.charAt(0).toUpperCase() + viewName.slice(1));
+        if (target) target.classList.add('active');
+
+        // Actualizar migas de pan básicas
+        updateBreadcrumbs([
+          { name: getNavTitle(viewName), view: viewName, active: true }
+        ]);
+
+        // Carga perezosa de datos por pantalla
+        if (viewName === 'dashboard') loadDashboardData();
+        else if (viewName === 'configuracion') loadConfiguracionData();
+        else if (viewName === 'auditoria') loadAuditoriaData();
+        else if (viewName === 'incidencias') loadIncidenciasData();
+
+        // Cerrar menú móvil si estuviera abierto
+        document.getElementById('sidebar').classList.remove('open');
+      }
+
+      function getNavTitle(viewName) {
+        const titles = {
+          dashboard: 'Existencias',
+          movimientos: 'Movimientos',
+          documentos: 'Documentos PDF',
+          incidencias: 'Incidencias',
+          configuracion: 'Maestros',
+          auditoria: 'Log Operaciones'
+        };
+        return titles[viewName] || viewName;
+      }
+
+      function updateBreadcrumbs(items) {
+        const bc = document.getElementById('breadcrumbs');
+        bc.innerHTML = '';
+        items.forEach((item, idx) => {
+          if (idx > 0) {
+            const sep = document.createElement('span');
+            sep.className = 'breadcrumb-sep';
+            sep.textContent = '>';
+            bc.appendChild(sep);
+          }
+          const link = document.createElement('span');
+          link.className = `breadcrumb-item ${item.active ? 'active' : ''}`;
+          link.textContent = item.name;
+          if (!item.active && item.onClick) {
+            link.onclick = item.onClick;
+          }
+          bc.appendChild(link);
+        });
+      }
+
+      // --- FASE C: PANTALLA PRINCIPAL DE EXISTENCIAS ---
+      function loadDashboardData() {
+        document.getElementById('lblUltimaActualizacion').textContent = 'Consultando...';
+
+        api.call('apiObtenerStockVisualResumen')
+          .then(data => {
+            state.stockSummary = data;
+            renderDashboard(data);
+          })
+          .catch(err => {
+            console.error('Error al cargar dashboard:', err);
+            showToast('No se pudieron obtener existencias: ' + err.message, 'error');
+            document.getElementById('lblUltimaActualizacion').textContent = 'Error de conexión';
+          });
+      }
+
+      function renderDashboard(data) {
+        const grid = document.getElementById('groupsGrid');
+        grid.innerHTML = '';
+
+        const grupos = (data && data.grupos) ? data.grupos : [];
+        const totalCajas = data && data.granTotalCajas ? data.granTotalCajas : 0;
+        const totalLineas = data && data.granTotalLineas ? data.granTotalLineas : 0;
+
+        document.getElementById('metricTotalCajas').textContent = formatNumber(totalCajas);
+        document.getElementById('metricTotalLineas').textContent = formatNumber(totalLineas);
+        document.getElementById('badgeTotalStock').textContent = formatNumber(totalCajas);
+
+        const fechaIso = data && data.fechaConsulta ? new Date(data.fechaConsulta) : new Date();
+        document.getElementById('lblUltimaActualizacion').textContent = 'Actualizado ' + fechaIso.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+        if (grupos.length === 0 || totalCajas === 0) {
+          document.getElementById('emptyDashboardState').style.display = 'block';
+        } else {
+          document.getElementById('emptyDashboardState').style.display = 'none';
+        }
+
+        grupos.forEach(grp => {
+          const card = document.createElement('div');
+          const cssClass = getGroupCssClass(grp.groupId);
+          card.className = `group-card ${cssClass}`;
+
+          let subgroupsHtml = '';
+          if (grp.subgrupos && grp.subgrupos.length > 0) {
+            subgroupsHtml = '<div class="group-card-subgroups">' +
+              grp.subgrupos.map(sg => `<span class="subgroup-pill">${escapeHtml(sg.subgroupName)}: <strong>${formatNumber(sg.totalCajas)}</strong></span>`).join('') +
+              '</div>';
+          }
+
+          card.innerHTML = `
+            <div class="group-card-top">
+              <div class="group-name">${escapeHtml(grp.groupName)}</div>
+              <span class="badge ${grp.totalCajas > 0 ? 'badge-ok' : 'badge-info'}">
+                ${grp.totalCajas > 0 ? '🟢 ACTIVO' : '0 CAJAS'}
+              </span>
+            </div>
+            
+            <div class="group-boxes-block">
+              <span class="group-boxes-number">${formatNumber(grp.totalCajas)}</span>
+              <span class="group-boxes-unit">cajas</span>
+            </div>
+
+            ${subgroupsHtml}
+
+            <div class="group-card-bottom">
+              <span>${grp.totalLineas || 0} combinaciones</span>
+              <span class="group-action-link">Ver Detalle →</span>
+            </div>
+          `;
+
+          card.onclick = () => drillDownGrupo(grp.groupId, grp.groupName);
+          grid.appendChild(card);
+        });
+      }
+
+      function getGroupCssClass(groupId) {
+        const id = String(groupId || '').toUpperCase();
+        if (id.includes('EPS')) return 'grp-eps';
+        if (id.includes('HUEVO')) return 'grp-huevo-toro';
+        if (id.includes('VOLLEY') || id.includes('BUEY')) return 'grp-volley';
+        if (id.includes('JAPI') || id.includes('JAPONES') || id.includes('JAPONÉS')) return 'grp-japi';
+        if (id.includes('CARTON') || id.includes('CARTÓN')) return 'grp-carton';
+        if (id.includes('CARREFOUR')) return 'grp-carrefour';
+        return 'grp-default';
+      }
+
+      // --- FASE D: NAVEGACIÓN POR NIVELES (DRILL-DOWN) ---
+      function drillDownGrupo(groupId, groupName, subgroupId = null) {
+        state.selectedGroupId = groupId;
+        state.selectedSubgroupId = subgroupId;
+
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById('viewDetalleGrupo').classList.add('active');
+
+        document.getElementById('detalleGrupoTitulo').textContent = groupName;
+        document.getElementById('detalleGrupoSubtitulo').textContent = subgroupId ? `Subgrupo: ${subgroupId}` : 'Desglose comercial por artículo y envase';
+
+        // Actualizar migas de pan
+        const crumbs = [
+          { name: 'Existencias', onClick: () => switchView('dashboard') },
+          { name: groupName, active: !subgroupId, onClick: subgroupId ? () => drillDownGrupo(groupId, groupName, null) : null }
+        ];
+        if (subgroupId) {
+          crumbs.push({ name: subgroupId, active: true });
+        }
+        updateBreadcrumbs(crumbs);
+
+        const tbody = document.getElementById('tblDetalleGrupoBody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 24px;">Cargando líneas de existencias...</td></tr>';
+
+        api.call('apiObtenerStockVisualDetalle', groupId, subgroupId)
+          .then(res => {
+            state.groupDetail = res;
+            renderDetalleGrupo(res);
+          })
+          .catch(err => {
+            showToast('Error al obtener detalle del grupo: ' + err.message, 'error');
+            tbody.innerHTML = `<tr><td colspan="6" style="color: red; text-align: center;">${escapeHtml(err.message)}</td></tr>`;
+          });
+      }
+
+      function renderDetalleGrupo(data) {
+        const tbody = document.getElementById('tblDetalleGrupoBody');
+        tbody.innerHTML = '';
+
+        const lineas = data && data.lineas ? data.lineas : [];
+
+        // Renderizar pestañas de subgrupos si el grupo tiene subgrupos (ej. Cartón)
+        const filterContainer = document.getElementById('subgroupsFilterContainer');
+        const chipsContainer = document.getElementById('subgroupsChips');
+        chipsContainer.innerHTML = '';
+
+        // Buscar si en state.stockSummary este grupo tiene subgrupos
+        const currentGroupSummary = state.stockSummary && state.stockSummary.grupos ? state.stockSummary.grupos.find(g => g.groupId === data.groupId) : null;
+        if (currentGroupSummary && currentGroupSummary.subgrupos && currentGroupSummary.subgrupos.length > 0) {
+          filterContainer.style.display = 'block';
+
+          const btnAll = document.createElement('button');
+          btnAll.className = `btn-action ${!state.selectedSubgroupId ? 'btn-primary' : ''}`;
+          btnAll.textContent = 'Todos los Subgrupos';
+          btnAll.onclick = () => drillDownGrupo(data.groupId, data.groupName, null);
+          chipsContainer.appendChild(btnAll);
+
+          currentGroupSummary.subgrupos.forEach(sg => {
+            const btnSg = document.createElement('button');
+            btnSg.className = `btn-action ${state.selectedSubgroupId === sg.subgroupId ? 'btn-primary' : ''}`;
+            btnSg.textContent = `${sg.subgroupName} (${formatNumber(sg.totalCajas)})`;
+            btnSg.onclick = () => drillDownGrupo(data.groupId, data.groupName, sg.subgroupId);
+            chipsContainer.appendChild(btnSg);
+          });
+        } else {
+          filterContainer.style.display = 'none';
+        }
+
+        if (lineas.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 32px; color: var(--text-muted);">Sin existencias para esta selección.</td></tr>';
+          return;
+        }
+
+        lineas.forEach(l => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>
+              <div style="font-weight: 600;">${escapeHtml(l.nombreArticulo)}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(l.codigoArticulo)}</div>
+            </td>
+            <td>
+              <div>${escapeHtml(l.descripcionEnvase || l.codigoEnvase)}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(l.codigoEnvase)}</div>
+            </td>
+            <td>
+              <span class="badge badge-info">${escapeHtml(l.calibreCategoria || 'ESTÁNDAR')}</span>
+            </td>
+            <td style="text-align: right; font-weight: 700; font-size: 15px;">
+              ${formatNumber(l.cajasActuales || l.cajas)}
+            </td>
+            <td>
+              <span class="badge ${l.status === 'CLASIFICADO' || l.status === 'OK' ? 'badge-ok' : 'badge-warn'}">
+                ${escapeHtml(l.status || 'OK')}
+              </span>
+            </td>
+            <td style="text-align: center;">
+              <button class="btn-action" style="padding: 4px 8px; font-size: 11.5px;" title="Ver capas FIFO">
+                Ver Partidas
+              </button>
+            </td>
+          `;
+
+          tr.querySelector('button').onclick = () => drillDownPartidas(l.codigoArticulo, l.codigoEnvase, l.nombreArticulo, l.descripcionEnvase);
+          tbody.appendChild(tr);
+        });
+      }
+
+      function drillDownPartidas(artCode, envCode, artName, envName) {
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById('viewDetallePartidas').classList.add('active');
+
+        document.getElementById('detallePartidasTitulo').textContent = `${artName} | ${envName}`;
+        document.getElementById('detallePartidasSubtitulo').textContent = `Código: ${artCode} | Envase: ${envCode} — Capas FIFO en orden de antigüedad`;
+
+        // Migas de pan completas
+        updateBreadcrumbs([
+          { name: 'Existencias', onClick: () => switchView('dashboard') },
+          { name: state.groupDetail ? state.groupDetail.groupName : 'Grupo', onClick: () => drillDownGrupo(state.selectedGroupId, state.groupDetail.groupName, state.selectedSubgroupId) },
+          { name: `${artName}`, active: true }
+        ]);
+
+        const tbody = document.getElementById('tblPartidasBody');
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 24px;">Consultando capas vivas en Sheets...</td></tr>';
+
+        api.call('apiObtenerDetallePartidas', artCode, envCode)
+          .then(res => {
+            renderDetallePartidas(res);
+          })
+          .catch(err => {
+            showToast('Error al consultar partidas: ' + err.message, 'error');
+            tbody.innerHTML = `<tr><td colspan="8" style="color: red; text-align: center;">${escapeHtml(err.message)}</td></tr>`;
+          });
+      }
+
+      function renderDetallePartidas(data) {
+        const tbody = document.getElementById('tblPartidasBody');
+        tbody.innerHTML = '';
+
+        const partidas = data && data.partidas ? data.partidas : [];
+        if (partidas.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 32px; color: var(--text-muted);">No existen capas FIFO vivas para esta combinación.</td></tr>';
+          return;
+        }
+
+        partidas.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><code>${escapeHtml(p.idCapa)}</code></td>
+            <td><strong style="color: var(--color-primary);">${escapeHtml(p.partida)}</strong></td>
+            <td>${escapeHtml(p.fechaEntrada)}</td>
+            <td>${escapeHtml(p.documentoRef || '-')}</td>
+            <td style="text-align: right;">${formatNumber(p.cajasIniciales)}</td>
+            <td style="text-align: right; color: var(--text-muted);">${formatNumber(p.cajasConsumidas)}</td>
+            <td style="text-align: right; font-weight: 700; color: #047857; font-size: 14px;">${formatNumber(p.cajasRestantes)}</td>
+            <td>
+              <span class="badge ${p.cajasRestantes > 0 ? (p.cajasConsumidas > 0 ? 'badge-warn' : 'badge-ok') : 'badge-info'}">
+                ${escapeHtml(p.estadoCapa)}
+              </span>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      // --- FASE E: MOVIMIENTOS ---
+      function setupMovimientosListeners() {
+        // Pestañas de movimientos
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const container = btn.closest('.view-section');
+            container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            container.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+
+            btn.classList.add('active');
+            const targetTab = document.getElementById(btn.dataset.tab);
+            if (targetTab) targetTab.style.display = 'block';
+          });
+        });
+
+        // Toggle campos de reclasificación
+        const ajTipo = document.getElementById('aj_tipo');
+        if (ajTipo) {
+          ajTipo.addEventListener('change', () => {
+            const camposRecl = document.getElementById('aj_camposReclasificacion');
+            camposRecl.style.display = (ajTipo.value === 'RECLASIFICACION') ? 'grid' : 'none';
+          });
+        }
+
+        // Confirmar Entrada
+        document.getElementById('btnConfirmarEntrada').addEventListener('click', () => {
+          const docRef = document.getElementById('ent_docRef').value.trim();
+          const art = document.getElementById('ent_articulo').value.trim();
+          const env = document.getElementById('ent_envase').value.trim();
+          const cajas = parseInt(document.getElementById('ent_cajas').value, 10);
+          const partida = document.getElementById('ent_partida').value.trim();
+          const entidad = document.getElementById('ent_entidad').value.trim();
+
+          if (!docRef || !art || !env || isNaN(cajas) || cajas <= 0) {
+            showToast('Por favor completa todos los campos obligatorios (*).', 'warning');
+            return;
+          }
+
+          showConfirmModal(
+            'Confirmar Entrada de Mercancía',
+            `<p>¿Deseas incorporar <strong>${cajas} cajas</strong> de <strong>${escapeHtml(art)}</strong> (${escapeHtml(env)})?</p>
+             <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">Doc: ${escapeHtml(docRef)} | Partida: ${escapeHtml(partida || 'AUTOMÁTICA')}</p>`,
+            () => {
+              const docPayload = { serie: 'MANUAL', numero: docRef, entidad_nombre: entidad, fecha_documento: new Date().toISOString().slice(0, 10) };
+              const lineas = [{ codigo_articulo: art, codigo_envase: env, cajas: cajas, partida: partida }];
+
+              api.call('apiProcesarEntradaDocumento', docPayload, lineas, 'OPERADOR')
+                .then(res => {
+                  showToast(`✅ Entrada registrada: ${cajas} cajas incorporadas a stock.`, 'success');
+                  document.getElementById('formEntrada').reset();
+                  loadDashboardData();
+                })
+                .catch(err => {
+                  showToast('Error al registrar entrada: ' + err.message, 'error');
+                });
+            }
+          );
+        });
+
+        // Confirmar Salida
+        document.getElementById('btnConfirmarSalida').addEventListener('click', () => {
+          const docRef = document.getElementById('sal_docRef').value.trim();
+          const art = document.getElementById('sal_articulo').value.trim();
+          const env = document.getElementById('sal_envase').value.trim();
+          const cajas = parseInt(document.getElementById('sal_cajas').value, 10);
+          const cliente = document.getElementById('sal_entidad').value.trim();
+
+          if (!docRef || !art || !env || isNaN(cajas) || cajas <= 0) {
+            showToast('Por favor completa todos los campos obligatorios (*).', 'warning');
+            return;
+          }
+
+          showConfirmModal(
+            'Confirmar Salida de Mercancía',
+            `<p>¿Deseas descontar <strong>${cajas} cajas</strong> de <strong>${escapeHtml(art)}</strong> (${escapeHtml(env)}) mediante FIFO?</p>
+             <p style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">Albarán: ${escapeHtml(docRef)} | Cliente: ${escapeHtml(cliente || 'CLIENTE')}</p>`,
+            () => {
+              const docPayload = { serie: 'SALIDA', numero: docRef, entidad_nombre: cliente, fecha_documento: new Date().toISOString().slice(0, 10) };
+              const lineas = [{ codigo_articulo: art, codigo_envase: env, cajas: cajas }];
+
+              api.call('apiProcesarSalidaDocumento', docPayload, lineas, 'OPERADOR')
+                .then(res => {
+                  showToast(`✅ Salida completada: ${cajas} cajas descontadas.`, 'success');
+                  document.getElementById('formSalida').reset();
+                  loadDashboardData();
+                })
+                .catch(err => {
+                  showToast('Salida bloqueada: ' + err.message, 'error');
+                });
+            }
+          );
+        });
+
+        // Aplicar Ajuste
+        document.getElementById('btnEjecutarAjuste').addEventListener('click', () => {
+          const tipo = document.getElementById('aj_tipo').value;
+          const art = document.getElementById('aj_articulo').value.trim();
+          const env = document.getElementById('aj_envase').value.trim();
+          const cajas = parseInt(document.getElementById('aj_cajas').value, 10);
+          const motivo = document.getElementById('aj_motivo').value.trim();
+
+          if (!art || !env || isNaN(cajas) || cajas <= 0 || !motivo) {
+            showToast('Artículo, envase, cajas y motivo obligatorio son requeridos.', 'warning');
+            return;
+          }
+
+          const payload = {
+            tipo: tipo,
+            codigo_articulo: art,
+            codigo_envase: env,
+            cajas: cajas,
+            motivo: motivo,
+            usuario: 'OPERADOR'
+          };
+
+          if (tipo === 'RECLASIFICACION') {
+            payload.codigo_articulo_destino = document.getElementById('aj_artDestino').value.trim() || art;
+            payload.codigo_envase_destino = document.getElementById('aj_envDestino').value.trim() || env;
+          }
+
+          api.call('apiEjecutarAjusteOperativo', payload, 'OPERADOR')
+            .then(res => {
+              showToast('✅ Ajuste operativo ejecutado correctamente.', 'success');
+              document.getElementById('formAjuste').reset();
+              loadDashboardData();
+            })
+            .catch(err => {
+              showToast('Error en ajuste: ' + err.message, 'error');
+            });
+        });
+
+        // Previsualizar Corrección Histórica
+        document.getElementById('btnPrevisualizarCorreccion').addEventListener('click', () => {
+          const accion = document.getElementById('corr_accion').value;
+          const docRef = document.getElementById('corr_docRef').value.trim();
+          const motivo = document.getElementById('corr_motivo').value.trim();
+          const nuevaCant = parseInt(document.getElementById('corr_nuevaCantidad').value, 10);
+
+          if (!docRef) {
+            showToast('Especifica la referencia o ID del documento a corregir.', 'warning');
+            return;
+          }
+
+          const payload = {
+            accion: accion,
+            documentoRef: docRef,
+            id_documento: docRef,
+            nuevaCantidad: !isNaN(nuevaCant) ? nuevaCant : undefined,
+            motivo: motivo || 'PREVISUALIZACION'
+          };
+
+          api.call('apiPrevisualizarCorreccionHistorica', payload)
+            .then(res => {
+              const pbox = document.getElementById('corr_previewResult');
+              pbox.style.display = 'block';
+              pbox.innerHTML = `
+                <div style="font-weight: 700; margin-bottom: 6px;">Resultado del Análisis: ${escapeHtml(res.estado || 'OK')}</div>
+                <div style="font-size: 13px;">${escapeHtml(res.impactoPotencial || 'Corrección determinista analizada.')}</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 6px;">Apto para confirmar: <strong>${res.aptoParaConfirmar ? 'SÍ' : 'NO'}</strong></div>
+              `;
+              document.getElementById('btnEjecutarCorreccion').disabled = !res.aptoParaConfirmar;
+            })
+            .catch(err => {
+              showToast('Error en previsualización: ' + err.message, 'error');
+            });
+        });
+
+        // Ejecutar Corrección Histórica
+        document.getElementById('btnEjecutarCorreccion').addEventListener('click', () => {
+          const accion = document.getElementById('corr_accion').value;
+          const docRef = document.getElementById('corr_docRef').value.trim();
+          const motivo = document.getElementById('corr_motivo').value.trim();
+          const nuevaCant = parseInt(document.getElementById('corr_nuevaCantidad').value, 10);
+
+          if (!motivo) {
+            showToast('El motivo es estrictamente obligatorio para correcciones.', 'warning');
+            return;
+          }
+
+          showConfirmModal(
+            '⚠️ Confirmar Rectificación Histórica',
+            `<p>Esta acción modificará o anulará el registro histórico de <strong>${escapeHtml(docRef)}</strong> recalculando las capas FIFO.</p>
+             <p style="margin-top: 8px; font-weight: 600; color: #991b1b;">Motivo registrado: "${escapeHtml(motivo)}"</p>`,
+            () => {
+              const payload = {
+                accion: accion,
+                documentoRef: docRef,
+                id_documento: docRef,
+                nuevaCantidad: !isNaN(nuevaCant) ? nuevaCant : undefined,
+                motivo: motivo
+              };
+
+              api.call('apiEjecutarCorreccionHistorica', payload, 'OPERADOR')
+                .then(res => {
+                  showToast('✅ Corrección histórica aplicada determinísticamente.', 'success');
+                  document.getElementById('formCorreccion').reset();
+                  document.getElementById('corr_previewResult').style.display = 'none';
+                  document.getElementById('btnEjecutarCorreccion').disabled = true;
+                  loadDashboardData();
+                })
+                .catch(err => {
+                  showToast('Corrección rechazada: ' + err.message, 'error');
+                });
+            }
+          );
+        });
+      }
+
+      // --- FASE F: DOCUMENTOS (SUBIDA Y STAGING) ---
+      function setupDocumentosListeners() {
+        const fileInput = document.getElementById('pdfFileInput');
+        const queueContainer = document.getElementById('pdfQueueContainer');
+        const queueList = document.getElementById('pdfQueueList');
+        const queueCount = document.getElementById('queueCount');
+
+        let pendingFiles = [];
+
+        fileInput.addEventListener('change', (e) => {
+          const files = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+          if (files.length === 0) return;
+
+          files.forEach(f => {
+            pendingFiles.push({ file: f, name: f.name, size: f.size, status: 'PENDIENTE' });
+          });
+
+          renderQueue();
+        });
+
+        function renderQueue() {
+          if (pendingFiles.length === 0) {
+            queueContainer.style.display = 'none';
+            return;
+          }
+
+          queueContainer.style.display = 'block';
+          queueCount.textContent = pendingFiles.length;
+          queueList.innerHTML = '';
+
+          pendingFiles.forEach((item, idx) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-sm);';
+            row.innerHTML = `
+              <div>
+                <strong style="font-size: 13px;">${escapeHtml(item.name)}</strong>
+                <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;">(${(item.size / 1024).toFixed(1)} KB)</span>
+              </div>
+              <span class="badge ${item.status === 'PROCESADO' ? 'badge-ok' : item.status === 'ERROR' ? 'badge-err' : 'badge-info'}">
+                ${item.status}
+              </span>
+            `;
+            queueList.appendChild(row);
+          });
+        }
+
+        // Procesar lote en servidor
+        document.getElementById('btnProcesarLote').addEventListener('click', async () => {
+          if (pendingFiles.length === 0) return;
+
+          showToast('Analizando documentos PDF en servidor...', 'info');
+          const stagingBody = document.getElementById('tblStagingBody');
+          stagingBody.innerHTML = '';
+          document.getElementById('stagingReviewContainer').style.display = 'block';
+
+          for (const item of pendingFiles) {
+            try {
+              const base64 = await readFileAsBase64(item.file);
+              const payload = { fileName: item.name, base64: base64 };
+              
+              const res = await api.call('apiSubirYAnalizarPdf', payload);
+              item.status = res.estadoValidacion === 'VALIDO' ? 'PROCESADO' : 'ERROR';
+              item.review = res;
+              renderStagingRow(res);
+            } catch (err) {
+              item.status = 'ERROR';
+              renderStagingError(item.name, err.message);
+            }
+            renderQueue();
+          }
+
+          showToast('Análisis de documentos completado.', 'success');
+        });
+
+        function readFileAsBase64(file) {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
+
+        function renderStagingRow(review) {
+          const tbody = document.getElementById('tblStagingBody');
+          const lineas = review.lineasDetectadas || [];
+
+          lineas.forEach(l => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><strong>${escapeHtml(review.fileName)}</strong></td>
+              <td><span class="badge badge-info">${escapeHtml(review.documentoDetectado || 'PDF')}</span></td>
+              <td>${escapeHtml(review.serieNumero || '-')}</td>
+              <td>${escapeHtml(l.nombreArticulo || '-')}</td>
+              <td>${escapeHtml(l.nombreEnvase || l.codigoEnvase || 'POR RESOLVER')}</td>
+              <td style="text-align: right; font-weight: 700;">${formatNumber(l.cajas)}</td>
+              <td>
+                <span class="badge ${review.aptoParaConfirmar ? 'badge-ok' : 'badge-warn'}">
+                  ${review.aptoParaConfirmar ? '🟢 VÁLIDO' : '🟠 REVISIÓN'}
+                </span>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+
+        function renderStagingError(fileName, msg) {
+          const tbody = document.getElementById('tblStagingBody');
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${escapeHtml(fileName)}</strong></td>
+            <td colspan="5" style="color: var(--color-danger);">${escapeHtml(msg)}</td>
+            <td><span class="badge badge-err">🔴 ERROR</span></td>
+          `;
+          tbody.appendChild(tr);
+        }
+
+        // Confirmar Lote de Documentos (Fase 7.1)
+        document.getElementById('btnConfirmarTodoLote').addEventListener('click', async () => {
+          const btn = document.getElementById('btnConfirmarTodoLote');
+          if (btn.disabled) return;
+
+          if (!pendingFiles || pendingFiles.length === 0) {
+            showToast('No hay documentos cargados en la bandeja de importación.', 'warning');
+            return;
+          }
+
+          // Deshabilitar temporalmente el botón para prevenir dobles clics
+          btn.disabled = true;
+          const originalText = btn.textContent;
+          btn.textContent = '⏳ Confirmando lote en servidor...';
+
+          let total = pendingFiles.length;
+          let confirmados = 0;
+          let duplicados = 0;
+          let rechazados = 0;
+          let fallidos = 0;
+          const detalleLote = [];
+
+          try {
+            for (const item of pendingFiles) {
+              if (!item.review) {
+                fallidos++;
+                item.status = 'ERROR';
+                detalleLote.push({ fileName: item.name, estado: 'ERROR', detalle: 'Documento no analizado previamente.' });
+                continue;
+              }
+
+              // REGLA: No confirmar documentos con errores de validación o no aptos
+              if (item.review.estadoValidacion !== 'VALIDO' || !item.review.aptoParaConfirmar) {
+                rechazados++;
+                item.status = 'RECHAZADO';
+                const detalleErr = (item.review.errores && item.review.errores.length > 0)
+                  ? item.review.errores.join('; ')
+                  : 'Documento en revisión o no apto para confirmar.';
+                detalleLote.push({ fileName: item.name, estado: 'RECHAZADO', detalle: detalleErr });
+                continue;
+              }
+
+              // Invocación al endpoint canónico y seguro del backend
+              try {
+                const res = await api.call('confirmarDocumentoRevisado', {
+                  rawText: item.review.rawText,
+                  fileMeta: {
+                    fileName: item.name,
+                    sha256Hash: item.review.sha256Hash
+                  }
+                }, 'OPERADOR');
+
+                if (res && res.isDuplicate) {
+                  duplicados++;
+                  item.status = 'DUPLICADO';
+                  detalleLote.push({ fileName: item.name, estado: 'DUPLICADO', detalle: res.reason || 'Documento ya procesado previamente.' });
+                } else if (res && res.success) {
+                  confirmados++;
+                  item.status = 'CONFIRMADO';
+                  detalleLote.push({ fileName: item.name, estado: 'CONFIRMADO', detalle: `${res.totalCajas || 0} cajas incorporadas (Doc: ${res.documentoId || 'OK'}).` });
+                } else {
+                  fallidos++;
+                  item.status = 'ERROR';
+                  detalleLote.push({ fileName: item.name, estado: 'ERROR', detalle: (res && res.reason) || 'No se pudo confirmar el documento.' });
+                }
+              } catch (err) {
+                const msg = err && err.message ? err.message : String(err);
+                if (msg.includes('DUPLICADO') || msg.includes('duplicado') || msg.includes('Duplicado')) {
+                  duplicados++;
+                  item.status = 'DUPLICADO';
+                  detalleLote.push({ fileName: item.name, estado: 'DUPLICADO', detalle: msg });
+                } else {
+                  fallidos++;
+                  item.status = 'ERROR';
+                  detalleLote.push({ fileName: item.name, estado: 'ERROR', detalle: msg });
+                }
+              }
+            }
+
+            // Actualizar cola y refrescar existencias si hubo confirmaciones
+            renderQueue();
+            if (confirmados > 0) {
+              loadDashboardData();
+            }
+
+            // Mostrar resumen modal explícito con estadísticas transparentes
+            const resumenHtml = `
+              <div style="font-size: 13.5px; line-height: 1.6;">
+                <p><strong>Resultado del procesamiento del lote:</strong></p>
+                <ul style="margin: 8px 0 14px 20px;">
+                  <li>Total documentos en lote: <strong>${total}</strong></li>
+                  <li style="color: #047857;">Confirmados e incorporados a stock: <strong>${confirmados}</strong></li>
+                  <li style="color: #b45309;">Duplicados detectados (sin alterar saldo): <strong>${duplicados}</strong></li>
+                  <li style="color: #d97706;">Rechazados / Pendientes de revisión: <strong>${rechazados}</strong></li>
+                  <li style="color: #dc2626;">Fallidos / Error en servidor: <strong>${fallidos}</strong></li>
+                </ul>
+                <div style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px; font-size: 12px; background: #f8fafc;">
+                  ${detalleLote.map(d => `<div style="padding: 4px 0; border-bottom: 1px solid #e2e8f0;"><strong>${escapeHtml(d.fileName)}</strong>: <span class="badge ${d.estado === 'CONFIRMADO' ? 'badge-ok' : d.estado === 'DUPLICADO' ? 'badge-warn' : 'badge-err'}">${d.estado}</span> — <span style="color: var(--text-muted);">${escapeHtml(d.detalle)}</span></div>`).join('')}
+                </div>
+              </div>
+            `;
+            showConfirmModal('Resumen de Confirmación de Lote', resumenHtml, null);
+
+            if (confirmados === total) {
+              showToast(`✅ Lote completado: ${confirmados} documentos confirmados con éxito.`, 'success');
+            } else if (confirmados > 0) {
+              showToast(`⚠️ Lote procesado parcialmente: ${confirmados} confirmados, ${duplicados} duplicados, ${rechazados + fallidos} incidencias.`, 'warning');
+            } else {
+              showToast(`❌ Ningún documento confirmado: ${rechazados + fallidos + duplicados} con incidencias.`, 'error');
+            }
+          } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
+        });
+      }
+
+      // --- FASE G: INCIDENCIAS & CONFIGURACIÓN ---
+      function loadIncidenciasData() {
+        const container = document.getElementById('incidenciasList');
+        container.innerHTML = 'Cargando incidencias operativas...';
+
+        api.call('apiObtenerCombinacionesPendientesAsociacion')
+          .then(res => {
+            container.innerHTML = '';
+            const list = Array.isArray(res) ? res : [];
+            document.getElementById('badgeIncidencias').textContent = list.length;
+            document.getElementById('metricPendientes').textContent = list.length;
+
+            if (list.length === 0) {
+              document.getElementById('emptyIncidenciasState').style.display = 'block';
+              return;
+            }
+
+            document.getElementById('emptyIncidenciasState').style.display = 'none';
+
+            list.forEach(item => {
+              const card = document.createElement('div');
+              card.className = 'form-card';
+              card.style.cssText = 'border-left: 4px solid var(--color-warning); max-width: 100%; margin-bottom: 12px;';
+              card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div>
+                    <span class="badge badge-warn">🟠 PENDIENTE DE ASOCIACIÓN</span>
+                    <h4 style="margin: 6px 0; font-size: 15px;">${escapeHtml(item.articulo || item.nombre_articulo)}</h4>
+                    <p style="font-size: 12.5px; color: var(--text-muted);">Envase: <strong>${escapeHtml(item.envase || item.codigo_envase)}</strong></p>
+                  </div>
+                  <span class="badge badge-info">${item.apariciones || 0} apariciones</span>
+                </div>
+              `;
+              container.appendChild(card);
+            });
+          })
+          .catch(err => {
+            container.innerHTML = `<div style="color: red;">Error: ${escapeHtml(err.message)}</div>`;
+          });
+      }
+
+      function loadConfiguracionData() {
+        // Cargar artículos
+        api.call('apiGetMaestroArticulos').then(arts => {
+          const tbody = document.getElementById('tblCfgArticulosBody');
+          tbody.innerHTML = '';
+          (arts || []).slice(0, 50).forEach(a => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td><code>${escapeHtml(a.id)}</code></td><td>${escapeHtml(a.nombre)}</td><td>${a.activo !== false ? '🟢 ACTIVO' : '🔴 INACTIVO'}</td>`;
+            tbody.appendChild(tr);
+          });
+        }).catch(() => {});
+
+        // Cargar envases
+        api.call('apiGetMaestroEnvases').then(envs => {
+          const tbody = document.getElementById('tblCfgEnvasesBody');
+          tbody.innerHTML = '';
+          (envs || []).slice(0, 50).forEach(e => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td><code>${escapeHtml(e.id)}</code></td><td>${escapeHtml(e.nombre)}</td><td style="text-align: right;">${e.tara_kg || 0} kg</td><td>${e.activo !== false ? '🟢 ACTIVO' : '🔴 INACTIVO'}</td>`;
+            tbody.appendChild(tr);
+          });
+        }).catch(() => {});
+
+        // Cargar grupos comerciales
+        api.call('apiGetGruposComerciales').then(grps => {
+          const tbody = document.getElementById('tblCfgGruposBody');
+          tbody.innerHTML = '';
+          (grps || []).forEach(g => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td><code>${escapeHtml(g.id)}</code></td><td><strong>${escapeHtml(g.nombre)}</strong></td><td>${g.orden_visual || '-'}</td><td>${g.tipo || 'COMERCIAL'}</td>`;
+            tbody.appendChild(tr);
+          });
+        }).catch(() => {});
+      }
+
+      function loadAuditoriaData() {
+        const tbody = document.getElementById('tblLogBody');
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 24px;">Consultando LOG_OPERACIONES...</td></tr>';
+
+        api.call('apiObtenerLogOperaciones')
+          .then(logs => {
+            tbody.innerHTML = '';
+            const list = Array.isArray(logs) ? logs : [];
+            if (list.length === 0) {
+              tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">No existen registros en el log de operaciones.</td></tr>';
+              return;
+            }
+            list.slice(-50).reverse().forEach(r => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td>${escapeHtml(r.fecha_hora || '-')}</td>
+                <td><span class="badge badge-info">${escapeHtml(r.operacion || '-')}</span></td>
+                <td>${escapeHtml(r.usuario || '-')}</td>
+                <td>${escapeHtml(r.nombre_articulo || r.codigo_articulo || '-')}</td>
+                <td>${escapeHtml(r.descripcion_envase || r.codigo_envase || '-')}</td>
+                <td style="text-align: right; font-weight: 600;">${formatNumber(r.cantidad_cajas || r.cajas)}</td>
+                <td>${escapeHtml(r.motivo || r.referencia || '-')}</td>
+                <td><span class="badge ${r.estado === 'CORRECTA' ? 'badge-ok' : 'badge-warn'}">${escapeHtml(r.estado || 'OK')}</span></td>
+              `;
+              tbody.appendChild(tr);
+            });
+          })
+          .catch(err => {
+            tbody.innerHTML = `<tr><td colspan="8" style="color: red; text-align: center;">${escapeHtml(err.message)}</td></tr>`;
+          });
+      }
+
+      // --- MODAL DE CONFIRMACIÓN REFORZADA ---
+      function showConfirmModal(title, bodyHtml, onConfirm) {
+        const modal = document.getElementById('confirmModal');
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalBody').innerHTML = bodyHtml;
+
+        const btnConfirm = document.getElementById('btnModalConfirm');
+        const btnCancel = document.getElementById('btnModalCancel');
+        const btnClose = document.getElementById('btnModalClose');
+
+        const closeModal = () => modal.classList.remove('active');
+
+        btnConfirm.onclick = () => {
+          closeModal();
+          if (onConfirm) onConfirm();
+        };
+
+        btnCancel.onclick = closeModal;
+        btnClose.onclick = closeModal;
+
+        modal.classList.add('active');
+      }
+
+      // --- INICIALIZACIÓN GLOBAL ---
+      function init() {
+        // Enlaces de navegación en sidebar y mobile nav
+        document.querySelectorAll('.nav-item, .mobile-nav-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const view = btn.dataset.view;
+            if (view) switchView(view);
+          });
+        });
+
+        // Botón toggle de menú móvil
+        document.getElementById('btnMenuToggle').addEventListener('click', () => {
+          document.getElementById('sidebar').classList.toggle('open');
+        });
+
+        // Botón actualizar
+        document.getElementById('btnRefresh').addEventListener('click', () => {
+          loadDashboardData();
+        });
+
+        // Volver de detalle
+        document.getElementById('btnVolverDashboard').addEventListener('click', () => {
+          switchView('dashboard');
+        });
+
+        document.getElementById('btnVolverDetalleGrupo').addEventListener('click', () => {
+          if (state.selectedGroupId && state.groupDetail) {
+            drillDownGrupo(state.selectedGroupId, state.groupDetail.groupName, state.selectedSubgroupId);
+          } else {
+            switchView('dashboard');
+          }
+        });
+
+        setupMovimientosListeners();
+        setupDocumentosListeners();
+
+        // Cargar vista inicial
+        switchView('dashboard');
+      }
+
+      // Ejecutar cuando el DOM esté listo
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+
+    })();
+  </script>
+</body>
+</html>

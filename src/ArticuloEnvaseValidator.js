@@ -11,29 +11,59 @@ if (typeof require !== 'undefined') {
   global.ImportDiagnostics = global.ImportDiagnostics || require('./ImportDiagnostics');
 }
 
-const _resolveHeaderMappingAE = (typeof resolveHeaderMapping !== 'undefined')
-  ? resolveHeaderMapping
-  : (typeof ImportSchema !== 'undefined' ? ImportSchema.resolveHeaderMapping : require('./ImportSchema').resolveHeaderMapping);
+function _getResolveHeaderMappingAE() {
+  if (typeof resolveHeaderMapping !== 'undefined') return resolveHeaderMapping;
+  if (typeof ImportSchema !== 'undefined' && ImportSchema.resolveHeaderMapping) return ImportSchema.resolveHeaderMapping;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportSchema').resolveHeaderMapping; } catch (e) {}
+  }
+  return null;
+}
 
-const _parseCSVAE = (typeof parseCSV !== 'undefined')
-  ? parseCSV
-  : (typeof ImportSchema !== 'undefined' ? ImportSchema.parseCSV : require('./ImportSchema').parseCSV);
+function _getParseCSVAE() {
+  if (typeof parseCSV !== 'undefined') return parseCSV;
+  if (typeof ImportSchema !== 'undefined' && ImportSchema.parseCSV) return ImportSchema.parseCSV;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportSchema').parseCSV; } catch (e) {}
+  }
+  return null;
+}
 
-const _ARTICULO_ENVASE_HEADER_SYNONYMS = (typeof ARTICULO_ENVASE_HEADER_SYNONYMS !== 'undefined')
-  ? ARTICULO_ENVASE_HEADER_SYNONYMS
-  : (typeof ImportSchema !== 'undefined' ? ImportSchema.ARTICULO_ENVASE_HEADER_SYNONYMS : require('./ImportSchema').ARTICULO_ENVASE_HEADER_SYNONYMS);
+function _getArticuloEnvaseHeaderSynonyms() {
+  if (typeof ARTICULO_ENVASE_HEADER_SYNONYMS !== 'undefined') return ARTICULO_ENVASE_HEADER_SYNONYMS;
+  if (typeof ImportSchema !== 'undefined' && ImportSchema.ARTICULO_ENVASE_HEADER_SYNONYMS) return ImportSchema.ARTICULO_ENVASE_HEADER_SYNONYMS;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportSchema').ARTICULO_ENVASE_HEADER_SYNONYMS; } catch (e) {}
+  }
+  return {};
+}
 
-const _ARTICULO_ENVASE_SCHEMA_SPEC = (typeof ARTICULO_ENVASE_SCHEMA_SPEC !== 'undefined')
-  ? ARTICULO_ENVASE_SCHEMA_SPEC
-  : (typeof ImportSchema !== 'undefined' ? ImportSchema.ARTICULO_ENVASE_SCHEMA_SPEC : require('./ImportSchema').ARTICULO_ENVASE_SCHEMA_SPEC);
+function _getArticuloEnvaseSchemaSpec() {
+  if (typeof ARTICULO_ENVASE_SCHEMA_SPEC !== 'undefined') return ARTICULO_ENVASE_SCHEMA_SPEC;
+  if (typeof ImportSchema !== 'undefined' && ImportSchema.ARTICULO_ENVASE_SCHEMA_SPEC) return ImportSchema.ARTICULO_ENVASE_SCHEMA_SPEC;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportSchema').ARTICULO_ENVASE_SCHEMA_SPEC; } catch (e) {}
+  }
+  return {};
+}
 
-const _DIAGNOSTIC_CODES_AE = (typeof DIAGNOSTIC_CODES !== 'undefined')
-  ? DIAGNOSTIC_CODES
-  : (typeof ImportDiagnostics !== 'undefined' ? ImportDiagnostics.DIAGNOSTIC_CODES : require('./ImportDiagnostics').DIAGNOSTIC_CODES);
+function _getDiagnosticCodesAE() {
+  if (typeof DIAGNOSTIC_CODES !== 'undefined') return DIAGNOSTIC_CODES;
+  if (typeof ImportDiagnostics !== 'undefined' && ImportDiagnostics.DIAGNOSTIC_CODES) return ImportDiagnostics.DIAGNOSTIC_CODES;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportDiagnostics').DIAGNOSTIC_CODES; } catch (e) {}
+  }
+  return {};
+}
 
-const _DiagnosticReportAE = (typeof DiagnosticReport !== 'undefined')
-  ? DiagnosticReport
-  : (typeof ImportDiagnostics !== 'undefined' ? ImportDiagnostics.DiagnosticReport : require('./ImportDiagnostics').DiagnosticReport);
+function _getDiagnosticReportClassAE() {
+  if (typeof DiagnosticReport !== 'undefined') return DiagnosticReport;
+  if (typeof ImportDiagnostics !== 'undefined' && ImportDiagnostics.DiagnosticReport) return ImportDiagnostics.DiagnosticReport;
+  if (typeof require !== 'undefined') {
+    try { return require('./ImportDiagnostics').DiagnosticReport; } catch (e) {}
+  }
+  return null;
+}
 
 
 class ArticuloEnvaseValidator {
@@ -56,11 +86,17 @@ class ArticuloEnvaseValidator {
    */
   validate(rawInput, fileMeta = {}) {
     const fileName = fileMeta.fileName || 'ARTICULO_ENVASE.csv';
-    const report = new _DiagnosticReportAE(fileName);
+    const DiagnosticReportClass = _getDiagnosticReportClassAE();
+    if (!DiagnosticReportClass) {
+      throw new Error('DiagnosticReport no está disponible en este entorno de ejecución.');
+    }
+    const report = new DiagnosticReportClass(fileName);
+    const _DIAGNOSTIC_CODES_AE = _getDiagnosticCodesAE();
+    const parseCSVFn = _getParseCSVAE();
 
     let rows = [];
     if (typeof rawInput === 'string') {
-      rows = _parseCSVAE(rawInput);
+      rows = parseCSVFn ? parseCSVFn(rawInput) : [];
     } else if (Array.isArray(rawInput)) {
       rows = rawInput;
     }
@@ -81,7 +117,13 @@ class ArticuloEnvaseValidator {
     report.totalFilas = dataRows.length;
 
     // Resolución de encabezados
-    const headerRes = _resolveHeaderMappingAE(headerRow, _ARTICULO_ENVASE_HEADER_SYNONYMS, _ARTICULO_ENVASE_SCHEMA_SPEC);
+    const resolveHeaderMappingFn = _getResolveHeaderMappingAE();
+    const synonyms = _getArticuloEnvaseHeaderSynonyms();
+    const schemaSpec = _getArticuloEnvaseSchemaSpec();
+    const headerRes = resolveHeaderMappingFn
+      ? resolveHeaderMappingFn(headerRow, synonyms, schemaSpec)
+      : { ok: false, errors: ['resolveHeaderMapping no disponible en este entorno.'] };
+
     if (!headerRes.ok) {
       headerRes.errors.forEach(err => {
         report.addError({

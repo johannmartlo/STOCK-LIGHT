@@ -121,7 +121,7 @@ Para calibrar los patrones de expresiones regulares y la extracción de datos si
 
 > [!IMPORTANT]
 > Se solicita depositar copias de documentos reales de muestra en la carpeta local:  
-> `C:\Users\juanalberto\Desktop\ALMACEN\STOCK\docs\samples\`
+> `<RUTA_LOCAL_DEL_PROYECTO>\docs\samples\`
 > 
 > Documentos necesarios:
 > 1. Al menos **2 ejemplos de Albarán de Compra** (con diferentes proveedores y artículos).

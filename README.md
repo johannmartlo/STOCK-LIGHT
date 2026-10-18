@@ -22,13 +22,15 @@
 
 ## 2. Entorno y Repositorio
 
-* **Workspace local exclusivo:** `C:\Users\juanalberto\Desktop\ALMACEN\STOCK`  
+* **Workspace local:** `<RUTA_LOCAL_DEL_PROYECTO>`  
   *(Raíz única del proyecto. No se accede ni modifican directorios hermanos como CCO).*
 * **Fuente de Verdad del Código (VCS):**  
   GitHub: [https://github.com/johannmartlo/STOCK-LIGHT](https://github.com/johannmartlo/STOCK-LIGHT)
-* **Proyecto Google Apps Script Independiente:**  
-  ID: `1CORuYQvroAC8ifn0D-P-GbcceQN4mm6EnISVQHy5ID8zyfF20j7jydfg`  
-  Editor: [Google Apps Script Editor](https://script.google.com/home/projects/1CORuYQvroAC8ifn0D-P-GbcceQN4mm6EnISVQHy5ID8zyfF20j7jydfg/edit)
+* **Proyecto Google Apps Script (desarrollo):**  
+  ID: `<DEV_SCRIPT_ID>`  
+  Editor: [Google Apps Script Editor](https://script.google.com/home/projects/<DEV_SCRIPT_ID>/edit)
+
+> **Configuración local de Clasp:** el archivo `.clasp.json` real no se versiona. Copia `.clasp.json.example` a `.clasp.json`, sustituye `<DEV_SCRIPT_ID>` por el ID de tu proyecto de desarrollo y mantén ese archivo fuera de Git. El proyecto de producción debe ser independiente.
 
 ---
 
@@ -47,9 +49,10 @@ STOCK-LIGHT está concebido deliberadamente como un sistema ligero y de bajo vol
 ## 4. Estructura del Proyecto
 
 ```text
-STOCK/
-├── .clasp.json          # Configuración de Clasp hacia el script ID oficial
+STOCK-LIGHT/
+├── .clasp.json.example  # Plantilla de configuración local de Clasp
 ├── .claspignore         # Filtro de subida a Apps Script
+├── .gitattributes       # Normalización de finales de línea y binarios
 ├── .gitignore           # Exclusiones de control de versiones
 ├── README.md            # Documento principal de inducción y alcance
 ├── ARCHITECTURE.md      # Diseño arquitectónico y desacoplamiento
@@ -57,9 +60,16 @@ STOCK/
 ├── DATA_MODEL.md        # Esquema de tablas y persistencia en Google Sheets
 ├── IMPORT_SPECS.md      # Especificaciones de extracción documental e Hispatec
 ├── TECHNICAL_RISKS.md   # Análisis de cuotas, límites de GAS y mitigaciones
-└── src/                 # Código fuente Apps Script sincronizado por Clasp
-    ├── appsscript.json  # Manifiesto oficial del proyecto Apps Script
-    └── Código.js        # Punto de entrada / API interna
+├── docs/
+│   └── reference/       # Datos de referencia versionados para pruebas
+├── src/                 # Código fuente Apps Script sincronizado por Clasp
+│   ├── appsscript.json  # Manifiesto oficial del proyecto Apps Script
+│   ├── Código.js        # Punto de entrada / API interna
+│   ├── Index.html       # Interfaz web servida por HtmlService
+│   ├── MasterInitializationService.js
+│   ├── MatrizComercialData.js
+│   └── ...              # Módulos de dominio, parsers y validadores
+└── test/                # Suites Node y fixtures de pruebas
 ```
 
 ---
@@ -71,7 +81,7 @@ El flujo de trabajo es unidireccional y seguro:
 ```text
 GitHub (origin/main)
    ↓ (git pull)
-Repositorio Local (C:\Users\juanalberto\Desktop\ALMACEN\STOCK)
+Repositorio Local (<RUTA_LOCAL_DEL_PROYECTO>)
    ↓
 Desarrollo & Pruebas Locales
    ↓
@@ -82,9 +92,15 @@ Verificación en entorno Google
 Git Commit & Git Push a GitHub
 ```
 
+> **Repositorio público:** no subir CSV operativos, XLSX, ZIP, PDFs, muestras ni configuraciones locales. Los datos de calibración y los documentos originales se copian fuera de Git.
+
 ### Comandos de Utilidad
 
 ```powershell
+# Instalar Clasp (una vez)
+npm install -g @google/clasp
+clasp login
+
 # Comprobar estado de Git
 git status
 
@@ -95,13 +111,29 @@ clasp push
 clasp pull
 ```
 
+### Pruebas
+
+Las suites Node se ejecutan sin dependencias externas, salvo las que requieren el corpus privado de `docs/samples`:
+
+```powershell
+node test/inventory_engine.test.js
+node test/movement_service.test.js
+node test/trust_boundary.test.js
+node test/compra_packaging_resolution.test.js
+node test/fase6_seguridad_operativa.test.js
+node test/fase6_1_correcciones_historicas.test.js
+node test/fase7_1_confirmacion_lote_y_seguridad.test.js
+```
+
+`real_pdf_parsers.test.js` contiene una expectativa obsoleta sobre `RecepcionParser` y no debe considerarse verde hasta corregirla.
+
 ---
 
 ## 6. Documentación del Sistema
 
 Para consultar las especificaciones técnicas completas, remitirse a:
-* [ARCHITECTURE.md](file:///C:/Users/juanalberto/Desktop/ALMACEN/STOCK/ARCHITECTURE.md)
-* [BUSINESS_RULES.md](file:///C:/Users/juanalberto/Desktop/ALMACEN/STOCK/BUSINESS_RULES.md)
-* [DATA_MODEL.md](file:///C:/Users/juanalberto/Desktop/ALMACEN/STOCK/DATA_MODEL.md)
-* [IMPORT_SPECS.md](file:///C:/Users/juanalberto/Desktop/ALMACEN/STOCK/IMPORT_SPECS.md)
-* [TECHNICAL_RISKS.md](file:///C:/Users/juanalberto/Desktop/ALMACEN/STOCK/TECHNICAL_RISKS.md)
+* [ARCHITECTURE.md](ARCHITECTURE.md)
+* [BUSINESS_RULES.md](BUSINESS_RULES.md)
+* [DATA_MODEL.md](DATA_MODEL.md)
+* [IMPORT_SPECS.md](IMPORT_SPECS.md)
+* [TECHNICAL_RISKS.md](TECHNICAL_RISKS.md)

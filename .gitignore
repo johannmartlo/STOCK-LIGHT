@@ -1,5 +1,6 @@
 # Clasp credentials & config
 .clasprc.json
+.clasp.json
 
 # Environment / Secrets
 .env
@@ -15,14 +16,35 @@ Desktop.ini
 *.log
 tmp/
 temp/
+*.tmp
+*.bak
+coverage/
+.nyc_output/
 
 # Node (in case tools are added later)
 node_modules/
 package-lock.json
 
+# Python / FastAPI future
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Sample documents containing potential business PII
 samples/
 *.pdf
+
+# Operational/commercial data: never publish
+/docs/ENVASES Y ARTICULO.csv
+/docs/STOCK_LIGHT_catalogo_articulo_envase.csv
+/docs/STOCK_LIGHT_*.xlsx
+/docs/docs-*.zip
+/docs/docs/
+/docs/ERROR_MATRIX.md
+/imagen_conceptual.jpeg
 
 # Design & conceptual diagrams
 ESQUEMA CONCEPTUAL.png
