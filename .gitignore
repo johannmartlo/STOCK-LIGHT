@@ -20,6 +20,12 @@ temp/
 node_modules/
 package-lock.json
 
+# Python tooling / caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
 # Sample documents containing potential business PII
 samples/
 *.pdf
