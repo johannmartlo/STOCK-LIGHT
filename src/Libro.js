@@ -94,7 +94,10 @@ function clonarEstadoLibro(estado = {}) {
       if (Array.isArray(list)) {
         consumosPorMovimiento[movId] = list.map(item => ({
           id_capa: item.id_capa,
-          cajas: Number(item.cajas !== undefined ? item.cajas : item.cajas_descontadas)
+          cajas: Number(item.cajas !== undefined ? item.cajas : item.cajas_descontadas),
+          codigo_articulo: item.codigo_articulo || '',
+          codigo_envase: item.codigo_envase || '',
+          fecha_negocio: item.fecha_negocio || ''
         }));
       }
     }
@@ -420,57 +423,40 @@ function aplicarMovimiento(estado, movimiento) {
       };
     }
 
-    const consumosRef = Array.isArray(next.consumosPorMovimiento[idMovRef])
+    let consumosRef = Array.isArray(next.consumosPorMovimiento[idMovRef])
       ? next.consumosPorMovimiento[idMovRef]
       : [];
+
+    if ((!consumosRef || consumosRef.length === 0) && movimiento.observaciones) {
+      consumosRef = extraerConsumosFifoDeObservaciones(movimiento.observaciones);
+    }
+
+    if (!consumosRef || consumosRef.length === 0) {
+      return {
+        ok: false,
+        estado,
+        consumos: [],
+        capaCreada: null,
+        error: `No se conocen los consumos FIFO del movimiento referenciado '${idMovRef}'.`,
+        errorCode: 'CONSUMOS_DESCONOCIDOS'
+      };
+    }
 
     let porRestaurar = cajas;
     const restituciones = [];
 
-    if (consumosRef.length > 0) {
-      for (let i = consumosRef.length - 1; i >= 0 && porRestaurar > 0; i--) {
-        const c = consumosRef[i];
-        const dispConsumo = Number(c.cajas || 0);
-        if (dispConsumo <= 0) continue;
+    for (let i = consumosRef.length - 1; i >= 0 && porRestaurar > 0; i--) {
+      const c = consumosRef[i];
+      const dispConsumo = Number(c.cajas || 0);
+      if (dispConsumo <= 0) continue;
 
-        const layer = next.capas.find(l => l.id_capa === c.id_capa);
-        if (layer) {
-          const aRestaurar = Math.min(porRestaurar, dispConsumo);
-          layer.cajas_consumidas = Math.max(0, Number(layer.cajas_consumidas || 0) - aRestaurar);
-          layer.cajas_restantes = Number(layer.cajas_restantes || 0) + aRestaurar;
-          layer.estado_capa = 'ACTIVA';
-          c.cajas = dispConsumo - aRestaurar;
-          porRestaurar -= aRestaurar;
-          restituciones.push({
-            id_capa: layer.id_capa,
-            cajas: aRestaurar,
-            cajas_restantes_capa: layer.cajas_restantes,
-            estado_capa: layer.estado_capa
-          });
-        }
-      }
-      next.consumosPorMovimiento[idMovRef] = consumosRef.filter(c => Number(c.cajas || 0) > 0);
-    }
-
-    // Fallback si la salida era antigua y no tenía desglose de capas en consumosPorMovimiento
-    if (porRestaurar > 0) {
-      const capasConConsumo = next.capas.filter(l =>
-        _keyLibro(l.codigo_articulo, l.codigo_envase) === stockKey &&
-        Number(l.cajas_consumidas || 0) > 0
-      );
-      capasConConsumo.sort((a, b) => {
-        const fA = String(a.fecha_capa || '');
-        const fB = String(b.fecha_capa || '');
-        if (fA !== fB) return fB.localeCompare(fA);
-        return String(b.id_capa || '').localeCompare(String(a.id_capa || ''));
-      });
-      for (const layer of capasConConsumo) {
-        if (porRestaurar <= 0) break;
-        const consumidasCapa = Number(layer.cajas_consumidas || 0);
-        const aRestaurar = Math.min(porRestaurar, consumidasCapa);
-        layer.cajas_consumidas = consumidasCapa - aRestaurar;
+      const layer = next.capas.find(l => l.id_capa === c.id_capa);
+      if (layer) {
+        const aRestaurar = Math.min(porRestaurar, dispConsumo);
+        layer.cajas_consumidas = Math.max(0, Number(layer.cajas_consumidas || 0) - aRestaurar);
         layer.cajas_restantes = Number(layer.cajas_restantes || 0) + aRestaurar;
         layer.estado_capa = 'ACTIVA';
+        c.cajas = dispConsumo - aRestaurar;
         porRestaurar -= aRestaurar;
         restituciones.push({
           id_capa: layer.id_capa,
@@ -479,6 +465,18 @@ function aplicarMovimiento(estado, movimiento) {
           estado_capa: layer.estado_capa
         });
       }
+    }
+    next.consumosPorMovimiento[idMovRef] = consumosRef.filter(c => Number(c.cajas || 0) > 0);
+
+    if (porRestaurar > 0) {
+      return {
+        ok: false,
+        estado,
+        consumos: [],
+        capaCreada: null,
+        error: `Consumos FIFO insuficientes en el movimiento referenciado '${idMovRef}' para restaurar ${cajas} cajas.`,
+        errorCode: 'CONSUMOS_DESCONOCIDOS'
+      };
     }
 
     next.stock[stockKey] = Number(next.stock[stockKey] || 0) + cajas;
@@ -571,7 +569,10 @@ function aplicarMovimiento(estado, movimiento) {
     next.stock[stockKey] = stockDisponible - cajas;
     next.consumosPorMovimiento[idMovimiento] = consumos.map(c => ({
       id_capa: c.id_capa,
-      cajas: c.cajas
+      cajas: c.cajas,
+      codigo_articulo: movimiento.codigo_articulo || (c.codigo_articulo || ''),
+      codigo_envase: movimiento.codigo_envase || (c.codigo_envase || ''),
+      fecha_negocio: fechaNegocio
     }));
 
     // Si es una corrección de salida al alza (AJUSTE - con id_movimiento_ref a la salida),
@@ -585,7 +586,13 @@ function aplicarMovimiento(estado, movimiento) {
         if (existing) {
           existing.cajas = Number(existing.cajas || 0) + c.cajas;
         } else {
-          next.consumosPorMovimiento[idMovRef].push({ id_capa: c.id_capa, cajas: c.cajas });
+          next.consumosPorMovimiento[idMovRef].push({
+            id_capa: c.id_capa,
+            cajas: c.cajas,
+            codigo_articulo: movimiento.codigo_articulo || (c.codigo_articulo || ''),
+            codigo_envase: movimiento.codigo_envase || (c.codigo_envase || ''),
+            fecha_negocio: fechaNegocio
+          });
         }
       }
     }
@@ -662,7 +669,13 @@ function aplicarMovimiento(estado, movimiento) {
       estado_capa: layer.estado_capa
     }];
 
-    next.consumosPorMovimiento[idMovimiento] = [{ id_capa: layer.id_capa, cajas }];
+    next.consumosPorMovimiento[idMovimiento] = [{
+      id_capa: layer.id_capa,
+      cajas,
+      codigo_articulo: layer.codigo_articulo || '',
+      codigo_envase: layer.codigo_envase || '',
+      fecha_negocio: fechaNegocio
+    }];
 
     return {
       ok: true,
@@ -734,67 +747,50 @@ function aplicarMovimiento(estado, movimiento) {
     }
 
     // Si es ANULACION de una salida o un ajuste negativo (signo +1 o referencia en consumosPorMovimiento)
-    const consumosOriginales = (idMovRef && Array.isArray(next.consumosPorMovimiento[idMovRef]))
+    let consumosOriginales = (idMovRef && Array.isArray(next.consumosPorMovimiento[idMovRef]))
       ? next.consumosPorMovimiento[idMovRef]
-      : extraerConsumosFifoDeObservaciones(movimiento.observaciones);
+      : [];
+
+    if ((!consumosOriginales || consumosOriginales.length === 0) && movimiento.observaciones) {
+      consumosOriginales = extraerConsumosFifoDeObservaciones(movimiento.observaciones);
+    }
+
+    if (!consumosOriginales || consumosOriginales.length === 0) {
+      return {
+        ok: false,
+        estado,
+        consumos: [],
+        capaCreada: null,
+        error: `No se conocen los consumos FIFO del movimiento referenciado '${idMovRef || movimiento.id_movimiento}'.`,
+        errorCode: 'CONSUMOS_DESCONOCIDOS'
+      };
+    }
 
     let totalRestituido = 0;
     const restituciones = [];
 
-    if (consumosOriginales.length > 0) {
-      for (const c of consumosOriginales) {
-        const cant = Number(c.cajas !== undefined ? c.cajas : c.cajas_descontadas);
-        if (cant <= 0) continue;
-        const layer = next.capas.find(l => l.id_capa === c.id_capa);
-        if (layer) {
-          layer.cajas_consumidas = Math.max(0, Number(layer.cajas_consumidas || 0) - cant);
-          layer.cajas_restantes = Number(layer.cajas_restantes || 0) + cant;
-          layer.estado_capa = 'ACTIVA';
-          totalRestituido += cant;
-          restituciones.push({
-            id_capa: layer.id_capa,
-            cajas: cant,
-            cajas_restantes_capa: layer.cajas_restantes,
-            estado_capa: layer.estado_capa
-          });
-        }
-      }
-      if (idMovRef) {
-        next.consumosPorMovimiento[idMovRef] = [];
-      }
-    } else if (cajas > 0) {
-      // Fallback para filas antiguas sin desglose en consumosPorMovimiento
-      const capasConsumidas = next.capas.filter(l =>
-        _keyLibro(l.codigo_articulo, l.codigo_envase) === stockKey &&
-        Number(l.cajas_consumidas || 0) > 0
-      );
-      capasConsumidas.sort((a, b) => {
-        const fA = String(a.fecha_capa || '');
-        const fB = String(b.fecha_capa || '');
-        if (fA !== fB) return fB.localeCompare(fA);
-        return String(b.id_capa || '').localeCompare(String(a.id_capa || ''));
-      });
-      let porRestaurar = cajas;
-      for (const layer of capasConsumidas) {
-        if (porRestaurar <= 0) break;
-        const dispCons = Number(layer.cajas_consumidas || 0);
-        const aRestaurar = Math.min(porRestaurar, dispCons);
-        layer.cajas_consumidas = dispCons - aRestaurar;
-        layer.cajas_restantes = Number(layer.cajas_restantes || 0) + aRestaurar;
+    for (const c of consumosOriginales) {
+      const cant = Number(c.cajas !== undefined ? c.cajas : c.cajas_descontadas);
+      if (cant <= 0) continue;
+      const layer = next.capas.find(l => l.id_capa === c.id_capa);
+      if (layer) {
+        layer.cajas_consumidas = Math.max(0, Number(layer.cajas_consumidas || 0) - cant);
+        layer.cajas_restantes = Number(layer.cajas_restantes || 0) + cant;
         layer.estado_capa = 'ACTIVA';
-        porRestaurar -= aRestaurar;
-        totalRestituido += aRestaurar;
+        totalRestituido += cant;
         restituciones.push({
           id_capa: layer.id_capa,
-          cajas: aRestaurar,
+          cajas: cant,
           cajas_restantes_capa: layer.cajas_restantes,
           estado_capa: layer.estado_capa
         });
       }
     }
+    if (idMovRef) {
+      next.consumosPorMovimiento[idMovRef] = [];
+    }
 
-    const incrementoStock = totalRestituido > 0 ? totalRestituido : cajas;
-    next.stock[stockKey] = Number(next.stock[stockKey] || 0) + incrementoStock;
+    next.stock[stockKey] = Number(next.stock[stockKey] || 0) + totalRestituido;
 
     return {
       ok: true,
@@ -836,7 +832,7 @@ function ordenarMovimientosPorSecuencia(movimientos = []) {
     const fA = String(a.fecha_hora || '');
     const fB = String(b.fecha_hora || '');
     if (fA !== fB) return fA.localeCompare(fB);
-    return String(a.id_movimiento || '').localeCompare(String(b.id_movimiento || ''));
+    return 0;
   });
 }
 
@@ -949,6 +945,15 @@ function reconstruir(movimientos = []) {
 
     const res = aplicarMovimiento(estado, mov);
     if (!res.ok) {
+      if (res.errorCode === 'CONSUMOS_DESCONOCIDOS') {
+        avisos.push({
+          id_movimiento: mov.id_movimiento || '',
+          tipo_movimiento: tipo,
+          id_movimiento_ref: idMovRef,
+          motivo: res.error || 'Consumos desconocidos para el movimiento referenciado'
+        });
+        continue;
+      }
       throw new Error(`Fallo en reconstrucción determinista en movimiento ${mov.id_movimiento}: ${res.error}`);
     }
 

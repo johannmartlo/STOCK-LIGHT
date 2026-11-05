@@ -86,6 +86,15 @@ const SCHEMA_DEFINITIONS = {
     'id_capa_origen',
     'origen_dato'
   ],
+  CONSUMOS_FIFO: [
+    'id_movimiento',
+    'orden',
+    'id_capa',
+    'codigo_articulo',
+    'codigo_envase',
+    'cajas',
+    'fecha_negocio'
+  ],
   STOCK_ACTUAL: [
     'stock_key',
     'codigo_articulo',
@@ -452,6 +461,14 @@ class SheetsRepository {
 
   saveCapasFifo(capas) {
     return this.replaceTable('CAPAS_FIFO', capas);
+  }
+
+  getConsumosFifo() {
+    return this.readTable('CONSUMOS_FIFO');
+  }
+
+  saveConsumosFifo(consumos) {
+    return this.replaceTable('CONSUMOS_FIFO', consumos);
   }
 
   getStockActual() {

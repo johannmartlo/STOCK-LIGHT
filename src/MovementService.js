@@ -24,8 +24,6 @@ if (typeof require !== 'undefined') {
     const libroMod = require('./Libro');
     global.aplicarMovimiento = global.aplicarMovimiento || libroMod.aplicarMovimiento;
     global.reconstruir = global.reconstruir || libroMod.reconstruir;
-    global.extraerConsumosFifoDeObservaciones = global.extraerConsumosFifoDeObservaciones || libroMod.extraerConsumosFifoDeObservaciones;
-    global.anexarConsumosFifoAObservaciones = global.anexarConsumosFifoAObservaciones || libroMod.anexarConsumosFifoAObservaciones;
     global.ordenarMovimientosPorSecuencia = global.ordenarMovimientosPorSecuencia || libroMod.ordenarMovimientosPorSecuencia;
   } catch (e) {}
 }
@@ -91,8 +89,6 @@ class MovementService {
       LibroModule = {
         aplicarMovimiento: (typeof aplicarMovimiento !== 'undefined' ? aplicarMovimiento : null),
         reconstruir: (typeof reconstruir !== 'undefined' ? reconstruir : null),
-        extraerConsumosFifoDeObservaciones: (typeof extraerConsumosFifoDeObservaciones !== 'undefined' ? extraerConsumosFifoDeObservaciones : null),
-        anexarConsumosFifoAObservaciones: (typeof anexarConsumosFifoAObservaciones !== 'undefined' ? anexarConsumosFifoAObservaciones : null),
         ordenarMovimientosPorSecuencia: (typeof ordenarMovimientosPorSecuencia !== 'undefined' ? ordenarMovimientosPorSecuencia : null)
       };
     }
@@ -151,73 +147,44 @@ class MovementService {
     const capas = this.repo && typeof this.repo.getCapasFifo === 'function' ? this.repo.getCapasFifo() : [];
     const stockList = this.repo && typeof this.repo.getStockActual === 'function' ? this.repo.getStockActual() : [];
     const movimientos = this.repo && typeof this.repo.getMovimientos === 'function' ? this.repo.getMovimientos() : [];
+    const consumosFifoRows = this.repo && typeof this.repo.getConsumosFifo === 'function' ? this.repo.getConsumosFifo() : [];
 
     const stock = {};
     stockList.forEach(s => {
       stock[s.stock_key] = Number(s.cajas_actuales || 0);
     });
 
-    const consumosPorMovimiento = {};
-    const ordenarFn = this.libro && typeof this.libro.ordenarMovimientosPorSecuencia === 'function'
-      ? this.libro.ordenarMovimientosPorSecuencia
-      : (arr => [...arr]);
-    const extraerFn = this.libro && typeof this.libro.extraerConsumosFifoDeObservaciones === 'function'
-      ? this.libro.extraerConsumosFifoDeObservaciones
-      : (() => []);
+    let consumosPorMovimiento = {};
 
-    const movsOrdenados = ordenarFn(movimientos);
-
-    for (const m of movsOrdenados) {
-      const idMov = String(m.id_movimiento || '').trim();
-      const tipo = String(m.tipo_movimiento || '').trim().toUpperCase();
-      const signo = Number(m.signo || (tipo === 'ENTRADA' ? 1 : -1));
-      const idRef = String(m.id_movimiento_ref || '').trim();
-      const idCapaObj = String(m.id_capa_objetivo || '').trim();
-      const idCapaCreada = String(m.id_capa_creada || '').trim();
-      const cajas = Math.abs(Number(m.cajas || 0));
-
-      if (!idMov) continue;
-
-      if ((tipo === 'SALIDA' || (tipo === 'AJUSTE' && signo === -1)) && !idCapaObj) {
-        const parsed = extraerFn(m.observaciones);
-        if (parsed.length > 0) {
-          consumosPorMovimiento[idMov] = parsed.map(c => ({
-            id_capa: c.id_capa,
-            cajas: Number(c.cajas !== undefined ? c.cajas : c.cajas_descontadas)
-          }));
-          if (idRef) {
-            if (!Array.isArray(consumosPorMovimiento[idRef])) {
-              consumosPorMovimiento[idRef] = [];
-            }
-            for (const c of parsed) {
-              const cant = Number(c.cajas !== undefined ? c.cajas : c.cajas_descontadas);
-              const ex = consumosPorMovimiento[idRef].find(item => item.id_capa === c.id_capa);
-              if (ex) {
-                ex.cajas = Number(ex.cajas || 0) + cant;
-              } else {
-                consumosPorMovimiento[idRef].push({ id_capa: c.id_capa, cajas: cant });
-              }
-            }
-          }
+    if (consumosFifoRows && consumosFifoRows.length > 0) {
+      for (const row of consumosFifoRows) {
+        const movId = String(row.id_movimiento || '').trim();
+        const cajas = Number(row.cajas || 0);
+        if (!movId || cajas <= 0) continue;
+        if (!consumosPorMovimiento[movId]) {
+          consumosPorMovimiento[movId] = [];
         }
-      } else if (tipo === 'AJUSTE' && signo === -1 && idCapaObj) {
-        consumosPorMovimiento[idMov] = [{ id_capa: idCapaObj, cajas }];
-      } else if (tipo === 'AJUSTE' && signo === 1 && !idCapaObj && !idCapaCreada && idRef) {
-        // Corrección de salida a la baja: reduce consumosPorMovimiento[idRef] en orden inverso
-        const list = consumosPorMovimiento[idRef];
-        if (Array.isArray(list) && list.length > 0) {
-          let porRestaurar = cajas;
-          for (let i = list.length - 1; i >= 0 && porRestaurar > 0; i--) {
-            const disp = Number(list[i].cajas || 0);
-            const rest = Math.min(porRestaurar, disp);
-            list[i].cajas = disp - rest;
-            porRestaurar -= rest;
-          }
-          consumosPorMovimiento[idRef] = list.filter(item => Number(item.cajas || 0) > 0);
-        }
-      } else if (tipo === 'ANULACION' && idRef) {
-        if (consumosPorMovimiento[idRef]) {
-          consumosPorMovimiento[idRef] = [];
+        consumosPorMovimiento[movId].push({
+          id_capa: String(row.id_capa || '').trim(),
+          cajas: cajas,
+          codigo_articulo: String(row.codigo_articulo || '').trim(),
+          codigo_envase: String(row.codigo_envase || '').trim(),
+          fecha_negocio: String(row.fecha_negocio || '').trim()
+        });
+      }
+    } else {
+      // Si la hoja está vacía y MOVIMIENTOS tiene movimientos que consumen (primera ejecución tras desplegar)
+      const tieneConsumos = movimientos.some(m => {
+        const tipo = String(m.tipo_movimiento || '').trim().toUpperCase();
+        const signo = Number(m.signo || 0);
+        const est = String(m.estado || '').trim().toUpperCase();
+        return est === 'CONFIRMADO' && (tipo === 'SALIDA' || (tipo === 'AJUSTE' && signo === -1));
+      });
+
+      if (tieneConsumos && this.libro && typeof this.libro.reconstruir === 'function') {
+        const rec = this.libro.reconstruir(movimientos);
+        if (rec && rec.estado && rec.estado.consumosPorMovimiento) {
+          consumosPorMovimiento = rec.estado.consumosPorMovimiento;
         }
       }
     }
@@ -252,6 +219,53 @@ class MovementService {
     // 2. Reescribir CAPAS_FIFO
     if (estado && Array.isArray(estado.capas)) {
       this.repo.saveCapasFifo(estado.capas);
+    }
+
+    // 2b. Reescribir CONSUMOS_FIFO justo después de CAPAS_FIFO (T-003 Regla 2)
+    if (estado && estado.consumosPorMovimiento && typeof estado.consumosPorMovimiento === 'object') {
+      const consumosRecords = [];
+      const movKeys = Object.keys(estado.consumosPorMovimiento);
+      for (const movId of movKeys) {
+        const list = estado.consumosPorMovimiento[movId];
+        if (!Array.isArray(list) || list.length === 0) continue;
+        let orden = 1;
+        for (const item of list) {
+          const cajas = Number(item.cajas !== undefined ? item.cajas : item.cajas_descontadas);
+          if (cajas <= 0) continue;
+
+          let art = item.codigo_articulo;
+          let env = item.codigo_envase;
+          let fecha = item.fecha_negocio;
+
+          if ((!art || !env) && Array.isArray(estado.capas)) {
+            const capa = estado.capas.find(c => c.id_capa === item.id_capa);
+            if (capa) {
+              art = art || capa.codigo_articulo;
+              env = env || capa.codigo_envase;
+            }
+          }
+
+          if (!fecha && Array.isArray(movimientos)) {
+            const m = movimientos.find(x => x.id_movimiento === movId);
+            if (m) {
+              fecha = m.fecha_negocio;
+            }
+          }
+
+          consumosRecords.push({
+            id_movimiento: movId,
+            orden: orden++,
+            id_capa: item.id_capa,
+            codigo_articulo: art || '',
+            codigo_envase: env || '',
+            cajas: cajas,
+            fecha_negocio: fecha || ''
+          });
+        }
+      }
+      if (this.repo && typeof this.repo.saveConsumosFifo === 'function') {
+        this.repo.saveConsumosFifo(consumosRecords);
+      }
     }
 
     // 3. Reescribir STOCK_ACTUAL
@@ -413,13 +427,59 @@ class MovementService {
       }
     }
 
-    const totalDiferencias = diferenciasCapas.length + diferenciasStock.length;
+    const diferenciasConsumos = [];
+    const consumosGuardados = (this.repo && typeof this.repo.getConsumosFifo === 'function')
+      ? this.repo.getConsumosFifo()
+      : [];
+    const consumosReconstruidosMap = reconstruccion.estado.consumosPorMovimiento || {};
+
+    const mapaConsumosGuardados = new Map();
+    for (const c of consumosGuardados) {
+      const movId = String(c.id_movimiento || '').trim();
+      const capaId = String(c.id_capa || '').trim();
+      const cajas = Number(c.cajas || 0);
+      if (!movId || !capaId || cajas <= 0) continue;
+      const key = `${movId}|${capaId}`;
+      mapaConsumosGuardados.set(key, (mapaConsumosGuardados.get(key) || 0) + cajas);
+    }
+
+    const mapaConsumosReconstruidos = new Map();
+    for (const movId of Object.keys(consumosReconstruidosMap)) {
+      const list = consumosReconstruidosMap[movId];
+      if (!Array.isArray(list)) continue;
+      for (const item of list) {
+        const capaId = String(item.id_capa || '').trim();
+        const cajas = Number(item.cajas !== undefined ? item.cajas : item.cajas_descontadas);
+        if (!movId || !capaId || cajas <= 0) continue;
+        const key = `${movId}|${capaId}`;
+        mapaConsumosReconstruidos.set(key, (mapaConsumosReconstruidos.get(key) || 0) + cajas);
+      }
+    }
+
+    const todasClavesConsumo = new Set([...mapaConsumosGuardados.keys(), ...mapaConsumosReconstruidos.keys()]);
+    for (const key of todasClavesConsumo) {
+      const vivoVal = Number(mapaConsumosGuardados.get(key) || 0);
+      const recVal = Number(mapaConsumosReconstruidos.get(key) || 0);
+      if (vivoVal !== recVal) {
+        const [movId, capaId] = key.split('|');
+        diferenciasConsumos.push({
+          id_movimiento: movId,
+          id_capa: capaId,
+          vivo: vivoVal,
+          reconstruido: recVal,
+          diferencia: vivoVal - recVal
+        });
+      }
+    }
+
+    const totalDiferencias = diferenciasCapas.length + diferenciasStock.length + diferenciasConsumos.length;
 
     return {
       consistente: totalDiferencias === 0 && Boolean(reconstruccion.isConsistent),
       totalDiferencias,
       diferenciasCapas,
       diferenciasStock,
+      diferenciasConsumos,
       avisos: reconstruccion.avisos || []
     };
   }
@@ -755,9 +815,6 @@ class MovementService {
         }
 
         estado = res.estado;
-        if (res.consumos && res.consumos.length > 0) {
-          mov.observaciones = this.libro.anexarConsumosFifoAObservaciones(mov.observaciones, res.consumos);
-        }
         generatedMovements.push(mov);
       }
 
@@ -885,6 +942,14 @@ class MovementService {
 
       const res = this.libro.aplicarMovimiento(estado, mov);
       if (!res.ok) {
+        if (res.errorCode === 'CONSUMOS_DESCONOCIDOS') {
+          return {
+            success: false,
+            status: 'REVISION_NECESARIA',
+            errorCode: 'CONSUMOS_DESCONOCIDOS',
+            message: res.error || 'Consumos FIFO desconocidos para el movimiento referenciado.'
+          };
+        }
         return {
           success: false,
           status: 'PENDIENTE_REVISION',
@@ -895,10 +960,6 @@ class MovementService {
           deficit: res.deficit !== undefined ? res.deficit : Math.max(0, cajas - stockAnterior),
           message: res.error
         };
-      }
-
-      if (signo === -1 && res.consumos && res.consumos.length > 0) {
-        mov.observaciones = this.libro.anexarConsumosFifoAObservaciones(mov.observaciones, res.consumos);
       }
 
       const nuevoEstado = res.estado;
@@ -1093,9 +1154,6 @@ class MovementService {
           throw new Error(`Error en reclasificación origen: ${resSal.error}`);
         }
         estado = resSal.estado;
-        if (resSal.consumos && resSal.consumos.length > 0) {
-          movSalida.observaciones = this.libro.anexarConsumosFifoAObservaciones(movSalida.observaciones, resSal.consumos);
-        }
         generatedMovements.push(movSalida);
 
         const movEntrada = {
@@ -1909,6 +1967,14 @@ class MovementService {
 
         const res = this.libro.aplicarMovimiento(estado, movAnul);
         if (!res.ok) {
+          if (res.errorCode === 'CONSUMOS_DESCONOCIDOS') {
+            return {
+              success: false,
+              status: 'REVISION_NECESARIA',
+              errorCode: 'CONSUMOS_DESCONOCIDOS',
+              message: res.error || 'Consumos FIFO desconocidos para la salida que se desea anular.'
+            };
+          }
           throw new Error(`Error al anular salida ${mov.id_movimiento}: ${res.error}`);
         }
 
@@ -2064,6 +2130,14 @@ class MovementService {
 
         const res = this.libro.aplicarMovimiento(estado, movAjuste);
         if (!res.ok) {
+          if (res.errorCode === 'CONSUMOS_DESCONOCIDOS') {
+            return {
+              success: false,
+              status: 'REVISION_NECESARIA',
+              errorCode: 'CONSUMOS_DESCONOCIDOS',
+              message: res.error || 'Consumos FIFO desconocidos para la salida que se desea corregir.'
+            };
+          }
           throw new Error(`Error al corregir salida a la baja: ${res.error}`);
         }
 
@@ -2119,9 +2193,6 @@ class MovementService {
         }
 
         estado = res.estado;
-        if (res.consumos && res.consumos.length > 0) {
-          movAjuste.observaciones = this.libro.anexarConsumosFifoAObservaciones(movAjuste.observaciones, res.consumos);
-        }
 
         this._persistir({
           movimientos: [movAjuste],

@@ -21,6 +21,8 @@ erDiagram
     MAESTRO ||--o{ CAPAS_FIFO : "identifica"
     DOCUMENTOS ||--o{ MOVIMIENTOS : "origina"
     MOVIMIENTOS ||--o| CAPAS_FIFO : "genera_capa_entrada"
+    MOVIMIENTOS ||--o{ CONSUMOS_FIFO : "desglosa_consumo"
+    CAPAS_FIFO ||--o{ CONSUMOS_FIFO : "soporta_consumo"
     GRUPOS_ENVASE ||--o{ STOCK_ACTUAL : "agrupa_para_consulta"
     
     GRUPOS_ENVASE {
@@ -98,6 +100,16 @@ erDiagram
         string proveedor
         string id_capa_origen
         string origen_dato
+    }
+
+    CONSUMOS_FIFO {
+        string id_movimiento FK
+        int orden
+        string id_capa FK
+        string codigo_articulo FK
+        string codigo_envase FK
+        int cajas
+        date fecha_negocio
     }
 
     STOCK_ACTUAL {
@@ -236,7 +248,23 @@ Capa de consulta rápida y materialización del saldo vivo por cada par `(codigo
 
 ---
 
-### 3.6. Tabla: `CONFIG`
+### 3.6. Tabla: `CONSUMOS_FIFO`
+Estructura derivada (D-022, T-003) que materializa la foto viva de consumos sobre capas FIFO (`estado.consumosPorMovimiento`).
+Se reescribe íntegramente en `_persistir` y puede reconstruirse en cualquier momento a partir de `MOVIMIENTOS` mediante `reconstruir(movimientos)`. No almacena `FIFO:` como texto ni depende de repartos a ciegas.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `id_movimiento` | `VARCHAR(50)` | NO | Clave foránea al movimiento que consumió stock (`SALIDA` o `AJUSTE −`). |
+| `orden` | `INTEGER` | NO | Posición correlativa (1, 2…) dentro de los consumos del movimiento. |
+| `id_capa` | `VARCHAR(50)` | NO | Clave foránea a la capa de `CAPAS_FIFO` de la que se dedujeron las cajas. |
+| `codigo_articulo` | `VARCHAR(50)` | NO | Código de artículo Hispatec. |
+| `codigo_envase` | `VARCHAR(50)` | NO | Código del envase. |
+| `cajas` | `INTEGER` | NO | Cantidad de cajas que continúan consumidas actualmente por este movimiento sobre esta capa (> 0). |
+| `fecha_negocio` | `DATE` | NO | Fecha de negocio del movimiento que consume (`YYYY-MM-DD`, texto con formato `@`). |
+
+---
+
+### 3.7. Tabla: `CONFIG`
 Configuración operativa del entorno para evitar valores fijos en el código.
 
 | Clave | Valor Típico | Descripción |
@@ -247,7 +275,7 @@ Configuración operativa del entorno para evitar valores fijos en el código.
 
 ---
 
-### 3.7. Tabla: `GRUPOS_ENVASE`
+### 3.8. Tabla: `GRUPOS_ENVASE`
 Catálogo de clasificación de envases en familias o grupos para agregación visual, filtros y consultas analíticas.
 *Nota de Arquitectura:* Los grupos de envase **no intervienen** en el cómputo de saldo, deducciones FIFO ni movimientos. Constituyen una capa puramente consultiva.
 
