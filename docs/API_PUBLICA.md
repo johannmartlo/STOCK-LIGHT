@@ -148,6 +148,7 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `adminCrearCopiaManual` | `src/Código.js` | ADMIN | Crea una copia de seguridad MANUAL de la hoja de datos. |
 | `adminInstalarCopiaDiaria` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario de copia a las 23:00. |
 | `adminConfigurarCarpetaCopias` | `src/Código.js` | ADMIN | Persiste la carpeta de Drive de las copias (`BACKUP_FOLDER_ID`). |
-| `copiaDiariaProgramada` | `src/Código.js` | ESCRITURA | Punto de entrada del disparador diario; no la usa la interfaz. |
+| `copiaDiariaProgramada` | `src/Código.js` | ESCRITURA | Punto de entrada del disparador diario; omite la copia si ya existe una DIARIA de hoy y no la usa la interfaz. |
 | `nombreCopiaSeguridad` | `src/BackupService.js` | INTERNA | Genera el nombre canónico de una copia en Europe/Madrid. |
+| `existeCopiaDiariaDeHoy` | `src/BackupService.js` | INTERNA | Comprueba si ya hay una copia DIARIA con la fecha de hoy en el nombre. |
 | `seleccionarCopiasABorrar` | `src/BackupService.js` | INTERNA | Elige las copias DIARIA más antiguas que sobran; nunca toca MANUAL ni PRE_DESPLIEGUE. |

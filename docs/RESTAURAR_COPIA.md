@@ -13,6 +13,8 @@ de Apps Script, como propietario del script; desde la web app se rechazan.
 - Las copias se llaman `STOCK-LIGHT_COPIA_<YYYY-MM-DD_HHmm>_<MOTIVO>`, con motivo `DIARIA`,
   `MANUAL` o `PRE_DESPLIEGUE`. Se conservan las 30 `DIARIA` más recientes; las `MANUAL` y
   `PRE_DESPLIEGUE` no se borran automáticamente.
+- Solo se crea una copia `DIARIA` por día (Europe/Madrid). Si el disparador se ejecuta varias
+  veces el mismo día, la segunda y siguientes se omiten sin crear ni borrar nada.
 
 ## Pasos para restaurar
 

@@ -17,7 +17,8 @@ nueva, antes de contar la papelera).
 
 `test/t018_copias.test.js`, prueba 2:
 `nombreCopiaSeguridad(new Date('2026-11-05T22:00:00Z'), 'DIARIA')` devuelve exactamente
-`STOCK-LIGHT_COPIA_2026-11-05_2300_DIARIA`.
+`STOCK-LIGHT_COPIA_2026-11-05_2300_DIARIA`. La prueba 2b comprueba `existeCopiaDiariaDeHoy` con
+la fecha del nombre y con `Date` en Europe/Madrid, y que una copia `MANUAL` del mismo día no cuenta.
 
 ## Punto 3 — Disparador diario idempotente
 
@@ -33,7 +34,7 @@ exactamente `Operación reservada al administrador` y no llegan a crear copias n
 
 ## Punto 5 — Clasificación en docs/API_PUBLICA.md
 
-`test/t018_copias.test.js`, prueba 9, comprueba que el documento incluye las seis funciones
+`test/t018_copias.test.js`, prueba 9, comprueba que el documento incluye las siete funciones
 nuevas. La prueba 7 de `test/t023_superficie.test.js` vuelve a recorrer todo `src/**/*.js` y
 confirma que no queda ninguna función global sin clasificar.
 
@@ -41,7 +42,7 @@ Clasificaciones añadidas:
 
 - ADMIN: `adminCrearCopiaManual`, `adminInstalarCopiaDiaria`, `adminConfigurarCarpetaCopias`.
 - ESCRITURA: `copiaDiariaProgramada` (punto de entrada del disparador; no la usa la interfaz).
-- INTERNA: `nombreCopiaSeguridad`, `seleccionarCopiasABorrar`.
+- INTERNA: `nombreCopiaSeguridad`, `existeCopiaDiariaDeHoy`, `seleccionarCopiasABorrar`.
 
 Las funciones privadas (`crearCopiaSeguridad_`, `instalarCopiaDiaria_`,
 `configurarCarpetaCopias_`, `registrarErrorCopia_` y auxiliares terminadas en `_`) no se exponen
@@ -54,7 +55,7 @@ Ejecutado el 2026-11-05. Salida completa en `logs/T-018/tests.txt`.
 - Suites: 20 (19 existentes + `t018_copias.test.js`).
 - Suites superadas: 20.
 - Suites fallidas: 0.
-- Pruebas superadas: 244 (235 de la línea base + 9 nuevas).
+- Pruebas superadas: 247 (235 de la línea base + 12 de T-018).
 - Resultado final: `TODO EN VERDE (0 fallos)`.
 
 ## Punto 7 — Comprobación manual en DEV
@@ -62,6 +63,19 @@ Ejecutado el 2026-11-05. Salida completa en `logs/T-018/tests.txt`.
 Pendiente de la comprobación del responsable: crear una copia manual, instalar la copia diaria y
 verificar al día siguiente que se ha creado. El código deja el disparador a las 23:00 de
 Europe/Madrid y la carpeta configurada en `BACKUP_FOLDER_ID`.
+
+## Cierre del agujero: una sola DIARIA por día
+
+Antes de copiar, `crearCopiaSeguridad_('DIARIA')` lista la carpeta y llama a la función pura
+`existeCopiaDiariaDeHoy(listaCopias, hoy)`, que compara la fecha `YYYY-MM-DD` del nombre de cada
+copia DIARIA con la fecha de hoy en Europe/Madrid. Si ya existe, devuelve
+`{ ok: true, omitida: true, motivo: 'YA_EXISTE_HOY' }` sin crear ni borrar nada. `MANUAL` y
+`PRE_DESPLIEGUE` no pasan por este control.
+
+- Prueba 10: 35 llamadas a `copiaDiariaProgramada` el mismo día dejan exactamente una copia DIARIA
+  de hoy; las tres copias de días anteriores siguen sin `setTrashed` y la carpeta no crece.
+- Prueba 11: al día siguiente, con el reloj de prueba fijado en 2026-11-06,
+  `copiaDiariaProgramada` crea la copia nueva (`2026-11-06`) junto a la del día anterior.
 
 ## Archivos tocados
 

@@ -194,6 +194,28 @@ function conEntornoCopias(mocks, sesion, fn) {
   }
 }
 
+/**
+ * Ejecuta fn con una fecha fija, sustituyendo Date mientras dura la llamada.
+ * Solo se usa en pruebas para simular "hoy" y "mañana" sin tocar el reloj real.
+ */
+function conFechaFija(iso, fn) {
+  const RealDate = global.Date;
+  const fija = new RealDate(iso);
+  class FakeDate extends RealDate {
+    constructor(...args) {
+      if (args.length === 0) super(fija.getTime());
+      else super(...args);
+    }
+    static now() { return fija.getTime(); }
+  }
+  global.Date = FakeDate;
+  try {
+    return fn();
+  } finally {
+    global.Date = RealDate;
+  }
+}
+
 console.log('\n================================================================');
 console.log(' TEST SUITE T-018 — COPIAS DE SEGURIDAD');
 console.log('================================================================\n');
@@ -233,6 +255,20 @@ runTest('1. seleccionarCopiasABorrar devuelve las 5 DIARIA más antiguas y ningu
 runTest('2. El nombre de la copia usa Europe/Madrid (22:00Z -> 23:00)', () => {
   const nombre = backup.nombreCopiaSeguridad(new Date('2026-11-05T22:00:00Z'), 'DIARIA');
   assert.strictEqual(nombre, 'STOCK-LIGHT_COPIA_2026-11-05_2300_DIARIA');
+});
+
+runTest('2b. existeCopiaDiariaDeHoy compara la fecha del nombre y no cuenta MANUAL', () => {
+  const copias = [
+    { nombre: 'STOCK-LIGHT_COPIA_2026-11-05_2300_DIARIA' },
+    { nombre: 'STOCK-LIGHT_COPIA_2026-11-04_2300_DIARIA' },
+    { nombre: 'STOCK-LIGHT_COPIA_2026-11-05_2300_MANUAL' }
+  ];
+  assert.strictEqual(backup.existeCopiaDiariaDeHoy(copias, '2026-11-05'), true);
+  assert.strictEqual(backup.existeCopiaDiariaDeHoy(copias, '2026-11-06'), false);
+  assert.strictEqual(backup.existeCopiaDiariaDeHoy(copias, new Date('2026-11-05T22:00:00Z')), true);
+  assert.strictEqual(backup.existeCopiaDiariaDeHoy([
+    { nombre: 'STOCK-LIGHT_COPIA_2026-11-05_2300_MANUAL' }
+  ], '2026-11-05'), false);
 });
 
 // --------------------------------------------------------------------------
@@ -322,7 +358,46 @@ runTest('8. Una copia DIARIA nueva manda a la papelera la más antigua si ya hay
 });
 
 // --------------------------------------------------------------------------
-// 8. Documentación de la superficie
+// 9. Una sola copia DIARIA por día aunque se llame muchas veces
+// --------------------------------------------------------------------------
+runTest('10. 35 llamadas a copiaDiariaProgramada el mismo día dejan una sola copia y no borran las anteriores', () => {
+  const mocks = crearMocks({ copiasPrevias: 3 });
+  const resultados = conEntornoCopias(mocks, SESIONES.propietario, () => conFechaFija('2026-11-05T10:00:00Z', () => {
+    const salida = [];
+    for (let i = 0; i < 35; i++) salida.push(codigo.copiaDiariaProgramada());
+    return salida;
+  }));
+
+  assert.ok(resultados[0].id, 'La primera llamada debe crear la copia');
+  for (let i = 1; i < resultados.length; i++) {
+    assert.strictEqual(resultados[i].ok, true);
+    assert.strictEqual(resultados[i].omitida, true);
+    assert.strictEqual(resultados[i].motivo, 'YA_EXISTE_HOY');
+  }
+
+  const deHoy = mocks.carpeta.archivos.filter((a) => a.nombre.includes('_2026-11-05_') && a.nombre.endsWith('_DIARIA'));
+  assert.strictEqual(deHoy.length, 1);
+  assert.strictEqual(mocks.carpeta.archivos.length, 4);
+  assert.strictEqual(mocks.carpeta.archivos.filter((a) => a.trashed).length, 0);
+});
+
+// --------------------------------------------------------------------------
+// 10. Al día siguiente sí se crea la copia
+// --------------------------------------------------------------------------
+runTest('11. Al día siguiente copiaDiariaProgramada crea la copia nueva', () => {
+  const mocks = crearMocks();
+  const dia1 = conEntornoCopias(mocks, SESIONES.propietario, () => conFechaFija('2026-11-05T10:00:00Z', () => codigo.copiaDiariaProgramada()));
+  const dia2 = conEntornoCopias(mocks, SESIONES.propietario, () => conFechaFija('2026-11-06T10:00:00Z', () => codigo.copiaDiariaProgramada()));
+
+  assert.ok(dia1.id);
+  assert.ok(dia2.id);
+  assert.ok(dia1.nombre.includes('_2026-11-05_'));
+  assert.ok(dia2.nombre.includes('_2026-11-06_'));
+  assert.strictEqual(mocks.carpeta.archivos.length, 2);
+});
+
+// --------------------------------------------------------------------------
+// 11. Documentación de la superficie
 // --------------------------------------------------------------------------
 runTest('9. docs/API_PUBLICA.md clasifica las funciones nuevas', () => {
   const documento = fs.readFileSync(path.join(__dirname, '..', 'docs', 'API_PUBLICA.md'), 'utf8');
@@ -332,6 +407,7 @@ runTest('9. docs/API_PUBLICA.md clasifica las funciones nuevas', () => {
     'adminConfigurarCarpetaCopias',
     'copiaDiariaProgramada',
     'nombreCopiaSeguridad',
+    'existeCopiaDiariaDeHoy',
     'seleccionarCopiasABorrar'
   ];
   for (const nombre of nuevas) {

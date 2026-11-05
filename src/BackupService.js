@@ -25,21 +25,13 @@ const MOTIVOS_COPIA = ['DIARIA', 'MANUAL', 'PRE_DESPLIEGUE'];
 const MAX_COPIAS_DIARIAS = 30;
 
 /**
- * Genera el nombre canónico de una copia:
- * STOCK-LIGHT_COPIA_<YYYY-MM-DD_HHmm Europe/Madrid>_<MOTIVO>
- *
- * Función pura: no accede a Drive, Sheets ni Session.
+ * Descompone una fecha en sus partes en Europe/Madrid.
+ * Función privada y pura.
  *
  * @param {Date|string|number} fecha
- * @param {string} motivo - DIARIA | MANUAL | PRE_DESPLIEGUE
- * @returns {string}
+ * @returns {{ anio: string, mes: string, dia: string, hora: string, minuto: string, fecha: string }}
  */
-function nombreCopiaSeguridad(fecha, motivo) {
-  const motivoNormalizado = String(motivo || '').trim().toUpperCase();
-  if (MOTIVOS_COPIA.indexOf(motivoNormalizado) === -1) {
-    throw new Error(`Motivo de copia no válido: '${motivo}'. Debe ser DIARIA, MANUAL o PRE_DESPLIEGUE.`);
-  }
-
+function _partesFechaMadrid_(fecha) {
   const fechaObj = fecha instanceof Date ? fecha : new Date(fecha);
   if (isNaN(fechaObj.getTime())) {
     throw new Error(`Fecha de copia no válida: ${fecha}`);
@@ -70,7 +62,67 @@ function nombreCopiaSeguridad(fecha, motivo) {
     throw new Error('No se pudo formatear la fecha de la copia en Europe/Madrid.');
   }
 
-  return `STOCK-LIGHT_COPIA_${anio}-${mes}-${dia}_${hora}${minuto}_${motivoNormalizado}`;
+  return {
+    anio,
+    mes,
+    dia,
+    hora,
+    minuto,
+    fecha: `${anio}-${mes}-${dia}`
+  };
+}
+
+/**
+ * Genera el nombre canónico de una copia:
+ * STOCK-LIGHT_COPIA_<YYYY-MM-DD_HHmm Europe/Madrid>_<MOTIVO>
+ *
+ * Función pura: no accede a Drive, Sheets ni Session.
+ *
+ * @param {Date|string|number} fecha
+ * @param {string} motivo - DIARIA | MANUAL | PRE_DESPLIEGUE
+ * @returns {string}
+ */
+function nombreCopiaSeguridad(fecha, motivo) {
+  const motivoNormalizado = String(motivo || '').trim().toUpperCase();
+  if (MOTIVOS_COPIA.indexOf(motivoNormalizado) === -1) {
+    throw new Error(`Motivo de copia no válido: '${motivo}'. Debe ser DIARIA, MANUAL o PRE_DESPLIEGUE.`);
+  }
+
+  const partes = _partesFechaMadrid_(fecha);
+  return `STOCK-LIGHT_COPIA_${partes.fecha}_${partes.hora}${partes.minuto}_${motivoNormalizado}`;
+}
+
+/**
+ * Extrae la fecha YYYY-MM-DD del nombre canónico de una copia.
+ * Función privada y pura.
+ *
+ * @param {Object} copia
+ * @returns {string}
+ */
+function _fechaDeNombreCopia_(copia) {
+  const nombre = String((copia && (copia.nombre || copia.name)) || '').trim();
+  const match = nombre.match(/^STOCK-LIGHT_COPIA_(\d{4}-\d{2}-\d{2})_/);
+  return match ? match[1] : '';
+}
+
+/**
+ * Indica si ya existe una copia DIARIA con la fecha indicada (Europe/Madrid),
+ * comparando la fecha que lleva el nombre de la copia. Función pura.
+ *
+ * @param {Array<Object>} listaCopias
+ * @param {Date|string} hoy - Fecha de referencia; si es 'YYYY-MM-DD' se usa tal cual
+ * @returns {boolean}
+ */
+function existeCopiaDiariaDeHoy(listaCopias, hoy) {
+  let fechaHoy;
+  if (typeof hoy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(hoy.trim())) {
+    fechaHoy = hoy.trim();
+  } else {
+    fechaHoy = _partesFechaMadrid_(hoy === undefined || hoy === null ? new Date() : hoy).fecha;
+  }
+
+  const copias = Array.isArray(listaCopias) ? listaCopias : [];
+  return copias.some((copia) => _esCopiaDiaria_(copia) && _fechaDeNombreCopia_(copia) === fechaHoy);
 }
 
 /**
@@ -83,7 +135,7 @@ function nombreCopiaSeguridad(fecha, motivo) {
 function _esCopiaDiaria_(copia) {
   if (!copia) return false;
   if (String(copia.motivo || '').trim().toUpperCase() === 'DIARIA') return true;
-  return /_DIARIA$/.test(String(copia.nombre || copia.name || '').trim());
+  return /_DIARIA(?: \(\d+\))?$/.test(String(copia.nombre || copia.name || '').trim());
 }
 
 /**
@@ -357,6 +409,14 @@ function crearCopiaSeguridad_(motivo, options = {}) {
     throw new Error(`No se encontró la carpeta de copias '${folderId}'.`);
   }
 
+  // Blindaje contra llamadas repetidas desde el navegador: una sola DIARIA por día.
+  if (motivoNormalizado === 'DIARIA') {
+    const copiasActuales = _listarCopiasSeguridad_(carpeta);
+    if (existeCopiaDiariaDeHoy(copiasActuales, fecha)) {
+      return { ok: true, omitida: true, motivo: 'YA_EXISTE_HOY' };
+    }
+  }
+
   let archivoCopia;
   try {
     archivoCopia = driveApp.getFileById(spreadsheetId).makeCopy(nombre, carpeta);
@@ -438,6 +498,7 @@ function configurarCarpetaCopias_(folderId, options = {}) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     nombreCopiaSeguridad,
+    existeCopiaDiariaDeHoy,
     seleccionarCopiasABorrar,
     crearCopiaSeguridad_,
     instalarCopiaDiaria_,
