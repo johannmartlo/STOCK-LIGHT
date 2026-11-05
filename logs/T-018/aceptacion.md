@@ -50,12 +50,13 @@ al navegador y no requieren clasificación.
 
 ## Punto 6 — `node test/run_all.js` con 0 fallos
 
-Ejecutado el 2026-11-05. Salida completa en `logs/T-018/tests.txt`.
+Ejecutado el 2026-11-05 tras rebasar sobre `origin/main` con T-022 y T-006B. Salida completa en
+`logs/T-018/tests.txt`.
 
-- Suites: 20 (19 existentes + `t018_copias.test.js`).
-- Suites superadas: 20.
+- Suites: 23 (22 existentes + `t018_copias.test.js`).
+- Suites superadas: 23.
 - Suites fallidas: 0.
-- Pruebas superadas: 247 (235 de la línea base + 12 de T-018).
+- Pruebas superadas: 258 (246 de la línea base + 12 de T-018).
 - Resultado final: `TODO EN VERDE (0 fallos)`.
 
 ## Punto 7 — Comprobación manual en DEV
