@@ -178,20 +178,13 @@ class MovementService {
         };
       }
 
-      // 3. Cargar estado actual de capas vivas, stock y secuencia
+      // 3. Cargar estado actual de capas vivas y stock
       let currentLayers = this.repo.getCapasFifo();
       const stockList = this.repo.getStockActual();
       const currentStock = {};
       stockList.forEach(s => {
         currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
       });
-
-      const movimientosExistentes = this.repo.getMovimientos();
-      let maxSecuencia = 0;
-      for (const m of movimientosExistentes) {
-        const s = Number(m.secuencia);
-        if (!isNaN(s) && s > maxSecuencia) maxSecuencia = s;
-      }
 
       // 4. Procesar cada línea en el motor de dominio
       const generatedMovements = [];
@@ -200,7 +193,6 @@ class MovementService {
       for (let i = 0; i < lineas.length; i++) {
         const linea = lineas[i];
         const cajas = Number(linea.cajas);
-        maxSecuencia++;
 
         const movInput = {
           tipo: 'ENTRADA',
@@ -215,8 +207,7 @@ class MovementService {
           usuario,
           entidad: docPayload.entidad_nombre || '',
           origenDato: linea.origen_dato || linea.origenDato || docPayload.origen_dato || docPayload.origenDato || 'MANUAL',
-          kg: linea.kg !== undefined ? linea.kg : (linea.kg_informativo !== undefined ? linea.kg_informativo : ''),
-          secuencia: maxSecuencia
+          kg: linea.kg !== undefined ? linea.kg : (linea.kg_informativo !== undefined ? linea.kg_informativo : '')
         };
 
         const res = this.engine.processMovement(movInput, currentLayers, currentStock);
@@ -386,20 +377,12 @@ class MovementService {
       }
 
       // 4. Si hay stock suficiente: procesar deducciones FIFO
-      const movimientosExistentes = this.repo.getMovimientos();
-      let maxSecuencia = 0;
-      for (const m of movimientosExistentes) {
-        const s = Number(m.secuencia);
-        if (!isNaN(s) && s > maxSecuencia) maxSecuencia = s;
-      }
-
       const generatedMovements = [];
       let totalCajas = 0;
 
       for (const linea of lineas) {
         const cajas = Number(linea.cajas);
         totalCajas += cajas;
-        maxSecuencia++;
 
         const movInput = {
           tipo: 'SALIDA',
@@ -413,8 +396,7 @@ class MovementService {
           usuario,
           entidad: docPayload.entidad_nombre || '',
           origenDato: linea.origen_dato || linea.origenDato || docPayload.origen_dato || docPayload.origenDato || 'MANUAL',
-          kg: linea.kg !== undefined ? linea.kg : (linea.kg_informativo !== undefined ? linea.kg_informativo : ''),
-          secuencia: maxSecuencia
+          kg: linea.kg !== undefined ? linea.kg : (linea.kg_informativo !== undefined ? linea.kg_informativo : '')
         };
 
         const res = this.engine.processMovement(movInput, currentLayers, currentStock);
@@ -509,14 +491,6 @@ class MovementService {
         currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
       });
 
-      const movimientosExistentes = this.repo.getMovimientos();
-      let maxSecuencia = 0;
-      for (const m of movimientosExistentes) {
-        const s = Number(m.secuencia);
-        if (!isNaN(s) && s > maxSecuencia) maxSecuencia = s;
-      }
-      maxSecuencia++;
-
       const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
       const movInput = {
         tipo: 'AJUSTE',
@@ -533,8 +507,7 @@ class MovementService {
         documentoRef: `AJUSTE:${ajusteInput.motivo}`,
         entidad: ajusteInput.entidad || ajusteInput.entidad_nombre || '',
         origenDato: ajusteInput.origenDato || ajusteInput.origen_dato || 'MANUAL',
-        kg: ajusteInput.kg !== undefined ? ajusteInput.kg : ajusteInput.kg_informativo,
-        secuencia: maxSecuencia
+        kg: ajusteInput.kg !== undefined ? ajusteInput.kg : ajusteInput.kg_informativo
       };
 
       const res = this.engine.processMovement(movInput, currentLayers, currentStock);

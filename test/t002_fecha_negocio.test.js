@@ -374,6 +374,235 @@ runTest('7. Entrada con kg: 444 guarda kg_informativo=444 y el stock en cajas no
   assert.strictEqual(movSinKg.kg_informativo, '');
 });
 
+// --------------------------------------------------------------------------
+// PRUEBA 8 (a): Secuencia asignada en appendMovimientos para todas las operaciones
+// --------------------------------------------------------------------------
+runTest('8. Todas las operaciones que escriben movimientos asignan secuencia creciente sin vacíos', () => {
+  const env = crearEntorno();
+
+  env.repo.saveMaestro([
+    {
+      tenant_id: 'DEFAULT',
+      codigo_articulo: '2112000',
+      nombre_articulo: 'TOMATE ROSA I G',
+      codigo_envase: 'EPS104',
+      descripcion_envase: 'EPS 104',
+      activo: true,
+      es_predeterminado: true
+    },
+    {
+      tenant_id: 'DEFAULT',
+      codigo_articulo: '2112000',
+      nombre_articulo: 'TOMATE ROSA I G',
+      codigo_envase: 'CT4395',
+      descripcion_envase: 'CARTON 4395',
+      activo: true,
+      es_predeterminado: false
+    },
+    {
+      tenant_id: 'DEFAULT',
+      codigo_articulo: '2112001',
+      nombre_articulo: 'TOMATE ROSA I GG',
+      codigo_envase: 'EPS104',
+      descripcion_envase: 'EPS 104',
+      activo: true,
+      es_predeterminado: true
+    }
+  ]);
+
+  // 1) registrarEntrada (1 movimiento -> sec 1)
+  const r1 = env.movService.registrarEntrada({
+    id_documento: 'DOC-OP-1',
+    tipo_documento: 'COMPRA',
+    serie: 'ACT26',
+    numero: '701',
+    fecha_documento: '2026-10-10',
+    entidad_nombre: 'PROV 1'
+  }, [
+    { codigo_articulo: '2112000', codigo_envase: 'EPS104', cajas: 100, partida: 'P-1' }
+  ], 'operador@test');
+  assert.strictEqual(r1.success, true);
+
+  // 2) registrarSalida (1 movimiento -> sec 2)
+  const r2 = env.movService.registrarSalida({
+    id_documento: 'DOC-OP-2',
+    tipo_documento: 'SALIDA',
+    serie: 'ALB26',
+    numero: '702',
+    fecha_documento: '2026-10-11',
+    entidad_nombre: 'CLI 1'
+  }, [
+    { codigo_articulo: '2112000', codigo_envase: 'EPS104', cajas: 20 }
+  ], 'operador@test');
+  assert.strictEqual(r2.success, true);
+
+  // 3) confirmarCompraPendiente (1 movimiento -> sec 3)
+  env.repo.appendDocumento({
+    id_documento: 'DOC-OP-3-PEND',
+    tipo_documento: 'COMPRA',
+    serie: 'ACT26',
+    numero: '703',
+    fecha_documento: '2026-10-12',
+    entidad_nombre: 'PROV PEND',
+    total_lineas: 1,
+    total_cajas: 50,
+    estado_proceso: 'PENDIENTE_REVISION'
+  });
+  const r3 = env.movService.confirmarCompraPendiente(
+    {
+      idDocumento: 'DOC-OP-3-PEND',
+      lineResolutions: [{ lineIndex: 1, codigoEnvase: 'EPS104' }]
+    },
+    'operador@test',
+    null,
+    {
+      canonicalLines: [
+        { lineIndex: 1, codigo_articulo: '2112000', nombre_articulo: 'TOMATE ROSA I G', cajas: 50, partida: 'P-PEND' }
+      ]
+    }
+  );
+  assert.strictEqual(r3.success, true);
+
+  // 4) registrarReclasificacion (2 movimientos -> sec 4, 5)
+  const r4 = env.movService.registrarReclasificacion({
+    codigo_articulo_origen: '2112000',
+    codigo_envase_origen: 'EPS104',
+    codigo_articulo_destino: '2112000',
+    codigo_envase_destino: 'CT4395',
+    cajas: 15,
+    fecha: '2026-10-13'
+  }, 'operador@test');
+  assert.strictEqual(r4.success, true);
+
+  // 5) anularSalida (1 movimiento -> sec 6)
+  const r5 = env.movService.anularSalida({
+    id_documento: 'DOC-OP-2',
+    serie: 'ALB26',
+    numero: '702',
+    motivo: 'ERROR_PEDIDO'
+  }, 'operador@test');
+  assert.strictEqual(r5.success, true);
+
+  // 6) dividirCapaEntrada (2 movimientos -> sec 7, 8)
+  const r6 = env.movService.dividirCapaEntrada({
+    serie: 'ACT26',
+    numero: '703',
+    codigo_articulo: '2112000',
+    codigo_envase: 'EPS104',
+    divisiones: [
+      { codigo_articulo: '2112000', codigo_envase: 'EPS104', cajas: 30, partida: 'P-PEND' },
+      { codigo_articulo: '2112001', codigo_envase: 'EPS104', cajas: 20, partida: 'P-PEND' }
+    ]
+  }, 'operador@test');
+  assert.strictEqual(r6.success, true);
+
+  const movs = env.repo.getMovimientos();
+  assert.strictEqual(movs.length, 8, 'Deben haberse escrito exactamente 8 movimientos en total');
+
+  for (let i = 0; i < movs.length; i++) {
+    const rawSec = movs[i].secuencia;
+    assert.ok(rawSec !== '' && rawSec !== null && rawSec !== undefined, `La fila ${i} no debe tener secuencia vacía`);
+    const sec = Number(rawSec);
+    assert.ok(Number.isInteger(sec) && sec > 0, `La secuencia en fila ${i} debe ser entero positivo`);
+    assert.strictEqual(sec, i + 1, `La secuencia en posición ${i} debe ser ${i + 1}`);
+    if (i > 0) {
+      assert.ok(sec > Number(movs[i - 1].secuencia), 'La columna secuencia debe ser estrictamente creciente');
+    }
+  }
+});
+
+// --------------------------------------------------------------------------
+// PRUEBA 9 (b): Entrada 20/10, salida, y confirmarCompraPendiente 05/10 -> rebuild = vivo
+// --------------------------------------------------------------------------
+runTest('9. Entrada 20/10, salida y después confirmarCompraPendiente del 05/10: rebuild coincide con vivo', () => {
+  const env = crearEntorno();
+
+  env.repo.saveMaestro([
+    {
+      tenant_id: 'DEFAULT',
+      codigo_articulo: '2112000',
+      nombre_articulo: 'TOMATE ROSA I G',
+      codigo_envase: 'EPS104',
+      descripcion_envase: 'EPS 104',
+      activo: true,
+      es_predeterminado: true
+    }
+  ]);
+
+  // 1. Entrada del 20/10 (100 cajas)
+  env.movService.registrarEntrada({
+    id_documento: 'DOC-20OCT-B',
+    tipo_documento: 'COMPRA',
+    serie: 'ACT26',
+    numero: '801',
+    fecha_documento: '2026-10-20',
+    entidad_nombre: 'PROV 20'
+  }, [
+    { codigo_articulo: '2112000', codigo_envase: 'EPS104', cajas: 100, partida: 'PART-20OCT' }
+  ], 'operador@test');
+
+  // 2. Salida de 40 cajas (consume de la única capa existente en ese momento: la del 20/10)
+  env.movService.registrarSalida({
+    id_documento: 'DOC-SAL-B',
+    tipo_documento: 'SALIDA',
+    serie: 'ALB26',
+    numero: '802',
+    fecha_documento: '2026-10-21',
+    entidad_nombre: 'CLIENTE B'
+  }, [
+    { codigo_articulo: '2112000', codigo_envase: 'EPS104', cajas: 40 }
+  ], 'operador@test');
+
+  // 3. Después se confirma una compra pendiente cuya fecha de documento era 05/10 (80 cajas)
+  env.repo.appendDocumento({
+    id_documento: 'DOC-PEND-05OCT',
+    tipo_documento: 'COMPRA',
+    serie: 'ACT26',
+    numero: '803',
+    fecha_documento: '2026-10-05',
+    entidad_nombre: 'PROV 05',
+    total_lineas: 1,
+    total_cajas: 80,
+    estado_proceso: 'PENDIENTE_REVISION'
+  });
+
+  const resConfirm = env.movService.confirmarCompraPendiente(
+    {
+      idDocumento: 'DOC-PEND-05OCT',
+      lineResolutions: [{ lineIndex: 1, codigoEnvase: 'EPS104' }]
+    },
+    'operador@test',
+    null,
+    {
+      canonicalLines: [
+        { lineIndex: 1, codigo_articulo: '2112000', nombre_articulo: 'TOMATE ROSA I G', cajas: 80, partida: 'PART-05OCT' }
+      ]
+    }
+  );
+  assert.strictEqual(resConfirm.success, true);
+
+  // Estado vivo antes de rebuild
+  const capasVivas = env.repo.getCapasFifo();
+  const viva20 = capasVivas.find(c => c.partida === 'PART-20OCT');
+  const viva05 = capasVivas.find(c => c.partida === 'PART-05OCT');
+  assert.strictEqual(viva20.cajas_restantes, 60, 'En vivo, la capa del 20/10 tiene 60 cajas restantes');
+  assert.strictEqual(viva05.cajas_restantes, 80, 'En vivo, la capa del 05/10 confirmada después tiene 80 cajas restantes');
+
+  // Ejecutar rebuildStock()
+  const rebuildRes = env.movService.rebuildStock();
+  assert.strictEqual(rebuildRes.success, true);
+  assert.strictEqual(rebuildRes.report.isConsistent, true);
+
+  const capasRebuild = env.repo.getCapasFifo();
+  const reb20 = capasRebuild.find(c => c.partida === 'PART-20OCT');
+  const reb05 = capasRebuild.find(c => c.partida === 'PART-05OCT');
+
+  assert.strictEqual(reb20.fecha_capa, '2026-10-20');
+  assert.strictEqual(reb20.cajas_restantes, viva20.cajas_restantes, 'Rebuild debe dejar 60 cajas en la capa 20/10');
+  assert.strictEqual(reb05.fecha_capa, '2026-10-05');
+  assert.strictEqual(reb05.cajas_restantes, viva05.cajas_restantes, 'Rebuild debe dejar 80 cajas en la capa 05/10');
+});
+
 console.log('\n================================================================');
 console.log(` RESULTADOS T-002 FECHA DE NEGOCIO: ${passed} SUPERADAS | ${failed} FALLIDAS`);
 console.log('================================================================\n');

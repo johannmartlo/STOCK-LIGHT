@@ -427,6 +427,19 @@ class SheetsRepository {
   }
 
   appendMovimientos(movs) {
+    if (!movs || movs.length === 0) return 0;
+    const existentes = this.getMovimientos();
+    let maxSecuencia = 0;
+    for (const m of existentes) {
+      const s = Number(m.secuencia);
+      if (!isNaN(s) && s > maxSecuencia) {
+        maxSecuencia = s;
+      }
+    }
+    for (const mov of movs) {
+      maxSecuencia++;
+      mov.secuencia = maxSecuencia;
+    }
     return this.appendRecords('MOVIMIENTOS', movs);
   }
 
