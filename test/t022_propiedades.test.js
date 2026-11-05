@@ -364,6 +364,25 @@ runTest(`1. 200 operaciones aleatorias (semilla=${SEED}): comprobarConsistencia(
         console.error('Diferencias en stock:', JSON.stringify(check.diferenciasStock, null, 2));
         assert.fail(`Inconsistencia en semilla=${SEED}, operación #${opIdx} (${descripcionOp}): ${check.totalDiferencias} diferencias`);
       }
+
+      // Invariante T-003: para cada capa de CAPAS_FIFO, suma de cajas en CONSUMOS_FIFO = cajas_consumidas
+      const capasCheck = env.repo.getCapasFifo();
+      const consumosCheck = env.repo.getConsumosFifo();
+      const sumaConsumosPorCapa = {};
+      for (const c of consumosCheck) {
+        const idCapa = String(c.id_capa || '').trim();
+        sumaConsumosPorCapa[idCapa] = (sumaConsumosPorCapa[idCapa] || 0) + Number(c.cajas || 0);
+      }
+      for (const layer of capasCheck) {
+        const idCapa = String(layer.id_capa || '').trim();
+        const sumaCons = sumaConsumosPorCapa[idCapa] || 0;
+        const consumidas = Number(layer.cajas_consumidas || 0);
+        assert.strictEqual(
+          sumaCons,
+          consumidas,
+          `Incoherencia en consumos de capa ${idCapa}: CONSUMOS_FIFO suma ${sumaCons} != cajas_consumidas ${consumidas} (semilla=${SEED}, op #${opIdx}: ${descripcionOp})`
+        );
+      }
     } catch (err) {
       console.error(`\n[EXCEPCIÓN EN PROPIEDAD] Semilla=${SEED}, Operación #${opIdx}: ${descripcionOp}`);
       throw new Error(`Fallo en semilla=${SEED}, operación #${opIdx} (${descripcionOp}): ${err.message}`);

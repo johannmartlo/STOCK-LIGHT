@@ -378,19 +378,17 @@ function aplicarMovimiento(estado, movimiento) {
 
     // Regla 4: cajas_iniciales de la capa NO se toca: la capa muestra su historial.
     layer.cajas_restantes = Number(layer.cajas_restantes || 0) + cajas;
-    if (idMovRef) {
-      // Si restituye consumo de un movimiento previo, reduce cajas_consumidas
-      layer.cajas_consumidas = Math.max(0, Number(layer.cajas_consumidas || 0) - cajas);
-      if (Array.isArray(next.consumosPorMovimiento[idMovRef])) {
-        const list = next.consumosPorMovimiento[idMovRef];
-        for (let i = list.length - 1; i >= 0; i--) {
-          if (list[i].id_capa === idCapaObjetivo) {
-            list[i].cajas = Math.max(0, Number(list[i].cajas || 0) - cajas);
-            break;
-          }
+    if (idMovRef && Array.isArray(next.consumosPorMovimiento[idMovRef])) {
+      const list = next.consumosPorMovimiento[idMovRef];
+      for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i].id_capa === idCapaObjetivo) {
+          const dev = Math.min(cajas, Number(list[i].cajas || 0));
+          list[i].cajas = Number(list[i].cajas || 0) - dev;
+          layer.cajas_consumidas = Math.max(0, Number(layer.cajas_consumidas || 0) - dev);
+          break;
         }
-        next.consumosPorMovimiento[idMovRef] = list.filter(c => c.cajas > 0);
       }
+      next.consumosPorMovimiento[idMovRef] = list.filter(c => c.cajas > 0);
     }
     layer.estado_capa = layer.cajas_restantes > 0 ? 'ACTIVA' : 'AGOTADA';
 
@@ -567,13 +565,15 @@ function aplicarMovimiento(estado, movimiento) {
     }
 
     next.stock[stockKey] = stockDisponible - cajas;
-    next.consumosPorMovimiento[idMovimiento] = consumos.map(c => ({
-      id_capa: c.id_capa,
-      cajas: c.cajas,
-      codigo_articulo: movimiento.codigo_articulo || (c.codigo_articulo || ''),
-      codigo_envase: movimiento.codigo_envase || (c.codigo_envase || ''),
-      fecha_negocio: fechaNegocio
-    }));
+    if (!idMovRef) {
+      next.consumosPorMovimiento[idMovimiento] = consumos.map(c => ({
+        id_capa: c.id_capa,
+        cajas: c.cajas,
+        codigo_articulo: movimiento.codigo_articulo || (c.codigo_articulo || ''),
+        codigo_envase: movimiento.codigo_envase || (c.codigo_envase || ''),
+        fecha_negocio: fechaNegocio
+      }));
+    }
 
     // Si es una corrección de salida al alza (AJUSTE - con id_movimiento_ref a la salida),
     // acumular también estos consumos en la salida referenciada para que futuras correcciones/anulaciones los restituyan.

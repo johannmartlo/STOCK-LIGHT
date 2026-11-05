@@ -455,6 +455,120 @@ runTest('7. Tras rebuildStock, CONSUMOS_FIFO coincide fila a fila con la de ante
   }
 });
 
+// -----------------------------------------------------------------------------
+// Prueba 11: Corrección de venta al alza no duplica filas en CONSUMOS_FIFO
+// -----------------------------------------------------------------------------
+runTest('11. Entrada A (100), venta (10), corregir venta a 14: CONSUMOS_FIFO tiene UNA fila (14 cajas) y ninguna del ajuste; anular venta deja 100 y 0 filas', () => {
+  const env = crearEntorno();
+
+  // Entrada A de 100
+  env.movService.registrarEntrada({
+    tipo_documento: 'COMPRA', serie: 'COM26', numero: '1001', fecha_documento: '2026-10-01', entidad_nombre: 'PROV A'
+  }, [{ codigo_articulo: 'ART1', codigo_envase: 'ENV1', cajas: 100 }], 'test@almacen');
+
+  const capaA = env.repo.getCapasFifo()[0];
+
+  // Venta de 10
+  env.movService.registrarSalida({
+    tipo_documento: 'SALIDA', serie: 'SAL26', numero: '2001', fecha_documento: '2026-10-02', entidad_nombre: 'CLI 1'
+  }, [{ codigo_articulo: 'ART1', codigo_envase: 'ENV1', cajas: 10 }], 'test@almacen');
+
+  const movVenta = env.repo.getMovimientos().find(m => m.tipo_movimiento === 'SALIDA');
+  assert.ok(movVenta);
+
+  // Corregir la venta a 14 (ampliación de 4 cajas)
+  const resCorr = env.movService.corregirCantidadSalida({
+    serie: 'SAL26',
+    numero: '2001',
+    nuevaCantidad: 14
+  }, 'test@almacen');
+  assert.strictEqual(resCorr.success, true);
+
+  // CONSUMOS_FIFO tiene UNA sola fila (id_movimiento = la venta, capa A, 14 cajas) y ninguna del ajuste
+  const consumos = env.repo.getConsumosFifo();
+  assert.strictEqual(consumos.length, 1, 'Debe haber exactamente 1 fila en CONSUMOS_FIFO');
+  assert.strictEqual(consumos[0].id_movimiento, movVenta.id_movimiento);
+  assert.strictEqual(consumos[0].id_capa, capaA.id_capa);
+  assert.strictEqual(Number(consumos[0].cajas), 14);
+  assert.strictEqual(Number(consumos[0].orden), 1);
+
+  // cajas_consumidas de A = 14
+  const capas = env.repo.getCapasFifo();
+  assert.strictEqual(Number(capas[0].cajas_consumidas), 14);
+  assert.strictEqual(Number(capas[0].cajas_restantes), 86);
+
+  // Anular la venta
+  const resAnul = env.movService.anularSalida({ serie: 'SAL26', numero: '2001' }, 'test@almacen');
+  assert.strictEqual(resAnul.success, true);
+
+  // CONSUMOS_FIFO sin filas y A con 100 restantes
+  const consumosPost = env.repo.getConsumosFifo();
+  assert.strictEqual(consumosPost.length, 0, 'CONSUMOS_FIFO debe estar vacío tras anular la venta');
+
+  const capasPost = env.repo.getCapasFifo();
+  assert.strictEqual(Number(capasPost[0].cajas_restantes), 100);
+  assert.strictEqual(Number(capasPost[0].cajas_consumidas), 0);
+});
+
+// -----------------------------------------------------------------------------
+// Prueba 12: Corregir entrada al alza no decrementa cajas_consumidas de la capa
+// -----------------------------------------------------------------------------
+runTest('12. Entrada (100), venta (30), corregir entrada a 110 (queda consumidas 30 y restantes 80), corregir a 130 y anularEntrada da false sin cambios', () => {
+  const env = crearEntorno();
+
+  // Entrada de 100
+  env.movService.registrarEntrada({
+    tipo_documento: 'COMPRA', serie: 'COM26', numero: '1001', fecha_documento: '2026-10-01', entidad_nombre: 'PROV A'
+  }, [{ codigo_articulo: 'ART1', codigo_envase: 'ENV1', cajas: 100 }], 'test@almacen');
+
+  // Venta de 30
+  env.movService.registrarSalida({
+    tipo_documento: 'SALIDA', serie: 'SAL26', numero: '2001', fecha_documento: '2026-10-02', entidad_nombre: 'CLI 1'
+  }, [{ codigo_articulo: 'ART1', codigo_envase: 'ENV1', cajas: 30 }], 'test@almacen');
+
+  // Corregir la entrada a 110
+  const resCorr1 = env.movService.corregirCantidadEntrada({
+    serie: 'COM26',
+    numero: '1001',
+    nuevaCantidad: 110
+  }, 'test@almacen');
+  assert.strictEqual(resCorr1.success, true);
+
+  // La capa queda con cajas_consumidas 30 y cajas_restantes 80
+  let capas = env.repo.getCapasFifo();
+  assert.strictEqual(Number(capas[0].cajas_consumidas), 30);
+  assert.strictEqual(Number(capas[0].cajas_restantes), 80);
+
+  // Corregir después a 130
+  const resCorr2 = env.movService.corregirCantidadEntrada({
+    serie: 'COM26',
+    numero: '1001',
+    nuevaCantidad: 130
+  }, 'test@almacen');
+  assert.strictEqual(resCorr2.success, true);
+
+  capas = env.repo.getCapasFifo();
+  assert.strictEqual(Number(capas[0].cajas_consumidas), 30);
+  assert.strictEqual(Number(capas[0].cajas_restantes), 100);
+
+  const capasSnapshot = JSON.stringify(capas);
+  const movsSnapshot = JSON.stringify(env.repo.getMovimientos());
+
+  // Llamar a anularEntrada
+  const resAnul = env.movService.anularEntrada({
+    serie: 'COM26',
+    numero: '1001'
+  }, 'test@almacen');
+
+  // success false, y ni capas ni MOVIMIENTOS cambian
+  assert.strictEqual(resAnul.success, false);
+  assert.strictEqual(resAnul.status, 'REVISION_NECESARIA');
+  assert.strictEqual(resAnul.errorCode, 'ENTRADA_CON_CONSUMOS');
+
+  assert.strictEqual(JSON.stringify(env.repo.getCapasFifo()), capasSnapshot, 'Las capas no deben cambiar');
+  assert.strictEqual(JSON.stringify(env.repo.getMovimientos()), movsSnapshot, 'MOVIMIENTOS no debe cambiar');
+});
+
 console.log('\n================================================================');
 console.log(` RESULTADOS T-003 CONSUMOS FIFO: ${passed} SUPERADAS | ${failed} FALLIDAS`);
 console.log('================================================================\n');

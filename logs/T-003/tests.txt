@@ -30,30 +30,30 @@ Suites detectadas (24):
 
 ----------------------------------------------------------------
 
-[1/24] Ejecutando articulo_envase_persistence.test.js... ✅ OK (20 pruebas, 1.16s)
-[2/24] Ejecutando commercial_group_resolver.test.js... ✅ OK (23 pruebas, 1.31s)
-[3/24] Ejecutando compra_packaging_resolution.test.js... ✅ OK (9 pruebas, 0.42s)
-[4/24] Ejecutando fase5_configuracion_persistencia.test.js... ✅ OK (18 pruebas, 1.15s)
-[5/24] Ejecutando fase6_1_correcciones_historicas.test.js... ✅ OK (21 pruebas, 1.15s)
-[6/24] Ejecutando fase6_seguridad_operativa.test.js... ✅ OK (20 pruebas, 1.41s)
-[7/24] Ejecutando fase7_frontend_ux_integration.test.js... ✅ OK (19 pruebas, 1.19s)
-[8/24] Ejecutando fase8_1_prueba_real_aislada.test.js... ✅ OK (8 pruebas, 0.95s)
-[9/24] Ejecutando fase8_2_apps_script_v8_loading.test.js... ✅ OK (7 pruebas, 1.65s)
-[10/24] Ejecutando fase8_auditoria_maestros_inicializacion.test.js... ✅ OK (10 pruebas, 1.17s)
-[11/24] Ejecutando helpers_mock.test.js... ✅ OK (2 pruebas, 0.46s)
-[12/24] Ejecutando inventory_engine.test.js... ✅ OK (11 pruebas, 0.46s)
-[13/24] Ejecutando maestro_envases_import.test.js... ✅ OK (22 pruebas, 0.38s)
-[14/24] Ejecutando movement_service.test.js... ✅ OK (4 pruebas, 0.47s)
-[15/24] Ejecutando persistence_runtime.test.js... ✅ OK (9 pruebas, 0.53s)
-[16/24] Ejecutando stock_query.test.js... ✅ OK (10 pruebas, 0.53s)
-[17/24] Ejecutando t002_fecha_negocio.test.js... ✅ OK (9 pruebas, 0.52s)
-[18/24] Ejecutando t003_consumos_fifo.test.js... ✅ OK (7 pruebas, 0.58s)
-[19/24] Ejecutando t006_parser_csv.test.js... ✅ OK (5 pruebas, 0.33s)
-[20/24] Ejecutando t006b_clasificador.test.js... ✅ OK (5 pruebas, 0.33s)
-[21/24] Ejecutando t018_copias.test.js... ✅ OK (12 pruebas, 0.67s)
-[22/24] Ejecutando t022_libro.test.js... ✅ OK (5 pruebas, 0.56s)
-[23/24] Ejecutando t022_propiedades.test.js... ✅ OK (1 pruebas, 1.00s)
-[24/24] Ejecutando t023_superficie.test.js... ✅ OK (8 pruebas, 0.98s)
+[1/24] Ejecutando articulo_envase_persistence.test.js... ✅ OK (20 pruebas, 1.21s)
+[2/24] Ejecutando commercial_group_resolver.test.js... ✅ OK (23 pruebas, 1.32s)
+[3/24] Ejecutando compra_packaging_resolution.test.js... ✅ OK (9 pruebas, 0.46s)
+[4/24] Ejecutando fase5_configuracion_persistencia.test.js... ✅ OK (18 pruebas, 1.33s)
+[5/24] Ejecutando fase6_1_correcciones_historicas.test.js... ✅ OK (21 pruebas, 1.33s)
+[6/24] Ejecutando fase6_seguridad_operativa.test.js... ✅ OK (20 pruebas, 1.31s)
+[7/24] Ejecutando fase7_frontend_ux_integration.test.js... ✅ OK (19 pruebas, 1.28s)
+[8/24] Ejecutando fase8_1_prueba_real_aislada.test.js... ✅ OK (8 pruebas, 1.01s)
+[9/24] Ejecutando fase8_2_apps_script_v8_loading.test.js... ✅ OK (7 pruebas, 1.59s)
+[10/24] Ejecutando fase8_auditoria_maestros_inicializacion.test.js... ✅ OK (10 pruebas, 1.01s)
+[11/24] Ejecutando helpers_mock.test.js... ✅ OK (2 pruebas, 0.41s)
+[12/24] Ejecutando inventory_engine.test.js... ✅ OK (11 pruebas, 0.39s)
+[13/24] Ejecutando maestro_envases_import.test.js... ✅ OK (22 pruebas, 0.39s)
+[14/24] Ejecutando movement_service.test.js... ✅ OK (4 pruebas, 0.57s)
+[15/24] Ejecutando persistence_runtime.test.js... ✅ OK (9 pruebas, 0.62s)
+[16/24] Ejecutando stock_query.test.js... ✅ OK (10 pruebas, 0.56s)
+[17/24] Ejecutando t002_fecha_negocio.test.js... ✅ OK (9 pruebas, 0.57s)
+[18/24] Ejecutando t003_consumos_fifo.test.js... ✅ OK (9 pruebas, 0.80s)
+[19/24] Ejecutando t006_parser_csv.test.js... ✅ OK (5 pruebas, 0.43s)
+[20/24] Ejecutando t006b_clasificador.test.js... ✅ OK (5 pruebas, 0.39s)
+[21/24] Ejecutando t018_copias.test.js... ✅ OK (12 pruebas, 0.68s)
+[22/24] Ejecutando t022_libro.test.js... ✅ OK (5 pruebas, 0.53s)
+[23/24] Ejecutando t022_propiedades.test.js... ✅ OK (1 pruebas, 0.94s)
+[24/24] Ejecutando t023_superficie.test.js... ✅ OK (8 pruebas, 1.00s)
 
 ================================================================
  RESUMEN GLOBAL DE EJECUCIÓN
@@ -61,8 +61,8 @@ Suites detectadas (24):
  Suites ejecutadas:  24
  Suites superadas:   24
  Suites fallidas:    0
- Pruebas superadas:  265
- Tiempo total:       19.36s
+ Pruebas superadas:  267
+ Tiempo total:       20.14s
 ================================================================
 
 RESULTADO FINAL: TODO EN VERDE (0 fallos)

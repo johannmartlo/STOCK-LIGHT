@@ -88,7 +88,8 @@
 - **Comprobación:** Ejecución de `test/t022_propiedades.test.js` con semilla fija `20261104` y 200 operaciones aleatorias.
 - **Resultado:**
   - `comprobarConsistencia()` incluye ahora `diferenciasConsumos` y su sumatorio en `totalDiferencias`.
-  - Tras las 200 operaciones aleatorias (entradas, salidas, ajustes ±, correcciones al alza y a la baja, anulaciones, divisiones y reclasificaciones), `comprobarConsistencia()` devolvió `0 diferencias` en todas y cada una de las operaciones.
+  - Invariante añadido tras cada operación: para cada capa de `CAPAS_FIFO`, la suma de `cajas` de `CONSUMOS_FIFO` que apuntan a esa capa coincide exactamente con su `cajas_consumidas`.
+  - Tras las 200 operaciones aleatorias (entradas, salidas, ajustes ±, correcciones al alza y a la baja, anulaciones, divisiones y reclasificaciones), `comprobarConsistencia()` y la comprobación de consumos por capa devolvieron `0 diferencias` en todas y cada una de las 200 operaciones.
 - **Estado:** ✅ SUPERADO
 
 ---
@@ -104,6 +105,35 @@
 ### 10. `DATA_MODEL.md` y ejecución global limpia
 - **Comprobación:**
   - `DATA_MODEL.md` actualizado con `CONSUMOS_FIFO` en el diagrama Entidad-Relación (ER) y en la Sección 3.6 como tabla derivada (D-022).
-  - `node test/run_all.js` ejecutado con 0 fallos: 24/24 suites ejecutadas y superadas, 265 pruebas en verde.
+  - `node test/run_all.js` ejecutado con 0 fallos: 24/24 suites ejecutadas y superadas, 267 pruebas en verde.
   - Salida completa archivada en `logs/T-003/tests.txt`.
 - **Estado:** ✅ SUPERADO
+
+---
+
+### 11. Corrección de venta al alza (AJUSTE − con `id_movimiento_ref`): no duplica consumos
+- **Comprobación:** Implementado en `test/t003_consumos_fifo.test.js` (Prueba 11).
+- **Resultado:**
+  - En CASO 4 de `src/Libro.js`, la asignación `next.consumosPorMovimiento[idMovimiento]` se efectúa únicamente cuando `!idMovRef`.
+  - Con entrada de 100, venta de 10 y corrección a 14, `CONSUMOS_FIFO` tiene exactamente 1 fila asociada al movimiento de venta original con 14 cajas (y ninguna fila del ajuste).
+  - `cajas_consumidas` de la capa queda en 14.
+  - Al anular la venta, `CONSUMOS_FIFO` queda vacío y la capa recupera sus 100 cajas restantes (`cajas_consumidas = 0`).
+- **Estado:** ✅ SUPERADO
+
+---
+
+### 12. Corrección de entrada al alza (AJUSTE + con `id_capa_objetivo`): no decrementa `cajas_consumidas`
+- **Comprobación:** Implementado en `test/t003_consumos_fifo.test.js` (Prueba 12).
+- **Resultado:**
+  - En CASO 2 de `src/Libro.js`, `layer.cajas_consumidas` solo se reduce si `consumosPorMovimiento[idMovRef]` contiene un consumo explícito de esa capa.
+  - Con entrada de 100, venta de 30 y corrección de entrada a 110, la capa conserva intactas sus 30 `cajas_consumidas` y pasa a 80 `cajas_restantes`.
+  - Tras ampliar la entrada a 130 (`cajas_restantes = 100`, `cajas_consumidas = 30`), `anularEntrada` devuelve `success = false`, `status = 'REVISION_NECESARIA'` y `errorCode = 'ENTRADA_CON_CONSUMOS'`, sin modificar capas ni `MOVIMIENTOS`.
+- **Estado:** ✅ SUPERADO
+
+---
+
+## Documentación Técnica Adicional
+
+### Desempate en `ordenarMovimientosPorSecuencia`
+En `src/Libro.js`, la función `ordenarMovimientosPorSecuencia` desempataba movimientos sin columna `secuencia` mediante `fecha_hora` y, en caso de igualdad, `String(a.id_movimiento).localeCompare(String(b.id_movimiento))`.
+Dado que los IDs autogenerados son UUIDs aleatorios (D-024), comparar cadenas de UUID no refleja orden temporal alguno y provocaba desordenaciones aleatorias si dos movimientos se registraban en el mismo milisegundo (como ocurre en micro-benchmarks o pruebas en memoria). Se sustituyó por `return 0`, aprovechando que `Array.prototype.sort()` en V8 es determinísticamente estable, preservando así el orden físico de inserción en la hoja (orden cronológico real de registro).
