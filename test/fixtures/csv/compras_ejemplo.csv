@@ -1,0 +1,5 @@
+FechaAlbaran;NombreEmisor;NumeroAlbaran;SerieAlbaran;OrdenLinea;NumeracionProveedor;ReferenciaAC;NombreArticulo;DescripcionArticulo;UnidadesEnvase;CantidadLineaAlbaran;CantidadTotal;ReferenciaLineaAlbaran;ObservacionesLineaAlbaran;CantidadPrecioPor;Factor;PorCada;PesoBrutoLACCA;PesoNetoLACCA;NroPaletsAC;PaletAC;NombrePaletAC;CodigoEnvaseAC;NombreEnvaseAC;CantidadEnvasesAC
+02/11/2026;Proveedor Inventado Uno;2354;ACA27;1;;;;0;0;0;;;"Cabecera; ficticia";0;0;0;0;0;0;;;0;;0
+02/11/2026;Proveedor Inventado Dos;160;ACT27;2;NP-1;REF-1;EPS 106 9x500;Descripción inventada;9;44,000;44;REF-L2;"Revisión; primera";1;1;1;50,000;45,250;0;;;ENV106;EPS 106 9x500;44,000
+03/11/2026;Proveedor Inventado Uno;160;NT27;3;NP-2;REF-2;Artículo de Prueba;Descripción;1;1.234,000;1.234;REF-L3;;1;1;1;0;100,500;0;;;ENV1;Caja;1.234,000
+;;;;

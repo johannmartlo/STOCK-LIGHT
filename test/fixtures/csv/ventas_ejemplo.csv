@@ -1,0 +1,4 @@
+Fecha;RefAV;Numero;Albarán;NombreCliente;NombreArticulo;NroEnvases;Cantidad;Piezas;PesoNetoEnviado;NombreEnvase;NroPalets;Palet
+02/11/2026;REF-AV;160;AVT27/160 (2);Cliente Inventado Uno;Producto de Prueba;12,500;12,500;24,000;18,750;EPS 106;0;
+03/11/2026;REF-AV;161;AVT27/160;Cliente Inventado Dos;Otro Producto;1;1;6;5,250;Caja;0;
+;;;;
