@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const comprasDir = path.join(__dirname, '..', 'docs', 'samples', 'COMPRAS');
+const comprasDir = path.join(__dirname, '..', '..', '..', 'docs', 'samples', 'COMPRAS');
 const files = fs.readdirSync(comprasDir).filter(f => f.endsWith('.extracted.txt'));
 
 files.forEach(f => {

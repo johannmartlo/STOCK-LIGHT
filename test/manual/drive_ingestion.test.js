@@ -20,27 +20,27 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const { DriveService, extractPdfVectorialStreams } = require('../src/DriveService');
-const { CompraParser } = require('../src/parsers/CompraParser');
-const { SalidaParser } = require('../src/parsers/SalidaParser');
-const { DocumentParserRegistry } = require('../src/parsers/DocumentParserRegistry');
-const { MaestroResolver } = require('../src/MaestroResolver');
-const { DocumentValidator } = require('../src/DocumentValidator');
+const { DriveService, extractPdfVectorialStreams } = require('../../src/DriveService');
+const { CompraParser } = require('../../src/parsers/CompraParser');
+const { SalidaParser } = require('../../src/parsers/SalidaParser');
+const { DocumentParserRegistry } = require('../../src/parsers/DocumentParserRegistry');
+const { MaestroResolver } = require('../../src/MaestroResolver');
+const { DocumentValidator } = require('../../src/DocumentValidator');
 
 console.log('================================================================');
 console.log(' TEST SUITE FASE 3.1 — PRUEBA REAL DE PDF CANÓNICO EN SERVIDOR');
 console.log('================================================================\n');
 
 // 1. Cargar Maestro Oficial para validaciones
-const maestroPath = path.join(__dirname, '..', 'docs', 'reference', 'MAESTRO_BASE.json');
+const maestroPath = path.join(__dirname, '..', '..', 'docs', 'reference', 'MAESTRO_BASE.json');
 const maestroData = JSON.parse(fs.readFileSync(maestroPath, 'utf8'));
 const resolver = new MaestroResolver(maestroData);
 const validator = new DocumentValidator({ maestroResolver: resolver });
 const registry = new DocumentParserRegistry({ validator, maestroResolver: resolver });
 
 // 2. Rutas a los dos PDFs reales de muestra
-const pCompra = path.join(__dirname, '..', 'docs', 'samples', 'ALBARAN DE COMPRA POR PARTIDAS.pdf');
-const pSalida = path.join(__dirname, '..', 'docs', 'samples', 'AVT26 6227 ALBARAN DE VENTA.pdf');
+const pCompra = path.join(__dirname, '..', '..', 'docs', 'samples', 'ALBARAN DE COMPRA POR PARTIDAS.pdf');
+const pSalida = path.join(__dirname, '..', '..', 'docs', 'samples', 'AVT26 6227 ALBARAN DE VENTA.pdf');
 
 assert(fs.existsSync(pCompra), 'No se encontró el PDF real de compra: ' + pCompra);
 assert(fs.existsSync(pSalida), 'No se encontró el PDF real de salida: ' + pSalida);

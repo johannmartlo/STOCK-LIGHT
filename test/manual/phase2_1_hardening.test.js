@@ -15,18 +15,18 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const { CompraParser } = require('../src/parsers/CompraParser');
-const { SalidaParser } = require('../src/parsers/SalidaParser');
-const { DocumentParserRegistry } = require('../src/parsers/DocumentParserRegistry');
-const { MaestroResolver } = require('../src/MaestroResolver');
-const { DocumentValidator } = require('../src/DocumentValidator');
+const { CompraParser } = require('../../src/parsers/CompraParser');
+const { SalidaParser } = require('../../src/parsers/SalidaParser');
+const { DocumentParserRegistry } = require('../../src/parsers/DocumentParserRegistry');
+const { MaestroResolver } = require('../../src/MaestroResolver');
+const { DocumentValidator } = require('../../src/DocumentValidator');
 
 console.log('================================================================');
 console.log(' TEST SUITE FASE 2.1 — ENDURECIMIENTO Y CIERRE DE CALIBRACIÓN');
 console.log('================================================================\n');
 
 // 1. Cargar Maestro Oficial
-const maestroPath = path.join(__dirname, '..', 'docs', 'reference', 'MAESTRO_BASE.json');
+const maestroPath = path.join(__dirname, '..', '..', 'docs', 'reference', 'MAESTRO_BASE.json');
 const maestroData = JSON.parse(fs.readFileSync(maestroPath, 'utf8'));
 const resolver = new MaestroResolver(maestroData);
 const validator = new DocumentValidator({ maestroResolver: resolver });
@@ -35,7 +35,7 @@ const registry = new DocumentParserRegistry({
   maestroResolver: resolver
 });
 
-const samplesDir = path.join(__dirname, '..', 'docs', 'samples');
+const samplesDir = path.join(__dirname, '..', '..', 'docs', 'samples');
 
 // ----------------------------------------------------
 // TEST A: Verificar exclusión de Recepción del flujo activo del MVP

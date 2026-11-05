@@ -15,18 +15,18 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const { confirmarDocumentoRevisado, revisarDocumentoHispatec } = require('../src/Código');
-const { MaestroResolver } = require('../src/MaestroResolver');
-const { DocumentValidator } = require('../src/DocumentValidator');
-const { DocumentParserRegistry } = require('../src/parsers/DocumentParserRegistry');
-const { MovementService } = require('../src/MovementService');
+const { confirmarDocumentoRevisado, revisarDocumentoHispatec } = require('../../src/Código');
+const { MaestroResolver } = require('../../src/MaestroResolver');
+const { DocumentValidator } = require('../../src/DocumentValidator');
+const { DocumentParserRegistry } = require('../../src/parsers/DocumentParserRegistry');
+const { MovementService } = require('../../src/MovementService');
 
 console.log('================================================================');
 console.log(' TEST SUITE FASE 3 / PASO 1 — CIERRE DEL TRUST BOUNDARY');
 console.log('================================================================\n');
 
 // 1. Cargar Maestro Oficial
-const maestroPath = path.join(__dirname, '..', 'docs', 'reference', 'MAESTRO_BASE.json');
+const maestroPath = path.join(__dirname, '..', '..', 'docs', 'reference', 'MAESTRO_BASE.json');
 const maestroData = JSON.parse(fs.readFileSync(maestroPath, 'utf8'));
 
 // 2. Mock en memoria para aislar la persistencia durante el test
@@ -60,13 +60,13 @@ const {
   buildDocumentIdentityKey,
   buildLineIdentityKey,
   filterBatchForOverlaps
-} = require('../src/DeduplicationService');
+} = require('../../src/DeduplicationService');
 
 const {
   buildStockKey,
   processMovement,
   rebuildStockFromMovements
-} = require('../src/InventoryEngine');
+} = require('../../src/InventoryEngine');
 
 function createTestEnvironment() {
   const repo = new InMemoryRepository(maestroData);
@@ -102,7 +102,7 @@ function createTestEnvironment() {
   };
 }
 
-const samplesDir = path.join(__dirname, '..', 'docs', 'samples');
+const samplesDir = path.join(__dirname, '..', '..', 'docs', 'samples');
 const rawTextCompra3026 = fs.readFileSync(path.join(samplesDir, 'COMPRAS', 'COMPRA 3026.pdf.extracted.txt'), 'utf8');
 const rawTextRecepcion = fs.readFileSync(path.join(samplesDir, 'ENTRADA RECEPCION.pdf.extracted.txt'), 'utf8');
 

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const samplesDir = path.join(__dirname, '..', 'docs', 'samples');
+const samplesDir = path.join(__dirname, '..', '..', '..', 'docs', 'samples');
 
 function inspectFolder(folder, title) {
   console.log(`\n======================================================`);

@@ -25,7 +25,7 @@ const { execSync } = require('child_process');
 global.HtmlService = {
   XFrameOptionsMode: { ALLOWALL: 'ALLOWALL', DEFAULT: 'DEFAULT' },
   createTemplateFromFile: function(filename) {
-    const filePath = path.resolve(__dirname, `../src/${filename}.html`);
+    const filePath = path.resolve(__dirname, `../../src/${filename}.html`);
     const content = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
     return {
       evaluate: function() {
@@ -44,23 +44,23 @@ global.HtmlService = {
   }
 };
 
-const codigo = require('../src/Código');
-const { MaestroResolver } = require('../src/MaestroResolver');
-const { DocumentValidator } = require('../src/DocumentValidator');
-const { DocumentParserRegistry } = require('../src/parsers/DocumentParserRegistry');
-const { MovementService } = require('../src/MovementService');
-const { StockQueryService } = require('../src/StockQueryService');
+const codigo = require('../../src/Código');
+const { MaestroResolver } = require('../../src/MaestroResolver');
+const { DocumentValidator } = require('../../src/DocumentValidator');
+const { DocumentParserRegistry } = require('../../src/parsers/DocumentParserRegistry');
+const { MovementService } = require('../../src/MovementService');
+const { StockQueryService } = require('../../src/StockQueryService');
 const {
   checkDocumentDuplicate,
   buildDocumentIdentityKey,
   buildLineIdentityKey,
   filterBatchForOverlaps
-} = require('../src/DeduplicationService');
+} = require('../../src/DeduplicationService');
 const {
   buildStockKey,
   processMovement,
   rebuildStockFromMovements
-} = require('../src/InventoryEngine');
+} = require('../../src/InventoryEngine');
 
 let passed = 0;
 let failed = 0;
@@ -81,7 +81,7 @@ function runTest(name, fn) {
 }
 
 // Cargar Maestro Oficial de Referencia
-const maestroPath = path.join(__dirname, '..', 'docs', 'reference', 'MAESTRO_BASE.json');
+const maestroPath = path.join(__dirname, '..', '..', 'docs', 'reference', 'MAESTRO_BASE.json');
 const maestroData = JSON.parse(fs.readFileSync(maestroPath, 'utf8'));
 
 /**
@@ -143,7 +143,7 @@ function createTestEnvironment() {
 }
 
 // Cargar muestras canónicas de albaranes de Hispatec
-const samplesDir = path.join(__dirname, '..', 'docs', 'samples');
+const samplesDir = path.join(__dirname, '..', '..', 'docs', 'samples');
 const rawTextCompra3026 = fs.readFileSync(path.join(samplesDir, 'COMPRAS', 'COMPRA 3026.pdf.extracted.txt'), 'utf8'); // Válido (231 cajas)
 const rawTextCompra3072 = fs.readFileSync(path.join(samplesDir, 'COMPRAS', 'COMPRA 3072.pdf.extracted.txt'), 'utf8'); // Válido (492 cajas)
 const rawTextCompra3024 = fs.readFileSync(path.join(samplesDir, 'COMPRAS', 'COMPRA 3024.pdf.extracted.txt'), 'utf8'); // Pendiente revisión (envase ambiguo)
@@ -336,7 +336,7 @@ runTest('6. Doble confirmación / Doble clic: el lock y la deduplicación absorb
 // -------------------------------------------------------------
 // BLOQUE 3: MODO DEMOSTRACIÓN LOCAL EN Index.html (DEFECTO 2)
 // -------------------------------------------------------------
-const htmlPath = path.resolve(__dirname, '../src/Index.html');
+const htmlPath = path.resolve(__dirname, '../../src/Index.html');
 const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
 runTest('7. Index.html implementa localApiBridge de MODO DEMO identificado claramente', () => {
@@ -361,7 +361,7 @@ runTest('9. btnConfirmarTodoLote gestiona deshabilitación, prevención de doble
 // BLOQUE 4: INVARIANTE INNEGOCIABLE DE INVENTORY ENGINE
 // -------------------------------------------------------------
 runTest('10. Invariante Innegociable: InventoryEngine.js permanece 100% inalterado respecto a Git HEAD', () => {
-  const diff = execSync('git diff -- src/InventoryEngine.js', { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' });
+  const diff = execSync('git diff -- src/InventoryEngine.js', { cwd: path.resolve(__dirname, '../..'), encoding: 'utf8' });
   assert.strictEqual(diff.trim(), '', 'InventoryEngine.js debe tener CERO diferencias respecto a Git HEAD');
 });
 

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const samplesDir = path.join(__dirname, '..', 'docs', 'samples');
+const samplesDir = path.join(__dirname, '..', '..', '..', 'docs', 'samples');
 
 const articles = new Set();
 const envases = new Set();

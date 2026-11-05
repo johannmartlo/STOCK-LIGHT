@@ -7,12 +7,12 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-const { CompraParser } = require('../src/parsers/CompraParser');
-const { RecepcionParser } = require('../src/parsers/RecepcionParser');
-const { SalidaParser } = require('../src/parsers/SalidaParser');
-const { DocumentParserRegistry } = require('../src/parsers/DocumentParserRegistry');
-const { MaestroResolver } = require('../src/MaestroResolver');
-const { DocumentValidator } = require('../src/DocumentValidator');
+const { CompraParser } = require('../../src/parsers/CompraParser');
+const { RecepcionParser } = require('../../src/parsers/RecepcionParser');
+const { SalidaParser } = require('../../src/parsers/SalidaParser');
+const { DocumentParserRegistry } = require('../../src/parsers/DocumentParserRegistry');
+const { MaestroResolver } = require('../../src/MaestroResolver');
+const { DocumentValidator } = require('../../src/DocumentValidator');
 
 console.log('================================================================');
 console.log(' INICIANDO VALIDACIÓN DE PARSERS CON DOCUMENTOS REALES HISPATEC');
@@ -35,7 +35,7 @@ const registry = new DocumentParserRegistry({
   maestroResolver: resolver
 });
 
-const samplesDir = path.join(__dirname, '..', 'docs', 'samples');
+const samplesDir = path.join(__dirname, '..', '..', 'docs', 'samples');
 
 // ----------------------------------------------------
 // TEST 1: Albarán de Venta (Salida) AVT26 6227

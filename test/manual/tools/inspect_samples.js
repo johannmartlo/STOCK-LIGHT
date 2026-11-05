@@ -1,3 +1,6 @@
+/**
+ * Extractor nativo de texto de PDF en Node.js puro usando zlib nativo.
+ */
 const fs = require('fs');
 const zlib = require('zlib');
 const path = require('path');
@@ -7,6 +10,7 @@ function extractTextFromPdf(filePath) {
   const str = data.toString('latin1');
   
   const textChunks = [];
+  // Expresión regular robusta para streams en PDF
   const streamRegex = /stream\r?\n?([\s\S]*?)(?:\r?\n)?endstream/g;
   let match;
 
@@ -25,11 +29,14 @@ function extractTextFromPdf(filePath) {
 
     if (decompressed) {
       const content = decompressed.toString('latin1');
+      // Buscar operadores Tj y TJ
+      // (texto) Tj
       const tjRegex = /\(([^)]*)\)\s*Tj/g;
       let tjMatch;
       while ((tjMatch = tjRegex.exec(content)) !== null) {
         textChunks.push(tjMatch[1]);
       }
+      // [(t) (e) (x) (t) ...] TJ
       const bigTjRegex = /\[(.*?)\]\s*TJ/g;
       let bigTjMatch;
       while ((bigTjMatch = bigTjRegex.exec(content)) !== null) {
@@ -45,22 +52,15 @@ function extractTextFromPdf(filePath) {
   return textChunks.join('\n');
 }
 
-function processFolder(folderPath, category) {
-  if (!fs.existsSync(folderPath)) return;
-  const files = fs.readdirSync(folderPath).filter(f => f.endsWith('.pdf'));
+const samplesDir = path.join(__dirname, '..', '..', '..', 'docs', 'samples');
+const files = fs.readdirSync(samplesDir).filter(f => f.endsWith('.pdf'));
+
+files.forEach(file => {
   console.log(`\n======================================================`);
-  console.log(` CATEGORIA: ${category} (${files.length} archivos)`);
+  console.log(` ARCHIVO: ${file}`);
   console.log(`======================================================`);
-
-  files.forEach(file => {
-    const fullPath = path.join(folderPath, file);
-    const text = extractTextFromPdf(fullPath);
-    const txtPath = path.join(folderPath, `${file}.extracted.txt`);
-    fs.writeFileSync(txtPath, text, 'utf8');
-    console.log(`-> Procesado: ${file} (texto: ${text.length} caracteres)`);
-  });
-}
-
-const samplesDir = path.join(__dirname, '..', 'docs', 'samples');
-processFolder(path.join(samplesDir, 'COMPRAS'), 'ALBARANES DE COMPRA');
-processFolder(path.join(samplesDir, 'SALIDAS'), 'ALBARANES DE SALIDA');
+  const fullPath = path.join(samplesDir, file);
+  const text = extractTextFromPdf(fullPath);
+  console.log(text.slice(0, 3000)); // Primeros 3000 caracteres
+  fs.writeFileSync(path.join(samplesDir, `${file}.extracted.txt`), text, 'utf8');
+});
