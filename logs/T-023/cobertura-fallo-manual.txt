@@ -1,0 +1,35 @@
+
+================================================================
+ TEST SUITE T-023 — SUPERFICIE DEL SERVIDOR
+================================================================
+
+  ✅ [PASS] 1. exigirPropietario_ acepta al propietario y rechaza visitante y otro usuario
+  ✅ [PASS] 2. usuarioActual_ lee el email activo y cae en SIN_IDENTIFICAR
+  ✅ [PASS] 3. Visitante y otro usuario: cada ADMIN lanza el mensaje y no escribe nada
+  ✅ [PASS] 4. Con el propietario, cada ADMIN se ejecuta
+  ✅ [PASS] 5. apiRegistrarAjusteNegativo ignora "HACKER" y firma con el email del servidor
+  ✅ [PASS] 6. Sin email, apiRegistrarAjusteNegativo firma con SIN_IDENTIFICAR
+node :   ❌ [FAIL] 7. Toda función global no privada está clasificada en docs/API_PUBLICA.md
+En línea: 1 Carácter: 129
++ ... ncoding]::new($false); node test/t023_superficie.test.js 2>&1 | Tee-O ...
++                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  ❌ [FAIL] 7. T.../API_PUBLICA.md:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+     Error: Expected values to be strictly deep-equal:
++ actual - expected
+
++ [
++   'funcionGlobalTemporalSinClasificar'
++ ]
+- []
+
++ actual - expected
+
++ [
+  ✅ [PASS] 8. La comprobación de cobertura falla si aparece una función global sin clasificar
+
+================================================================
+ RESULTADOS SUITE T-023: 7 SUPERADAS | 1 FALLIDAS
+================================================================
+

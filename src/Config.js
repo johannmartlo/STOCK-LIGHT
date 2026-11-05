@@ -51,6 +51,7 @@ function getSpreadsheetIdConfig(options = {}) {
  * @returns {boolean}
  */
 function setSpreadsheetIdConfig(spreadsheetId, options = {}) {
+  exigirPropietario_(options.session);
   if (!spreadsheetId || typeof spreadsheetId !== 'string' || spreadsheetId.trim() === '') {
     throw new Error('El SPREADSHEET_ID proporcionado no es válido (debe ser una cadena no vacía).');
   }
@@ -108,6 +109,7 @@ function getDriveFolderIdConfig(options = {}) {
  * @returns {boolean}
  */
 function setDriveFolderIdConfig(driveFolderId, options = {}) {
+  exigirPropietario_(options.session);
   if (!driveFolderId || typeof driveFolderId !== 'string' || driveFolderId.trim() === '') {
     throw new Error('El DRIVE_FOLDER_ID proporcionado no es válido (debe ser una cadena no vacía).');
   }

@@ -53,7 +53,10 @@ function createV8GasContext(scriptProps = {}) {
     Utilities: {
       computeDigest: (algo, bytes) => [1, 2, 3, 4]
     },
-    Session: { getActiveUser: () => ({ getEmail: () => 'test_user@stocklight.test' }) },
+    Session: {
+      getActiveUser: () => ({ getEmail: () => 'test_user@stocklight.test' }),
+      getEffectiveUser: () => ({ getEmail: () => 'test_user@stocklight.test' })
+    },
     HtmlService: {
       createTemplateFromFile: () => ({ evaluate: () => ({ setTitle: () => {}, setXFrameOptionsMode: () => {} }) }),
       XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' }

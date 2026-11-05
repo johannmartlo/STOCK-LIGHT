@@ -24,6 +24,9 @@ const {
   setSpreadsheetIdConfig,
   resolveDatabaseSpreadsheet
 } = require('../src/Config');
+const { exigirPropietario_, usuarioActual_ } = require('../src/Seguridad');
+global.exigirPropietario_ = exigirPropietario_;
+global.usuarioActual_ = usuarioActual_;
 const { SheetsRepository, SCHEMA_DEFINITIONS } = require('../src/Repository');
 const { MovementService } = require('../src/MovementService');
 const {
@@ -260,6 +263,12 @@ runTest('C. Configuración inexistente -> lanza error descriptivo guiado', () =>
 // --------------------------------------------------------------------------
 runTest('D. Configuración inválida -> detecta formato inválido o ID no accesible', () => {
   const ssApp = new MockSpreadsheetApp(null);
+
+  // T-023: setSpreadsheetIdConfig es ADMIN; la prueba simula al propietario del script.
+  global.Session = {
+    getActiveUser: () => ({ getEmail: () => 'dueno@stocklight.test' }),
+    getEffectiveUser: () => ({ getEmail: () => 'dueno@stocklight.test' })
+  };
 
   // Caso D1: ID con espacios o muy corto
   assert.throws(() => {

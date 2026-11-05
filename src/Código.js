@@ -19,6 +19,7 @@ if (typeof require !== 'undefined') {
   const queryMod = require('./StockQueryService');
   const aeIngestMod = require('./ArticuloEnvaseIngestionService');
   const safetyMod = require('./OperationalSafetyService');
+  const segMod = require('./Seguridad');
   let masterInitMod = null;
   try { masterInitMod = require('./MasterInitializationService'); } catch (e) {}
 
@@ -42,12 +43,15 @@ if (typeof require !== 'undefined') {
   global.resolveDatabaseSpreadsheet = confMod.resolveDatabaseSpreadsheet;
   global.DriveService = driveMod.DriveService;
   global.StockQueryService = queryMod.StockQueryService;
+  global.exigirPropietario_ = segMod.exigirPropietario_;
+  global.usuarioActual_ = segMod.usuarioActual_;
 }
 
 /**
  * Inicializa y aprovisiona las 5 hojas maestras de la base de datos en Google Sheets si no existen.
  */
 function initDatabase() {
+  exigirPropietario_();
   const repo = new SheetsRepository();
   const res = repo.provisionDatabase();
   Logger.log('Provisionamiento de base de datos completado: ' + JSON.stringify(res));
@@ -59,6 +63,7 @@ function initDatabase() {
  * de movimientos confirmados.
  */
 function ejecutarReconstruccionStock() {
+  exigirPropietario_();
   const service = new MovementService();
   const res = service.rebuildStock();
   Logger.log('Resultado de reconstrucción: ' + JSON.stringify(res));
@@ -70,8 +75,9 @@ function ejecutarReconstruccionStock() {
  * @param {Object} ajuste
  */
 function registrarAjusteManual(ajuste) {
+  exigirPropietario_();
   const service = new MovementService();
-  const user = typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR';
+  const user = usuarioActual_();
   return service.registrarAjuste(ajuste, user);
 }
 
@@ -79,6 +85,7 @@ function registrarAjusteManual(ajuste) {
  * Función de autodiagnóstico para verificar el funcionamiento del núcleo directamente en Apps Script.
  */
 function testNucleoAppsScript() {
+  exigirPropietario_();
   Logger.log('Iniciando autodiagnóstico del núcleo de STOCK-LIGHT...');
   
   // 1. Probar cálculo puro de InventoryEngine
@@ -167,27 +174,26 @@ function revisarDocumentoHispatec(rawText, fileMeta, options = {}) {
 function confirmarDocumentoRevisado(canonicalInput, fileMetaOrUser, usuarioOrOptions, optionsParam) {
   let rawText = '';
   let fileMeta = {};
-  let usuario = 'OPERADOR';
   let options = {};
 
   if (typeof canonicalInput === 'string') {
     rawText = canonicalInput;
     if (typeof fileMetaOrUser === 'object' && fileMetaOrUser !== null) {
       fileMeta = fileMetaOrUser;
-      usuario = typeof usuarioOrOptions === 'string' ? usuarioOrOptions : (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
       options = typeof optionsParam === 'object' && optionsParam !== null ? optionsParam : {};
     } else {
-      usuario = typeof fileMetaOrUser === 'string' ? fileMetaOrUser : (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
       options = typeof usuarioOrOptions === 'object' && usuarioOrOptions !== null ? usuarioOrOptions : {};
     }
   } else if (typeof canonicalInput === 'object' && canonicalInput !== null) {
     rawText = canonicalInput.rawText || '';
     fileMeta = canonicalInput.fileMeta || {};
-    usuario = canonicalInput.usuario || (typeof fileMetaOrUser === 'string' ? fileMetaOrUser : (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR'));
     options = (typeof fileMetaOrUser === 'object' && fileMetaOrUser !== null && !Array.isArray(fileMetaOrUser))
       ? fileMetaOrUser
       : (typeof usuarioOrOptions === 'object' && usuarioOrOptions !== null ? usuarioOrOptions : {});
   }
+
+  // El usuario de auditoría lo decide el servidor, nunca el navegador (T-023).
+  const usuario = usuarioActual_(options && options.session);
 
   // REGLA DE TRUST BOUNDARY 1: La confirmación exige ENTRADA CANÓNICA (rawText)
   if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
@@ -219,7 +225,7 @@ function confirmarDocumentoRevisado(canonicalInput, fileMetaOrUser, usuarioOrOpt
     deduplicationService: options.deduplicationService || (typeof checkDocumentDuplicate !== 'undefined' ? { checkDocumentDuplicate, buildLineIdentityKey, filterBatchForOverlaps } : null),
     inventoryEngine: options.inventoryEngine || (typeof processMovement !== 'undefined' ? { buildStockKey, processMovement, rebuildStockFromMovements } : null)
   });
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuario;
 
   if (normDoc.documentType === 'COMPRA') {
     return service.registrarEntrada({
@@ -269,6 +275,7 @@ function confirmarDocumentoRevisado(canonicalInput, fileMetaOrUser, usuarioOrOpt
  * @returns {string} Mensaje de confirmación
  */
 function configurarSpreadsheetId(spreadsheetId) {
+  exigirPropietario_();
   setSpreadsheetIdConfig(spreadsheetId);
   return `✅ SPREADSHEET_ID configurado correctamente en ScriptProperties: ${spreadsheetId}`;
 }
@@ -281,6 +288,7 @@ function configurarSpreadsheetId(spreadsheetId) {
  * @returns {string} Mensaje de confirmación
  */
 function configurarDriveFolderId(driveFolderId) {
+  exigirPropietario_();
   setDriveFolderIdConfig(driveFolderId);
   return `✅ DRIVE_FOLDER_ID configurado correctamente en ScriptProperties: ${driveFolderId}`;
 }
@@ -362,7 +370,7 @@ function confirmarCompraPendiente(clientPayload, usuario, options = {}) {
     driveService: options.driveService
   });
 
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   return service.confirmarCompraPendiente(clientPayload, user, resolver, options);
 }
 
@@ -372,6 +380,7 @@ function confirmarCompraPendiente(clientPayload, usuario, options = {}) {
  * @param {Object} [options]
  */
 function apiIngestarMatrizArticuloEnvase(input, options = {}) {
+  exigirPropietario_();
   const service = new ArticuloEnvaseIngestionService(options);
   return service.ingestarMatriz(input, options);
 }
@@ -389,6 +398,7 @@ function apiIngestarMatrizArticuloEnvase(input, options = {}) {
  * @param {Object} [options]
  */
 function apiCambiarEnvasePredeterminado(codigoArticulo, nuevoEnvasePredeterminado, options = {}) {
+  exigirPropietario_();
   const service = new ArticuloEnvaseIngestionService(options);
   return service.cambiarEnvasePredeterminado(codigoArticulo, nuevoEnvasePredeterminado, options);
 }
@@ -436,6 +446,7 @@ function apiClasificarArticuloEnvase(articulo, envase, options = {}) {
  * @param {Object} [options]
  */
 function apiCargarCatalogoHistorico(catalogData, options = {}) {
+  exigirPropietario_();
   const resolver = (typeof CommercialGroupResolver !== 'undefined')
     ? new CommercialGroupResolver(options)
     : (typeof require !== 'undefined' ? new (require('./CommercialGroupResolver').CommercialGroupResolver)(options) : null);
@@ -473,7 +484,7 @@ function apiObtenerDetallePartidas(codigoArticulo, codigoEnvase, options = {}) {
  */
 function apiRegistrarAjustePositivo(params, usuario) {
   const service = new MovementService();
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_();
   return service.registrarAjustePositivo(params, user);
 }
 
@@ -484,7 +495,7 @@ function apiRegistrarAjustePositivo(params, usuario) {
  */
 function apiRegistrarAjusteNegativo(params, usuario) {
   const service = new MovementService();
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_();
   return service.registrarAjusteNegativo(params, user);
 }
 
@@ -495,7 +506,7 @@ function apiRegistrarAjusteNegativo(params, usuario) {
  */
 function apiRegistrarReclasificacion(params, usuario) {
   const service = new MovementService();
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_();
   return service.registrarReclasificacion(params, user);
 }
 
@@ -579,7 +590,7 @@ function apiPrevisualizarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA'
  * @param {Object} [options]
  */
 function apiProcesarEntradaDocumento(docPayload, lineas, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.procesarEntradaDocumento(docPayload, lineas, user);
 }
@@ -592,7 +603,7 @@ function apiProcesarEntradaDocumento(docPayload, lineas, usuario, options = {}) 
  * @param {Object} [options]
  */
 function apiProcesarSalidaDocumento(docPayload, lineas, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.procesarSalidaDocumento(docPayload, lineas, user);
 }
@@ -603,6 +614,7 @@ function apiProcesarSalidaDocumento(docPayload, lineas, usuario, options = {}) {
  * @param {Object} [options]
  */
 function apiConciliarStock(stockExterno, options = {}) {
+  exigirPropietario_();
   const service = _resolveOperationalSafetyService(options);
   return service.conciliarStock(stockExterno, options);
 }
@@ -614,7 +626,7 @@ function apiConciliarStock(stockExterno, options = {}) {
  * @param {Object} [options]
  */
 function apiEjecutarAjusteOperativo(ajustePayload, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.ejecutarAjusteOperativo(ajustePayload, user);
 }
@@ -645,7 +657,7 @@ function apiPrevisualizarCorreccionHistorica(correccionPayload, options = {}) {
  * @param {Object} [options]
  */
 function apiEjecutarCorreccionHistorica(correccionPayload, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.ejecutarCorreccionHistorica(correccionPayload, user);
 }
@@ -654,7 +666,7 @@ function apiEjecutarCorreccionHistorica(correccionPayload, usuario, options = {}
  * Anula una entrada sin consumos posteriores (Fase 6.1).
  */
 function apiAnularEntrada(params, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.anularEntrada(params, user);
 }
@@ -663,7 +675,7 @@ function apiAnularEntrada(params, usuario, options = {}) {
  * Anula una salida restituyendo capas FIFO (Fase 6.1).
  */
 function apiAnularSalida(params, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.anularSalida(params, user);
 }
@@ -672,7 +684,7 @@ function apiAnularSalida(params, usuario, options = {}) {
  * Corrige una entrada parcialmente consumida o modifica artículo/envase (Fase 6.1).
  */
 function apiCorregirEntrada(params, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.corregirEntrada(params, user);
 }
@@ -681,7 +693,7 @@ function apiCorregirEntrada(params, usuario, options = {}) {
  * Corrige la cantidad de una salida histórica (Fase 6.1).
  */
 function apiCorregirSalida(params, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.corregirSalida(params, user);
 }
@@ -690,7 +702,7 @@ function apiCorregirSalida(params, usuario, options = {}) {
  * Divide una entrada histórica en múltiples combinaciones (Fase 6.1).
  */
 function apiDividirEntrada(params, usuario, options = {}) {
-  const user = usuario || (typeof Session !== 'undefined' ? (Session.getActiveUser().getEmail() || 'OPERADOR') : 'OPERADOR');
+  const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.dividirEntrada(params, user);
 }
@@ -838,6 +850,7 @@ const SPREADSHEET_ID_PRUEBAS_AUTORIZADO = ['15PzFg7TfZ2LwBGxtKiU', 'kiedz3owWG27
  * @returns {Object}
  */
 function apiEjecutarPruebaAisladaInicializacion(testSpreadsheetId, options = {}) {
+  exigirPropietario_();
   // 1. La hoja destino está estrictamente fijada a la hoja de pruebas autorizada.
   // No puede eludirse mediante ningún parámetro ni opción.
   const targetId = SPREADSHEET_ID_PRUEBAS_AUTORIZADO;
@@ -901,7 +914,7 @@ function apiEjecutarPruebaAisladaInicializacion(testSpreadsheetId, options = {})
   return service.ejecutarPruebaAisladaDoblePasada(
     options.csvText || null,
     options.maestroBaseJson || null,
-    { usuario: options.usuario || 'OPERADOR_PRUEBAS_FASE8_2' }
+    { usuario: usuarioActual_() }
   );
 }
 
