@@ -1,6 +1,6 @@
 # AGENTS.md — Cómo trabajar en STOCK-LIGHT
 
-Instrucciones para cualquier agente de código (Codex, DeepSeek, Gemini Antigravity, OpenCode…) que ejecute un ticket de este repositorio. Actualizado el 2026-11-04: trabajo en paralelo por carriles.
+Instrucciones para cualquier agente de código (Codex, DeepSeek, Gemini Antigravity, OpenCode…) que ejecute un ticket de este repositorio. Actualizado el 2026-11-04: trabajo en paralelo por carriles. 2026-11-05: regla de «Dudas» (Al terminar, punto 6).
 
 ## Antes de empezar
 1. Lee `docs/STATE.md` (carriles, orden y estado) y `docs/decisions.md` (reglas cerradas).
@@ -37,6 +37,7 @@ Varios agentes trabajan a la vez, cada uno en su carril. Para que no se pisen:
 3. `git push -u origin <rama del ticket>`.
 4. **No hagas merge ni `clasp push`.** El director técnico (Claude) verifica la rama contra el ticket, y el responsable fusiona.
 5. Termina con un resumen de 5 líneas: rama, commit, número de pruebas, puntos de aceptación cumplidos y dudas.
+6. **En «Dudas» se lista todo cambio que no esté descrito en las reglas del ticket**, aunque sea pequeño y aunque esté en un archivo previsto. «Dudas: ninguna» solo es válido si no has hecho nada que el ticket no pida. (Añadido el 2026-11-05.)
 
 ## Parar y preguntar
 Para y pregunta, sin improvisar, si:
