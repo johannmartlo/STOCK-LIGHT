@@ -27,8 +27,22 @@ if (typeof require !== 'undefined') {
   } catch (e) {
     // fallback
   }
+  try {
+    const normMod = require('./Normalizacion');
+    global.normalizarNombre = global.normalizarNombre || normMod.normalizarNombre;
+  } catch (e) {}
 } else if (typeof CommercialGroupResolver !== 'undefined') {
   CommercialGroupResolverClass = CommercialGroupResolver;
+}
+
+function _normNombre_(texto) {
+  const fn = typeof normalizarNombre === 'function'
+    ? normalizarNombre
+    : (typeof global !== 'undefined' && typeof global.normalizarNombre === 'function' ? global.normalizarNombre : null);
+  if (typeof fn === 'function') {
+    return fn(texto);
+  }
+  return String(texto === null || texto === undefined ? '' : texto).trim().replace(/\s+/g, ' ').toUpperCase();
 }
 
 const DEFAULT_GRUPOS_ENVASE = [
@@ -282,11 +296,11 @@ class StockQueryService {
    */
   obtenerDetalleStock(codigoArticulo, codigoEnvase) {
     if (!codigoArticulo || !codigoEnvase) return null;
-    const art = String(codigoArticulo).trim();
-    const env = String(codigoEnvase).trim();
+    const art = _normNombre_(codigoArticulo);
+    const env = _normNombre_(codigoEnvase);
 
     const stock = this.obtenerStockActual();
-    const item = stock.find(l => l.codigo_articulo === art && l.codigo_envase === env);
+    const item = stock.find(l => _normNombre_(l.codigo_articulo) === art && _normNombre_(l.codigo_envase) === env);
     return item || null;
   }
 
@@ -547,8 +561,8 @@ class StockQueryService {
     if (!codigoArticulo || !codigoEnvase) {
       throw new Error('obtenerDetallePartidas: Se requiere codigoArticulo y codigoEnvase.');
     }
-    const art = String(codigoArticulo).trim();
-    const env = String(codigoEnvase).trim();
+    const art = _normNombre_(codigoArticulo);
+    const env = _normNombre_(codigoEnvase);
     const soloVivas = options.soloVivas !== false;
 
     let rawCapas = [];
@@ -559,8 +573,8 @@ class StockQueryService {
     }
 
     const capasFiltradas = (rawCapas || []).filter(c => {
-      const artMatch = String(c.codigo_articulo || '').trim() === art;
-      const envMatch = String(c.codigo_envase || '').trim() === env;
+      const artMatch = _normNombre_(c.codigo_articulo || '') === art;
+      const envMatch = _normNombre_(c.codigo_envase || '') === env;
       if (!artMatch || !envMatch) return false;
       const restantes = Number(c.cajas_restantes !== undefined ? c.cajas_restantes : (c.cajas_saldo !== undefined ? c.cajas_saldo : (Number(c.cajas_iniciales || 0) - Number(c.cajas_consumidas || 0))));
       if (soloVivas && restantes <= 0) return false;

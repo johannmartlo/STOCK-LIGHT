@@ -41,11 +41,25 @@ if (typeof require !== 'undefined') {
   } catch (e) {
     // Entorno Apps Script o fallback
   }
+  try {
+    const normMod = require('./Normalizacion');
+    global.normalizarNombre = global.normalizarNombre || normMod.normalizarNombre;
+  } catch (e) {}
 } else {
   if (typeof CommercialGroupResolver !== 'undefined') _CommercialGroupResolver = CommercialGroupResolver;
   if (typeof MovementService !== 'undefined') _MovementService = MovementService;
   if (typeof SheetsRepository !== 'undefined') _SheetsRepository = SheetsRepository;
   if (typeof StockQueryService !== 'undefined') _StockQueryService = StockQueryService;
+}
+
+function _normNombre_(texto) {
+  const fn = typeof normalizarNombre === 'function'
+    ? normalizarNombre
+    : (typeof global !== 'undefined' && typeof global.normalizarNombre === 'function' ? global.normalizarNombre : null);
+  if (typeof fn === 'function') {
+    return fn(texto);
+  }
+  return String(texto === null || texto === undefined ? '' : texto).trim().replace(/\s+/g, ' ').toUpperCase();
 }
 
 class OperationalSafetyService {
@@ -62,6 +76,24 @@ class OperationalSafetyService {
     this.resolver = options.commercialResolver || (_CommercialGroupResolver ? new _CommercialGroupResolver({ repository: this.repo }) : null);
     this.movementService = options.movementService || (_MovementService ? new _MovementService({ repository: this.repo, lockService: options.lockService }) : null);
     this.queryService = options.stockQueryService || (_StockQueryService ? new _StockQueryService({ repository: this.repo, commercialGroupResolver: this.resolver }) : null);
+  }
+
+  /**
+   * Resuelve la clave de stock canónica delegando en MovementService._clave (D-003, T-004).
+   * @param {string} art 
+   * @param {string} env 
+   * @returns {string}
+   */
+  _clave(art, env) {
+    if (this.movementService && typeof this.movementService._clave === 'function') {
+      return this.movementService._clave(art, env);
+    }
+    const nArt = _normNombre_(art);
+    const nEnv = _normNombre_(env);
+    if (!nArt || !nEnv || nArt.includes('|') || nEnv.includes('|')) {
+      throw new Error(`Clave de stock inválida: codigoArticulo='${art}', codigoEnvase='${env}'`);
+    }
+    return `${nArt}|${nEnv}`;
   }
 
   /**
@@ -179,8 +211,12 @@ class OperationalSafetyService {
         rawStock = this.repo.getStockActual();
       }
       rawStock.forEach(s => {
-        const k = s.stock_key || `${s.codigo_articulo}|${s.codigo_envase}`;
-        stockMap[k] = Number(s.cajas_actuales || 0);
+        try {
+          const k = this._clave(s.codigo_articulo, s.codigo_envase);
+          stockMap[k] = Number(s.cajas_actuales || 0);
+        } catch (e) {
+          if (s.stock_key) stockMap[s.stock_key] = Number(s.cajas_actuales || 0);
+        }
       });
     }
 
@@ -198,8 +234,10 @@ class OperationalSafetyService {
     for (let i = 0; i < lineas.length; i++) {
       const l = lineas[i];
       const lineIndex = l.lineIndex || (i + 1);
-      const art = String(l.codigo_articulo || l.articulo || l.nombre_articulo || '').trim();
-      const env = String(l.codigo_envase || l.envase || l.descripcion_envase || '').trim();
+      const rawArt = l.codigo_articulo || l.articulo || l.nombre_articulo || '';
+      const rawEnv = l.codigo_envase || l.envase || l.descripcion_envase || '';
+      const art = _normNombre_(rawArt);
+      const env = _normNombre_(rawEnv);
       const cajas = Number(l.cajas);
       const partida = l.partida || '';
 
@@ -218,16 +256,26 @@ class OperationalSafetyService {
         totalCajas += cajas;
       }
 
-      // Validación de Artículo y Envase presentes
+      // Validación de Artículo y Envase presentes y válidos
       if (!art) {
         erroresLinea.push('Artículo no especificado.');
         semaforoLinea = 'ERROR';
         motivoLinea = 'ARTICULO_AUSENTE';
         bloqueada = true;
+      } else if (art.includes('|')) {
+        erroresLinea.push('Artículo contiene caracteres inválidos ("|").');
+        semaforoLinea = 'ERROR';
+        motivoLinea = 'ARTICULO_INVALIDO';
+        bloqueada = true;
       }
 
       if (!env || env === 'DEFAULT' || env === 'ENVASE_NO_DETERMINABLE_DESDE_PDF') {
         erroresLinea.push('Envase no especificado o inválido (DEFAULT no permitido).');
+        semaforoLinea = 'ERROR';
+        motivoLinea = 'ENVASE_INVALIDO';
+        bloqueada = true;
+      } else if (env.includes('|')) {
+        erroresLinea.push('Envase contiene caracteres inválidos ("|").');
         semaforoLinea = 'ERROR';
         motivoLinea = 'ENVASE_INVALIDO';
         bloqueada = true;
@@ -246,7 +294,12 @@ class OperationalSafetyService {
 
       // Validación de Stock para Salidas (PROHIBICIÓN DE SALDO NEGATIVO SILENCIOSO)
       if (tipo === 'SALIDA' && semaforoLinea !== 'ERROR') {
-        const key = `${art}|${env}`;
+        let key = '';
+        try {
+          key = this._clave(art, env);
+        } catch (e) {
+          key = `${art}|${env}`;
+        }
         demandaSalida[key] = (demandaSalida[key] || 0) + cajas;
         const disponible = stockMap[key] || 0;
         const solicitadaTotal = demandaSalida[key];
@@ -539,9 +592,16 @@ class OperationalSafetyService {
 
     // 1. Cargar stock interno de STOCK-LIGHT
     localStock.forEach(item => {
-      const art = String(item.codigo_articulo || item.nombre_articulo || '').trim();
-      const env = String(item.codigo_envase || item.descripcion_envase || '').trim();
-      const key = `${art.toUpperCase()}|${env.toUpperCase()}`;
+      const rawArt = item.codigo_articulo || item.nombre_articulo || '';
+      const rawEnv = item.codigo_envase || item.descripcion_envase || '';
+      const art = _normNombre_(rawArt);
+      const env = _normNombre_(rawEnv);
+      let key = '';
+      try {
+        key = this._clave(art, env);
+      } catch (e) {
+        key = `${art}|${env}`;
+      }
       const cajas = Number(item.cajas_actuales != null ? item.cajas_actuales : (item.cajas || 0));
 
       mergedMap.set(key, {
@@ -558,9 +618,16 @@ class OperationalSafetyService {
 
     // 2. Fusionar con stock externo
     (stockExterno || []).forEach(ext => {
-      const art = String(ext.codigo_articulo || ext.articulo || ext.nombre_articulo || '').trim();
-      const env = String(ext.codigo_envase || ext.envase || ext.descripcion_envase || '').trim();
-      const key = `${art.toUpperCase()}|${env.toUpperCase()}`;
+      const rawArt = ext.codigo_articulo || ext.articulo || ext.nombre_articulo || '';
+      const rawEnv = ext.codigo_envase || ext.envase || ext.descripcion_envase || '';
+      const art = _normNombre_(rawArt);
+      const env = _normNombre_(rawEnv);
+      let key = '';
+      try {
+        key = this._clave(art, env);
+      } catch (e) {
+        key = `${art}|${env}`;
+      }
       const cajasExt = Number(ext.cajas != null ? ext.cajas : (ext.cajas_actuales || 0));
 
       if (mergedMap.has(key)) {
@@ -955,7 +1022,7 @@ class OperationalSafetyService {
           };
         } else {
           const deltaConsumo = Math.abs(delta);
-          const stockKey = this.movementService.engine.buildStockKey(mov.codigo_articulo, mov.codigo_envase);
+          const stockKey = this._clave(mov.codigo_articulo, mov.codigo_envase);
           const stockList = this.repo.getStockActual();
           const item = stockList.find(s => s.stock_key === stockKey);
           const disp = item ? Number(item.cajas_actuales || 0) : 0;
@@ -1069,8 +1136,10 @@ class OperationalSafetyService {
       case 'CAMBIAR_ARTICULO':
       case 'CAMBIAR_ENVASE':
       case 'CAMBIAR_CALIBRE': {
-        const nuevoArt = correccionPayload.nuevoArticulo || correccionPayload.articuloDestino || layer.codigo_articulo;
-        const nuevoEnv = correccionPayload.nuevoEnvase || correccionPayload.envaseDestino || layer.codigo_envase;
+        const rawNuevoArt = correccionPayload.nuevoArticulo || correccionPayload.articuloDestino || layer.codigo_articulo;
+        const rawNuevoEnv = correccionPayload.nuevoEnvase || correccionPayload.envaseDestino || layer.codigo_envase;
+        const nuevoArt = _normNombre_(rawNuevoArt);
+        const nuevoEnv = _normNombre_(rawNuevoEnv);
         if (cajasRestantes <= 0) {
           esSegura = false;
           estado = 'REVISION_NECESARIA';
@@ -1104,8 +1173,8 @@ class OperationalSafetyService {
           accionRecomendada = `Asegurar que la suma de divisiones sea exactamente ${cajasIniciales} cajas.`;
         } else {
           const divOrig = divisiones.find(d => 
-            (d.articulo || d.codigo_articulo) === layer.codigo_articulo &&
-            (d.envase || d.codigo_envase || layer.codigo_envase) === layer.codigo_envase
+            _normNombre_(d.articulo || d.codigo_articulo) === _normNombre_(layer.codigo_articulo) &&
+            _normNombre_(d.envase || d.codigo_envase || layer.codigo_envase) === _normNombre_(layer.codigo_envase)
           );
           const cajasAsignadasOrig = divOrig ? Number(divOrig.cajas || 0) : 0;
           if (cajasConsumidas > 0 && cajasAsignadasOrig < cajasConsumidas) {
@@ -1149,8 +1218,8 @@ class OperationalSafetyService {
     // Recalcular clasificación comercial de destino si aplica
     let grupoComercialDestino = null;
     if (this.resolver && (correccionPayload.nuevoArticulo || correccionPayload.nuevoEnvase)) {
-      const tArt = correccionPayload.nuevoArticulo || layer.codigo_articulo;
-      const tEnv = correccionPayload.nuevoEnvase || layer.codigo_envase;
+      const tArt = _normNombre_(correccionPayload.nuevoArticulo || layer.codigo_articulo);
+      const tEnv = _normNombre_(correccionPayload.nuevoEnvase || layer.codigo_envase);
       grupoComercialDestino = this.resolver.resolve(tArt, tEnv);
     }
 
@@ -1227,8 +1296,8 @@ class OperationalSafetyService {
     let artLog = correccionPayload.articulo || correccionPayload.codigo_articulo || (prev.movimientoAfectado ? prev.movimientoAfectado.articulo : '');
     let envLog = correccionPayload.envase || correccionPayload.codigo_envase || (prev.movimientoAfectado ? prev.movimientoAfectado.envase : '');
     let cantLog = Number(correccionPayload.cajas || correccionPayload.nuevaCantidad || prev.cantidadDisponible || 0);
-    let origenLog = `${artLog}|${envLog}`;
-    let destinoLog = `${correccionPayload.nuevoArticulo || artLog}|${correccionPayload.nuevoEnvase || envLog}`;
+    let origenLog = (artLog && envLog) ? this._clave(artLog, envLog) : `${artLog}|${envLog}`;
+    let destinoLog = (correccionPayload.nuevoArticulo || artLog) && (correccionPayload.nuevoEnvase || envLog) ? this._clave(correccionPayload.nuevoArticulo || artLog, correccionPayload.nuevoEnvase || envLog) : `${correccionPayload.nuevoArticulo || artLog}|${correccionPayload.nuevoEnvase || envLog}`;
 
     // 4. DESPACHO SEGÚN ACCIÓN
     switch (accion) {

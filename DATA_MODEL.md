@@ -176,8 +176,8 @@ Libro diario inmutable de eventos de inventario. Cada fila representa un cambio 
 | `fecha_hora` | `DATETIME` | NO | Marca temporal del evento. |
 | `tipo_movimiento` | `ENUM` | NO | `ENTRADA`, `SALIDA`, `AJUSTE`. |
 | `id_documento_ref` | `VARCHAR(50)` | SÍ | Vínculo a `DOCUMENTOS.id_documento` (obligatorio en Entrada/Salida). |
-| `codigo_articulo` | `VARCHAR(50)` | NO | Código de artículo Hispatec. |
-| `codigo_envase` | `VARCHAR(50)` | NO | Código o identificador del envase. |
+| `codigo_articulo` | `VARCHAR(50)` | NO | Nombre normalizado de artículo (`normalizarNombre`, D-003, T-004). |
+| `codigo_envase` | `VARCHAR(50)` | NO | Nombre normalizado del envase (`normalizarNombre`, D-003, T-004). |
 | `cajas` | `INTEGER` | NO | Cantidad absoluta de cajas (> 0). |
 | `signo` | `INTEGER` | NO | `+1` (incrementa stock) o `-1` (decrementa stock). |
 | `partida_origen` | `VARCHAR(50)` | SÍ | Partida informada por Hispatec si aplica. |
@@ -218,8 +218,8 @@ Estructura de capas vivas e históricas para la asignación y consumo cronológi
 | `id_capa` | `VARCHAR(50)` | NO | Clave primaria secuencial (ej. `CAPA-20260928-0001`). |
 | `id_movimiento_entrada` | `VARCHAR(50)` | NO | Vínculo al movimiento de entrada que creó la capa. |
 | `fecha_capa` | `DATE` | NO | Fecha de origen de la capa para ordenación FIFO (`YYYY-MM-DD`, coincide con `fecha_negocio`). |
-| `codigo_articulo` | `VARCHAR(50)` | NO | Código de artículo. |
-| `codigo_envase` | `VARCHAR(50)` | NO | Código de envase. |
+| `codigo_articulo` | `VARCHAR(50)` | NO | Nombre normalizado de artículo (`normalizarNombre`, D-003, T-004). |
+| `codigo_envase` | `VARCHAR(50)` | NO | Nombre normalizado de envase (`normalizarNombre`, D-003, T-004). |
 | `cajas_iniciales` | `INTEGER` | NO | Saldo original con el que nació la capa. |
 | `cajas_consumidas`| `INTEGER` | NO | Cantidad acumulada de cajas deducidas por salidas o mermas. |
 | `cajas_restantes` | `INTEGER` | NO | Saldo disponible actual (`cajas_iniciales - cajas_consumidas`). |
@@ -237,11 +237,11 @@ Capa de consulta rápida y materialización del saldo vivo por cada par `(codigo
 
 | Campo | Tipo | Nulo | Descripción / Regla |
 | :--- | :--- | :---: | :--- |
-| `stock_key` | `VARCHAR(100)`| NO | Clave primaria única generada: `${codigo_articulo}\|${codigo_envase}`. |
-| `codigo_articulo` | `VARCHAR(50)` | NO | Código de artículo Hispatec. |
-| `nombre_articulo` | `VARCHAR(150)`| NO | Nombre descriptivo del artículo. |
-| `codigo_envase` | `VARCHAR(50)` | NO | Código del envase. |
-| `descripcion_envase`| `VARCHAR(100)`| NO | Nombre o descripción del envase. |
+| `stock_key` | `VARCHAR(100)`| NO | Clave primaria única canónica: `${codigo_articulo}\|${codigo_envase}` por nombres normalizados (`_clave` en `MovementService.js`, D-003, T-004). |
+| `codigo_articulo` | `VARCHAR(50)` | NO | Nombre normalizado de artículo (`normalizarNombre`, D-003, T-004). |
+| `nombre_articulo` | `VARCHAR(150)`| NO | Nombre descriptivo del artículo (de MAESTRO, o fallback a `codigo_articulo` si no existe; T-004 Regla 4). |
+| `codigo_envase` | `VARCHAR(50)` | NO | Nombre normalizado del envase (`normalizarNombre`, D-003, T-004). |
+| `descripcion_envase`| `VARCHAR(100)`| NO | Nombre o descripción del envase (de MAESTRO, o fallback a `codigo_envase` si no existe; T-004 Regla 4). |
 | `cajas_actuales` | `INTEGER` | NO | Saldo total de cajas disponibles ($\ge 0$). |
 | `fecha_ultima_actualizacion` | `DATETIME` | NO | Fecha y hora del último movimiento aplicado. |
 | `ultimo_movimiento_id` | `VARCHAR(50)` | NO | Identificador del último movimiento que alteró este saldo. |
@@ -257,8 +257,8 @@ Se reescribe íntegramente en `_persistir` y puede reconstruirse en cualquier mo
 | `id_movimiento` | `VARCHAR(50)` | NO | Clave foránea al movimiento que consumió stock (`SALIDA` o `AJUSTE −`). |
 | `orden` | `INTEGER` | NO | Posición correlativa (1, 2…) dentro de los consumos del movimiento. |
 | `id_capa` | `VARCHAR(50)` | NO | Clave foránea a la capa de `CAPAS_FIFO` de la que se dedujeron las cajas. |
-| `codigo_articulo` | `VARCHAR(50)` | NO | Código de artículo Hispatec. |
-| `codigo_envase` | `VARCHAR(50)` | NO | Código del envase. |
+| `codigo_articulo` | `VARCHAR(50)` | NO | Nombre normalizado de artículo (`normalizarNombre`, D-003, T-004). |
+| `codigo_envase` | `VARCHAR(50)` | NO | Nombre normalizado de envase (`normalizarNombre`, D-003, T-004). |
 | `cajas` | `INTEGER` | NO | Cantidad de cajas que continúan consumidas actualmente por este movimiento sobre esta capa (> 0). |
 | `fecha_negocio` | `DATE` | NO | Fecha de negocio del movimiento que consume (`YYYY-MM-DD`, texto con formato `@`). |
 

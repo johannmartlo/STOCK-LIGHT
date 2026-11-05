@@ -21,11 +21,25 @@ if (typeof require !== 'undefined') {
     global.nuevoId = global.nuevoId || idsMod.nuevoId;
   } catch (e) {}
   try {
+    const normMod = require('./Normalizacion');
+    global.normalizarNombre = global.normalizarNombre || normMod.normalizarNombre;
+  } catch (e) {}
+  try {
     const libroMod = require('./Libro');
     global.aplicarMovimiento = global.aplicarMovimiento || libroMod.aplicarMovimiento;
     global.reconstruir = global.reconstruir || libroMod.reconstruir;
     global.ordenarMovimientosPorSecuencia = global.ordenarMovimientosPorSecuencia || libroMod.ordenarMovimientosPorSecuencia;
   } catch (e) {}
+}
+
+function _normNombre_(texto) {
+  const fn = typeof normalizarNombre === 'function'
+    ? normalizarNombre
+    : (typeof global !== 'undefined' && typeof global.normalizarNombre === 'function' ? global.normalizarNombre : null);
+  if (typeof fn === 'function') {
+    return fn(texto);
+  }
+  return String(texto === null || texto === undefined ? '' : texto).trim().replace(/\s+/g, ' ').toUpperCase();
 }
 
 class MovementService {
@@ -109,6 +123,54 @@ class MovementService {
       return fn(prefijo);
     }
     throw new Error('nuevoId no está disponible en MovementService');
+  }
+
+  /**
+   * Resuelve la clave de stock canónica por nombre normalizado de artículo y envase (D-003, T-004).
+   * Sustituye todas las llamadas a buildStockKey en el servicio.
+   * @param {string} art 
+   * @param {string} env 
+   * @returns {string}
+   */
+  _clave(art, env) {
+    const nArt = _normNombre_(art);
+    const nEnv = _normNombre_(env);
+    if (!nArt || !nEnv || nArt.includes('|') || nEnv.includes('|')) {
+      throw new Error(`Clave de stock inválida: codigoArticulo='${art}', codigoEnvase='${env}'`);
+    }
+    if (this.engine && typeof this.engine.buildStockKey === 'function') {
+      return this.engine.buildStockKey(nArt, nEnv);
+    }
+    return `${nArt}|${nEnv}`;
+  }
+
+  /**
+   * Aplica un movimiento normalizando sus códigos de artículo y envase (D-003, T-004).
+   * Sustituye todas las llamadas directas a this.libro.aplicarMovimiento.
+   * @param {Object} estado 
+   * @param {Object} mov 
+   * @returns {Object}
+   */
+  _aplicar(estado, mov) {
+    const rawArt = mov.codigo_articulo !== undefined ? mov.codigo_articulo : mov.codigoArticulo;
+    const rawEnv = mov.codigo_envase !== undefined ? mov.codigo_envase : mov.codigoEnvase;
+    const nArt = _normNombre_(rawArt);
+    const nEnv = _normNombre_(rawEnv);
+
+    if (!nArt || !nEnv || nArt.includes('|') || nEnv.includes('|')) {
+      return {
+        ok: false,
+        estado,
+        consumos: [],
+        capaCreada: null,
+        error: 'codigo_articulo y codigo_envase son obligatorios y no pueden contener "|".',
+        errorCode: 'VALIDATION_ERROR'
+      };
+    }
+
+    mov.codigo_articulo = nArt;
+    mov.codigo_envase = nEnv;
+    return this.libro.aplicarMovimiento(estado, mov);
   }
 
   /**
@@ -256,8 +318,8 @@ class MovementService {
             id_movimiento: movId,
             orden: orden++,
             id_capa: item.id_capa,
-            codigo_articulo: art || '',
-            codigo_envase: env || '',
+            codigo_articulo: _normNombre_(art || ''),
+            codigo_envase: _normNombre_(env || ''),
             cajas: cajas,
             fecha_negocio: fecha || ''
           });
@@ -273,8 +335,10 @@ class MovementService {
       const maestro = (this.repo && typeof this.repo.getMaestro === 'function') ? this.repo.getMaestro() : [];
       const maestroMap = {};
       maestro.forEach(m => {
-        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-        maestroMap[k] = m;
+        try {
+          const k = this._clave(m.codigo_articulo, m.codigo_envase);
+          maestroMap[k] = m;
+        } catch (e) {}
       });
 
       const lastMovId = ultimoMovimientoId || (movimientos.length > 0 ? movimientos[movimientos.length - 1].id_movimiento : '');
@@ -286,9 +350,9 @@ class MovementService {
         return {
           stock_key: stockKey,
           codigo_articulo: art,
-          nombre_articulo: m.nombre_articulo || '',
+          nombre_articulo: m.nombre_articulo && String(m.nombre_articulo).trim() !== '' ? m.nombre_articulo : art,
           codigo_envase: env,
-          descripcion_envase: m.descripcion_envase || '',
+          descripcion_envase: m.descripcion_envase && String(m.descripcion_envase).trim() !== '' ? m.descripcion_envase : env,
           cajas_actuales: Number(estado.stock[stockKey] || 0),
           fecha_ultima_actualizacion: nowIso,
           ultimo_movimiento_id: lastMovId || ''
@@ -409,7 +473,7 @@ class MovementService {
     const diferenciasStock = [];
     const stockVivoMap = {};
     for (const s of stockGuardadoList) {
-      const k = s.stock_key || this.engine.buildStockKey(s.codigo_articulo, s.codigo_envase);
+      const k = s.stock_key || this._clave(s.codigo_articulo, s.codigo_envase);
       stockVivoMap[k] = Number(s.cajas_actuales || 0);
     }
 
@@ -590,6 +654,7 @@ class MovementService {
 
       for (let i = 0; i < lineas.length; i++) {
         const linea = lineas[i];
+        this._clave(linea.codigo_articulo, linea.codigo_envase);
         const cajas = Number(linea.cajas);
         const idMov = this._nuevoId('MOV');
         const idCapa = this._nuevoId('CAPA');
@@ -623,7 +688,7 @@ class MovementService {
           id_capa_creada: idCapa
         };
 
-        const res = this.libro.aplicarMovimiento(estado, mov);
+        const res = this._aplicar(estado, mov);
         if (!res.ok) {
           throw new Error(`Error inesperado al procesar entrada: ${res.error}`);
         }
@@ -708,7 +773,7 @@ class MovementService {
       const stockKeyNeeds = {};
 
       for (const linea of lineas) {
-        const key = this.engine.buildStockKey(linea.codigo_articulo, linea.codigo_envase);
+        const key = this._clave(linea.codigo_articulo, linea.codigo_envase);
         const cajas = Number(linea.cajas);
         stockKeyNeeds[key] = (stockKeyNeeds[key] || 0) + cajas;
       }
@@ -809,7 +874,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const res = this.libro.aplicarMovimiento(estado, mov);
+        const res = this._aplicar(estado, mov);
         if (!res.ok) {
           throw new Error(`Inconsistencia en deducción FIFO: ${res.error}`);
         }
@@ -903,7 +968,7 @@ class MovementService {
         if (!usuario || String(usuario).trim() === '') throw new Error('Usuario es obligatorio en movimientos de tipo AJUSTE');
       }
 
-      const stockKey = this.engine.buildStockKey(codigoArticulo, codigoEnvase);
+      const stockKey = this._clave(codigoArticulo, codigoEnvase);
       const stockAnterior = Number(estado.stock[stockKey] || 0);
       const idMov = this._nuevoId('MOV');
       const idCapaObj = String(ajusteInput.id_capa_objetivo || ajusteInput.idCapaObjetivo || '').trim();
@@ -940,7 +1005,7 @@ class MovementService {
         id_capa_creada: idCapaCreada
       };
 
-      const res = this.libro.aplicarMovimiento(estado, mov);
+      const res = this._aplicar(estado, mov);
       if (!res.ok) {
         if (res.errorCode === 'CONSUMOS_DESCONOCIDOS') {
           return {
@@ -1039,10 +1104,10 @@ class MovementService {
    * @returns {Object}
    */
   registrarReclasificacion(params, usuario = 'SISTEMA') {
-    const artOrigen = String(params.codigo_articulo_origen || params.codigo_articulo || params.codigoArticulo || '').trim();
-    const artDestino = String(params.codigo_articulo_destino || params.codigo_articulo || params.codigoArticulo || '').trim();
-    const envOrigen = String(params.codigo_envase_origen || params.codigoEnvaseOrigen || '').trim();
-    const envDestino = String(params.codigo_envase_destino || params.codigoEnvaseDestino || '').trim();
+    const artOrigen = String(params.codigo_articulo_origen || params.articulo_origen || params.articuloOrigen || params.codigo_articulo || params.codigoArticulo || '').trim();
+    const artDestino = String(params.codigo_articulo_destino || params.articulo_destino || params.articuloDestino || params.codigo_articulo || params.codigoArticulo || '').trim();
+    const envOrigen = String(params.codigo_envase_origen || params.envase_origen || params.envaseOrigen || params.codigoEnvaseOrigen || '').trim();
+    const envDestino = String(params.codigo_envase_destino || params.envase_destino || params.envaseDestino || params.codigoEnvaseDestino || '').trim();
     const cajas = Math.abs(Number(params.cajas));
     const motivo = params.motivo || 'RECLASIFICACION';
     const observaciones = params.observaciones || `Reclasificación de ${cajas} cajas de ${artOrigen}|${envOrigen} a ${artDestino}|${envDestino}`;
@@ -1051,15 +1116,15 @@ class MovementService {
       throw new Error('registrarReclasificacion: Parámetros inválidos. Requiere articulo, envase origen, envase destino y cajas > 0.');
     }
 
-    if (artOrigen === artDestino && envOrigen === envDestino) {
+    if (this._clave(artOrigen, envOrigen) === this._clave(artDestino, envDestino)) {
       throw new Error('registrarReclasificacion: Origen y destino no pueden ser idénticos.');
     }
 
     this._acquireLock(30000);
     try {
       let { estado } = this._cargarEstado();
-      const keyOrigen = this.engine.buildStockKey(artOrigen, envOrigen);
-      const keyDestino = this.engine.buildStockKey(artDestino, envDestino);
+      const keyOrigen = this._clave(artOrigen, envOrigen);
+      const keyDestino = this._clave(artDestino, envDestino);
       const stockDisp = Number(estado.stock[keyOrigen] || 0);
 
       if (stockDisp < cajas) {
@@ -1083,7 +1148,7 @@ class MovementService {
         : (arr => [...arr]);
       const capasOrigenActivas = ordenarFn(
         estado.capas.filter(l =>
-          this.engine.buildStockKey(l.codigo_articulo, l.codigo_envase) === keyOrigen &&
+          this._clave(l.codigo_articulo, l.codigo_envase) === keyOrigen &&
           l.estado_capa === 'ACTIVA' &&
           Number(l.cajas_restantes || 0) > 0
         )
@@ -1149,7 +1214,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const resSal = this.libro.aplicarMovimiento(estado, movSalida);
+        const resSal = this._aplicar(estado, movSalida);
         if (!resSal.ok) {
           throw new Error(`Error en reclasificación origen: ${resSal.error}`);
         }
@@ -1181,7 +1246,7 @@ class MovementService {
           id_capa_origen: capaOrigen.id_capa
         };
 
-        const resEnt = this.libro.aplicarMovimiento(estado, movEntrada);
+        const resEnt = this._aplicar(estado, movEntrada);
         if (!resEnt.ok) {
           throw new Error(`Error en reclasificación destino: ${resEnt.error}`);
         }
@@ -1246,13 +1311,13 @@ class MovementService {
     try {
       let { estado } = this._cargarEstado();
 
-      const key = this.engine.buildStockKey(art, env);
+      const key = this._clave(art, env);
       const ordenarFn = this.engine && typeof this.engine.sortFifoLayers === 'function'
         ? this.engine.sortFifoLayers
         : (arr => [...arr]);
       const capasOrigen = ordenarFn(
         estado.capas.filter(c => 
-          this.engine.buildStockKey(c.codigo_articulo, c.codigo_envase) === key &&
+          this._clave(c.codigo_articulo, c.codigo_envase) === key &&
           (c.partida === partidaOrigen || c.partida_id === partidaOrigen) &&
           c.estado_capa === 'ACTIVA' &&
           Number(c.cajas_restantes || 0) > 0
@@ -1317,7 +1382,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const resSal = this.libro.aplicarMovimiento(estado, movSalida);
+        const resSal = this._aplicar(estado, movSalida);
         if (!resSal.ok) {
           throw new Error(`Error al descontar partida origen: ${resSal.error}`);
         }
@@ -1349,7 +1414,7 @@ class MovementService {
           id_capa_origen: capa.id_capa
         };
 
-        const resEnt = this.libro.aplicarMovimiento(estado, movEntrada);
+        const resEnt = this._aplicar(estado, movEntrada);
         if (!resEnt.ok) {
           throw new Error(`Error al crear capa de partida destino: ${resEnt.error}`);
         }
@@ -1666,7 +1731,7 @@ class MovementService {
           id_capa_creada: idCapa
         };
 
-        const res = this.libro.aplicarMovimiento(estado, mov);
+        const res = this._aplicar(estado, mov);
         if (!res.ok) {
           throw new Error(`Error inesperado al procesar entrada: ${res.error}`);
         }
@@ -1745,24 +1810,26 @@ class MovementService {
       ? `${String(params.serie).trim()}/${String(params.numero).trim()}`
       : (params.id_documento || params.documentoRef || params.documento_ref);
 
-    const art = params.articulo || params.codigo_articulo || params.codigoArticulo;
-    const env = params.envase || params.codigo_envase || params.codigoEnvase;
+    const rawArt = params.articulo || params.codigo_articulo || params.codigoArticulo;
+    const rawEnv = params.envase || params.codigo_envase || params.codigoEnvase;
+    const art = rawArt ? _normNombre_(rawArt) : '';
+    const env = rawEnv ? _normNombre_(rawEnv) : '';
 
     if (docRef) {
       const byDocRef = currentLayers.find(l => {
         const matchDoc = l.documento_ref === docRef || (l.id_movimiento_entrada && l.id_movimiento_entrada.includes(docRef));
         if (!matchDoc) return false;
-        if (art && l.codigo_articulo !== art) return false;
-        if (env && l.codigo_envase !== env) return false;
+        if (art && _normNombre_(l.codigo_articulo) !== art) return false;
+        if (env && _normNombre_(l.codigo_envase) !== env) return false;
         return true;
       });
       if (byDocRef) return byDocRef;
     }
 
     if (art && env) {
-      const key = this.engine.buildStockKey(art, env);
+      const key = this._clave(art, env);
       const byKey = currentLayers.find(l => 
-        this.engine.buildStockKey(l.codigo_articulo, l.codigo_envase) === key &&
+        this._clave(l.codigo_articulo, l.codigo_envase) === key &&
         (l.estado_capa === 'ACTIVA' || Number(l.cajas_restantes || 0) > 0)
       );
       if (byKey) return byKey;
@@ -1809,7 +1876,7 @@ class MovementService {
       }
 
       const cajasAnuladas = Number(layer.cajas_restantes || layer.cajas_iniciales);
-      const stockKey = this.engine.buildStockKey(layer.codigo_articulo, layer.codigo_envase);
+      const stockKey = this._clave(layer.codigo_articulo, layer.codigo_envase);
       const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
       const nowIso = new Date().toISOString();
 
@@ -1837,7 +1904,7 @@ class MovementService {
         id_capa_creada: ''
       };
 
-      const res = this.libro.aplicarMovimiento(estado, movAnulacion);
+      const res = this._aplicar(estado, movAnulacion);
       if (!res.ok) {
         return {
           success: false,
@@ -1965,7 +2032,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const res = this.libro.aplicarMovimiento(estado, movAnul);
+        const res = this._aplicar(estado, movAnul);
         if (!res.ok) {
           if (res.errorCode === 'CONSUMOS_DESCONOCIDOS') {
             return {
@@ -2098,7 +2165,7 @@ class MovementService {
         return { success: true, status: 'CONFIRMADO', message: 'Cantidad idéntica, sin cambios.' };
       }
 
-      const stockKey = this.engine.buildStockKey(mov.codigo_articulo, mov.codigo_envase);
+      const stockKey = this._clave(mov.codigo_articulo, mov.codigo_envase);
       const nowIso = new Date().toISOString();
       const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
 
@@ -2128,7 +2195,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const res = this.libro.aplicarMovimiento(estado, movAjuste);
+        const res = this._aplicar(estado, movAjuste);
         if (!res.ok) {
           if (res.errorCode === 'CONSUMOS_DESCONOCIDOS') {
             return {
@@ -2181,7 +2248,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const res = this.libro.aplicarMovimiento(estado, movAjuste);
+        const res = this._aplicar(estado, movAjuste);
         if (!res.ok) {
           return {
             success: false,
@@ -2280,7 +2347,7 @@ class MovementService {
         return { success: true, status: 'CONFIRMADO', message: 'Cantidad idéntica, sin cambios.' };
       }
 
-      const stockKey = this.engine.buildStockKey(layer.codigo_articulo, layer.codigo_envase);
+      const stockKey = this._clave(layer.codigo_articulo, layer.codigo_envase);
       const nowIso = new Date().toISOString();
       const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
 
@@ -2324,7 +2391,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const res = this.libro.aplicarMovimiento(estado, movAjuste);
+        const res = this._aplicar(estado, movAjuste);
         if (!res.ok) {
           return {
             success: false,
@@ -2373,7 +2440,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const res = this.libro.aplicarMovimiento(estado, movAjuste);
+        const res = this._aplicar(estado, movAjuste);
         if (!res.ok) {
           throw new Error(`Error al ampliar entrada: ${res.error}`);
         }
@@ -2407,8 +2474,8 @@ class MovementService {
    * @returns {Object}
    */
   corregirEntradaParcial(params = {}, usuario = 'SISTEMA') {
-    const artDestino = params.nuevoArticulo || params.nuevo_articulo || params.articuloDestino;
-    const envDestino = params.nuevoEnvase || params.nuevo_envase || params.envaseDestino;
+    const artDestino = params.nuevoArticulo || params.nuevo_articulo || params.articuloDestino || params.articulo_destino;
+    const envDestino = params.nuevoEnvase || params.nuevo_envase || params.envaseDestino || params.envase_destino;
 
     if (!artDestino && !envDestino) {
       throw new Error('corregirEntradaParcial: Debe especificarse al menos nuevoArticulo o nuevoEnvase.');
@@ -2447,8 +2514,8 @@ class MovementService {
       const targetArt = String(artDestino || artOrigen).trim();
       const targetEnv = String(envDestino || envOrigen).trim();
 
-      const keyOrigen = this.engine.buildStockKey(artOrigen, envOrigen);
-      const keyDestino = this.engine.buildStockKey(targetArt, targetEnv);
+      const keyOrigen = this._clave(artOrigen, envOrigen);
+      const keyDestino = this._clave(targetArt, targetEnv);
       const nowIso = new Date().toISOString();
 
       const idMovOrigen = this._nuevoId('MOV-CORR-ORIG');
@@ -2479,7 +2546,7 @@ class MovementService {
         id_capa_creada: ''
       };
 
-      const resOrig = this.libro.aplicarMovimiento(estado, movOrigen);
+      const resOrig = this._aplicar(estado, movOrigen);
       if (!resOrig.ok) {
         throw new Error(`Error al consumir capa de origen en corrección parcial: ${resOrig.error}`);
       }
@@ -2511,7 +2578,7 @@ class MovementService {
         id_capa_origen: layer.id_capa
       };
 
-      const resDest = this.libro.aplicarMovimiento(estado, movDestino);
+      const resDest = this._aplicar(estado, movDestino);
       if (!resDest.ok) {
         throw new Error(`Error al crear capa de destino en corrección parcial: ${resDest.error}`);
       }
@@ -2582,10 +2649,17 @@ class MovementService {
         };
       }
 
+      // Validar claves de todas las divisiones
+      for (const d of divisiones) {
+        const dArt = d.articulo || d.codigo_articulo;
+        const dEnv = d.envase || d.codigo_envase || layer.codigo_envase;
+        this._clave(dArt, dEnv);
+      }
+
       // Buscar si alguna división corresponde a la combinación original
       const divOrig = divisiones.find(d => 
-        (d.articulo || d.codigo_articulo) === layer.codigo_articulo &&
-        (d.envase || d.codigo_envase || layer.codigo_envase) === layer.codigo_envase
+        _normNombre_(d.articulo || d.codigo_articulo) === _normNombre_(layer.codigo_articulo) &&
+        _normNombre_(d.envase || d.codigo_envase || layer.codigo_envase) === _normNombre_(layer.codigo_envase)
       );
 
       // Si ya hay consumos, la combinación original DEBE recibir al menos las cajas consumidas
@@ -2639,7 +2713,7 @@ class MovementService {
           id_capa_creada: ''
         };
 
-        const resOrig = this.libro.aplicarMovimiento(estado, movOrig);
+        const resOrig = this._aplicar(estado, movOrig);
         if (!resOrig.ok) {
           throw new Error(`Error al consumir capa original en división: ${resOrig.error}`);
         }
@@ -2683,7 +2757,7 @@ class MovementService {
           id_capa_origen: layer.id_capa
         };
 
-        const resDest = this.libro.aplicarMovimiento(estado, movDest);
+        const resDest = this._aplicar(estado, movDest);
         if (!resDest.ok) {
           throw new Error(`Error al crear capa de división: ${resDest.error}`);
         }

@@ -4,22 +4,30 @@
 
 En STOCK-LIGHT, la unidad elemental de existencia es el par biunívoco:
 
-$$\text{Unidad de Stock} = \langle \text{CÓDIGO DE ARTÍCULO HISPATEC}, \; \text{TIPO DE ENVASE / PRESENTACIÓN} \rangle$$
+$$\text{Unidad de Stock} = \langle \text{NOMBRE NORMALIZADO DE ARTÍCULO}, \; \text{NOMBRE NORMALIZADO DE ENVASE} \rangle$$
 
 ### Principios Fundamentales:
-1. **Relación $1:N$ (Artículo - Envase):** Un mismo código de artículo puede comercializarse y almacenarse en múltiples envases o presentaciones. Cada combinación constituye un saldo de inventario **completamente independiente**.
+1. **Identificación por Nombre Normalizado (D-003, T-004):**
+   * La unidad de inventario se identifica por el **nombre normalizado** de artículo y envase, no por los códigos numéricos de ERP Hispatec.
+   * *Motivo:* Los informes CSV de ERP (en particular el de ventas) no proporcionan códigos de artículo ni de envase, solo nombres, y en compras el mismo envase puede figurar con ligeras diferencias ortográficas (ej. «EPS 106 9x500» frente a «EPS 106 9X500»).
+   * *Normalización pura (`normalizarNombre` en `src/Normalizacion.js`):* Convierte a mayúsculas, recorta espacios en extremos y colapsa secuencias de espacios en blanco internos (incluyendo tabuladores `\t` y espacios de no separación U+00A0) a un único espacio. **Conserva tildes, comas, puntos y signos ortográficos** (ej. `CARTON 40X30X9,5 MORESCO` y `CORUÑA` permanecen intactos).
+   * *Dónde se normaliza (Reglas 1 y 2 de T-004):*
+     * En `Libro._keyLibro(art, env)` y `MovementService._clave(art, env)`: normaliza ambas partes antes de ensamblar la clave `${normArt}|${normEnv}`. Si una parte normalizada resulta vacía o contiene el carácter separador `|`, se rechaza con error de validación y la operación no se aplica.
+     * En `MovementService._aplicar(estado, mov)`: todo movimiento se normaliza en `codigo_articulo` y `codigo_envase` antes de procesarse y persistirse. Por derivación, las filas de `MOVIMIENTOS`, `CAPAS_FIFO`, `CONSUMOS_FIFO` y `STOCK_ACTUAL` guardan siempre nombres normalizados.
+     * En filtros y comparaciones externas (`_findLayer`, `dividirCapaEntrada`, `previsualizarCorreccionHistorica`, `validarDocumento`, `conciliarStock`, `obtenerDetalleStock`, `obtenerDetallePartidas`): el texto recibido del cliente o fuentes externas se normaliza antes de contrastarse con los datos guardados.
+2. **Relación $1:N$ (Artículo - Envase):** Un mismo artículo puede comercializarse y almacenarse en múltiples envases o presentaciones. Cada combinación constituye un saldo de inventario **completamente independiente**.
    * *Ejemplo:*
-     * `2112000 | TOMATE ROSA M | EPS 104` $\rightarrow$ Saldo A (ej. 150 cajas)
-     * `2112000 | TOMATE ROSA M | EPS 106 9x500` $\rightarrow$ Saldo B (ej. 80 cajas)
+     * `TOMATE ROSA M | EPS 104` $\rightarrow$ Saldo A (ej. 150 cajas)
+     * `TOMATE ROSA M | EPS 106 9X500` $\rightarrow$ Saldo B (ej. 80 cajas)
      * El consumo del Saldo A no afecta ni compensa el Saldo B.
-2. **Unidad de Medida Exclusiva: CAJAS / ENVASES:**
+3. **Unidad de Medida Exclusiva: CAJAS / ENVASES:**
    * El cálculo de inventario en STOCK-LIGHT se realiza **única y exclusivamente en Cajas / Envases**.
    * **Queda estrictamente prohibido usar Kilos para deducir o computar existencias.** Los kilos son un valor comercial o de báscula que no refleja el stock físico unitario de empaques.
-3. **Propiedad CA de Hispatec:** La gestión o partición de existencias por la propiedad "CA" (Confección en Almacén / Campo) **NO forma parte del MVP** y no se implementa en esta fase.
-4. **Grupos Comerciales:**
+4. **Propiedad CA de Hispatec:** La gestión o partición de existencias por la propiedad "CA" (Confección en Almacén / Campo) **NO forma parte del MVP** y no se implementa en esta fase.
+5. **Grupos Comerciales:**
    * Los grupos comerciales (ej. "TOMATE ROSA") son exclusivamente una **capa de consulta, agregación y filtro visual**.
    * **No participan en el cálculo de stock ni en las deducciones FIFO.**
-5. **Grupos de Envase:**
+6. **Grupos de Envase:**
    * Las agrupaciones de envase (ej. "EPS", "JAPONÉS CARTÓN", "JAPI", "OTROS") constituyen una **capa puramente consultiva, de agregación y filtro visual**.
    * **No participan en:**
      * Cálculo de saldo de stock (la unidad de inventario sigue siendo estrictamente `CODIGO_ARTICULO + CODIGO_ENVASE`).

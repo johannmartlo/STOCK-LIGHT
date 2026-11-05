@@ -23,6 +23,10 @@ if (typeof require !== 'undefined') {
     global.nuevoId = global.nuevoId || idsMod.nuevoId;
   } catch (e) {}
   try {
+    const normMod = require('./Normalizacion');
+    global.normalizarNombre = global.normalizarNombre || normMod.normalizarNombre;
+  } catch (e) {}
+  try {
     const engineMod = require('./InventoryEngine');
     global.buildStockKey = global.buildStockKey || engineMod.buildStockKey;
     global.sortFifoLayers = global.sortFifoLayers || engineMod.sortFifoLayers;
@@ -105,22 +109,26 @@ function clonarEstadoLibro(estado = {}) {
   return { capas, stock, consumosPorMovimiento };
 }
 
+function _normNombre_(texto) {
+  const fn = typeof normalizarNombre === 'function'
+    ? normalizarNombre
+    : (typeof global !== 'undefined' && typeof global.normalizarNombre === 'function' ? global.normalizarNombre : null);
+  if (typeof fn === 'function') {
+    return fn(texto);
+  }
+  return String(texto === null || texto === undefined ? '' : texto).trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
 /**
- * Resuelve la clave de stock canónica `codigo_articulo|codigo_envase`.
+ * Resuelve la clave de stock canónica por nombre normalizado `codigo_articulo|codigo_envase` (D-003, T-004).
  * @param {string} codigoArticulo
  * @param {string} codigoEnvase
  * @returns {string}
  */
 function _keyLibro(codigoArticulo, codigoEnvase) {
-  if (typeof buildStockKey === 'function') {
-    return buildStockKey(codigoArticulo, codigoEnvase);
-  }
-  if (typeof global !== 'undefined' && typeof global.buildStockKey === 'function') {
-    return global.buildStockKey(codigoArticulo, codigoEnvase);
-  }
-  const art = String(codigoArticulo || '').trim();
-  const env = String(codigoEnvase || '').trim();
-  if (!art || !env) {
+  const art = _normNombre_(codigoArticulo);
+  const env = _normNombre_(codigoEnvase);
+  if (!art || !env || art.includes('|') || env.includes('|')) {
     throw new Error(`Clave de stock inválida: codigoArticulo='${codigoArticulo}', codigoEnvase='${codigoEnvase}'`);
   }
   return `${art}|${env}`;
@@ -261,19 +269,24 @@ function aplicarMovimiento(estado, movimiento) {
 
   const next = clonarEstadoLibro(estado);
   const tipo = String(movimiento.tipo_movimiento || movimiento.tipo || '').trim().toUpperCase();
-  const codigoArticulo = String(movimiento.codigo_articulo || movimiento.codigoArticulo || '').trim();
-  const codigoEnvase = String(movimiento.codigo_envase || movimiento.codigoEnvase || '').trim();
+  const rawArt = movimiento.codigo_articulo !== undefined ? movimiento.codigo_articulo : movimiento.codigoArticulo;
+  const rawEnv = movimiento.codigo_envase !== undefined ? movimiento.codigo_envase : movimiento.codigoEnvase;
+  const codigoArticulo = _normNombre_(rawArt);
+  const codigoEnvase = _normNombre_(rawEnv);
 
-  if (!codigoArticulo || !codigoEnvase) {
+  if (!codigoArticulo || !codigoEnvase || codigoArticulo.includes('|') || codigoEnvase.includes('|')) {
     return {
       ok: false,
       estado,
       consumos: [],
       capaCreada: null,
-      error: 'codigo_articulo y codigo_envase son obligatorios.',
+      error: 'codigo_articulo y codigo_envase son obligatorios y no pueden contener "|".',
       errorCode: 'VALIDATION_ERROR'
     };
   }
+
+  movimiento.codigo_articulo = codigoArticulo;
+  movimiento.codigo_envase = codigoEnvase;
 
   const stockKey = _keyLibro(codigoArticulo, codigoEnvase);
   if (next.stock[stockKey] === undefined) {
@@ -876,15 +889,15 @@ function reconstruir(movimientos = []) {
     // Caso de ANULACION antiguo (estado === 'ANULADO' o 'CONFIRMADO' sin id_movimiento_ref)
     if (tipo === 'ANULACION' && !idMovRef) {
       const docRef = String(mov.id_documento_ref || '').trim();
-      const art = String(mov.codigo_articulo || '').trim();
-      const env = String(mov.codigo_envase || '').trim();
+      const art = _normNombre_(mov.codigo_articulo);
+      const env = _normNombre_(mov.codigo_envase);
       const signo = Number(mov.signo || -1);
 
       let candidato = null;
       if (docRef) {
         const candidatos = movimientosProcesados.filter(prev => {
-          if (String(prev.codigo_articulo || '').trim() !== art) return false;
-          if (String(prev.codigo_envase || '').trim() !== env) return false;
+          if (_normNombre_(prev.codigo_articulo) !== art) return false;
+          if (_normNombre_(prev.codigo_envase) !== env) return false;
           const prevTipo = String(prev.tipo_movimiento || '').trim().toUpperCase();
           if (signo === -1 && prevTipo !== 'ENTRADA') return false;
           if (signo === 1 && prevTipo !== 'SALIDA' && prevTipo !== 'AJUSTE') return false;
