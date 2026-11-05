@@ -109,3 +109,16 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `_getEnvasesSchemaSpec` | `src/MaestroEnvasesValidator.js` | INTERNA | Esquema de envases. |
 | `_getDiagnosticCodesME` | `src/MaestroEnvasesValidator.js` | INTERNA | Códigos de diagnóstico. |
 | `_getDiagnosticReportClassME` | `src/MaestroEnvasesValidator.js` | INTERNA | Clase de informe de diagnóstico. |
+| `normalizarNombre` | `src/Normalizacion.js` | INTERNA | Normaliza el nombre de artículo o envase según D-003. |
+| `parsearNumeroEs` | `src/Normalizacion.js` | INTERNA | Parsea un número con coma decimal. |
+| `parsearFechaDdMmYyyy` | `src/Normalizacion.js` | INTERNA | Parsea una fecha `dd/mm/yyyy`. |
+| `hoyMadrid` | `src/Fechas.js` | INTERNA | Fecha de hoy en la zona Europe/Madrid. |
+| `normalizarFechaNegocio` | `src/Fechas.js` | INTERNA | Normaliza una fecha de negocio a `YYYY-MM-DD`. |
+| `csvNormalizarNombre` | `src/importacion/CsvHispatecParser.js` | INTERNA | Normaliza nombres del CSV de Hispatec. |
+| `csvParsearNumeroEs` | `src/importacion/CsvHispatecParser.js` | INTERNA | Parsea números con coma decimal del CSV. |
+| `csvParsearFecha` | `src/importacion/CsvHispatecParser.js` | INTERNA | Parsea fechas del CSV de Hispatec. |
+| `csvSinBom` | `src/importacion/CsvHispatecParser.js` | INTERNA | Elimina el BOM del texto CSV. |
+| `filaCabecera` | `src/importacion/CsvHispatecParser.js` | INTERNA | Detecta la fila de cabecera del CSV. |
+| `detectarTipo` | `src/importacion/CsvHispatecParser.js` | INTERNA | Detecta el tipo de documento del CSV. |
+| `leerRegistrosCsv` | `src/importacion/CsvHispatecParser.js` | INTERNA | Lee los registros de un CSV de Hispatec. |
+| `parsear` | `src/importacion/CsvHispatecParser.js` | INTERNA | Parsea el CSV a líneas canónicas. |
