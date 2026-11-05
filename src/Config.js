@@ -12,6 +12,12 @@ const CONFIG_KEYS = {
   APP_ENV: 'APP_ENV'
 };
 
+// Prefijos ERP que cuentan para la importación de entradas y salidas (D-002).
+const PREFIJOS_SERIES_IMPORTACION = Object.freeze({
+  prefijosEntrada: Object.freeze(['ACT', 'NT']),
+  prefijosSalida: Object.freeze(['AVT'])
+});
+
 /**
  * Obtiene el SPREADSHEET_ID desde las propiedades del script (PropertiesService)
  * o desde las opciones inyectadas.
@@ -192,6 +198,7 @@ function resolveDatabaseSpreadsheet(options = {}) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CONFIG_KEYS,
+    PREFIJOS_SERIES_IMPORTACION,
     getSpreadsheetIdConfig,
     setSpreadsheetIdConfig,
     getDriveFolderIdConfig,

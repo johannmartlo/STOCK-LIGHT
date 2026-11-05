@@ -1,0 +1,57 @@
+================================================================
+ EJECUTOR ÚNICO DE PRUEBAS — STOCK-LIGHT
+================================================================
+
+Suites detectadas (18):
+  1. articulo_envase_persistence.test.js
+  2. commercial_group_resolver.test.js
+  3. compra_packaging_resolution.test.js
+  4. fase5_configuracion_persistencia.test.js
+  5. fase6_1_correcciones_historicas.test.js
+  6. fase6_seguridad_operativa.test.js
+  7. fase7_frontend_ux_integration.test.js
+  8. fase8_1_prueba_real_aislada.test.js
+  9. fase8_2_apps_script_v8_loading.test.js
+  10. fase8_auditoria_maestros_inicializacion.test.js
+  11. helpers_mock.test.js
+  12. inventory_engine.test.js
+  13. maestro_envases_import.test.js
+  14. movement_service.test.js
+  15. persistence_runtime.test.js
+  16. stock_query.test.js
+  17. t006_parser_csv.test.js
+  18. t006b_clasificador.test.js
+
+----------------------------------------------------------------
+
+[1/18] Ejecutando articulo_envase_persistence.test.js... ✅ OK (20 pruebas, 1.23s)
+[2/18] Ejecutando commercial_group_resolver.test.js... ✅ OK (23 pruebas, 1.54s)
+[3/18] Ejecutando compra_packaging_resolution.test.js... ✅ OK (9 pruebas, 0.55s)
+[4/18] Ejecutando fase5_configuracion_persistencia.test.js... ✅ OK (18 pruebas, 1.57s)
+[5/18] Ejecutando fase6_1_correcciones_historicas.test.js... ✅ OK (21 pruebas, 2.06s)
+[6/18] Ejecutando fase6_seguridad_operativa.test.js... ✅ OK (20 pruebas, 1.65s)
+[7/18] Ejecutando fase7_frontend_ux_integration.test.js... ✅ OK (19 pruebas, 1.50s)
+[8/18] Ejecutando fase8_1_prueba_real_aislada.test.js... ✅ OK (8 pruebas, 1.21s)
+[9/18] Ejecutando fase8_2_apps_script_v8_loading.test.js... ✅ OK (7 pruebas, 3.10s)
+[10/18] Ejecutando fase8_auditoria_maestros_inicializacion.test.js... ✅ OK (10 pruebas, 1.78s)
+[11/18] Ejecutando helpers_mock.test.js... ✅ OK (2 pruebas, 0.70s)
+[12/18] Ejecutando inventory_engine.test.js... ✅ OK (11 pruebas, 0.52s)
+[13/18] Ejecutando maestro_envases_import.test.js... ✅ OK (22 pruebas, 0.81s)
+[14/18] Ejecutando movement_service.test.js... ✅ OK (4 pruebas, 0.82s)
+[15/18] Ejecutando persistence_runtime.test.js... ✅ OK (9 pruebas, 0.85s)
+[16/18] Ejecutando stock_query.test.js... ✅ OK (10 pruebas, 0.93s)
+[17/18] Ejecutando t006_parser_csv.test.js... ✅ OK (5 pruebas, 0.65s)
+[18/18] Ejecutando t006b_clasificador.test.js... ✅ OK (5 pruebas, 0.66s)
+
+================================================================
+ RESUMEN GLOBAL DE EJECUCIÓN
+================================================================
+ Suites ejecutadas:  18
+ Suites superadas:   18
+ Suites fallidas:    0
+ Pruebas superadas:  223
+ Tiempo total:       22.14s
+================================================================
+
+RESULTADO FINAL: TODO EN VERDE (0 fallos)
+
