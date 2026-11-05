@@ -4,7 +4,7 @@
  * Orquestador de Movimientos, Concurrencia y Transaccionalidad.
  * Coordina:
  * - DeduplicationService (detección de colisiones y duplicados)
- * - InventoryEngine (cálculo matemático FIFO puro en memoria)
+ * - Libro / InventoryEngine (cálculo matemático FIFO puro en memoria; D-012, D-022, D-024, T-022)
  * - Repository (persistencia atómica en Google Sheets)
  * - LockService (bloqueo exclusivo para evitar condiciones de carrera)
  */
@@ -16,6 +16,18 @@ if (typeof require !== 'undefined') {
     global.hoyMadrid = global.hoyMadrid || fechasMod.hoyMadrid;
     global.normalizarFechaNegocio = global.normalizarFechaNegocio || fechasMod.normalizarFechaNegocio;
   } catch (e) {}
+  try {
+    const idsMod = require('./Ids');
+    global.nuevoId = global.nuevoId || idsMod.nuevoId;
+  } catch (e) {}
+  try {
+    const libroMod = require('./Libro');
+    global.aplicarMovimiento = global.aplicarMovimiento || libroMod.aplicarMovimiento;
+    global.reconstruir = global.reconstruir || libroMod.reconstruir;
+    global.extraerConsumosFifoDeObservaciones = global.extraerConsumosFifoDeObservaciones || libroMod.extraerConsumosFifoDeObservaciones;
+    global.anexarConsumosFifoAObservaciones = global.anexarConsumosFifoAObservaciones || libroMod.anexarConsumosFifoAObservaciones;
+    global.ordenarMovimientosPorSecuencia = global.ordenarMovimientosPorSecuencia || libroMod.ordenarMovimientosPorSecuencia;
+  } catch (e) {}
 }
 
 class MovementService {
@@ -25,6 +37,7 @@ class MovementService {
    * @param {Object} [options.lockService]
    * @param {Object} [options.deduplicationService]
    * @param {Object} [options.inventoryEngine]
+   * @param {Object} [options.libro]
    */
   constructor(options = {}) {
     this.repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : null);
@@ -60,13 +73,46 @@ class MovementService {
       EngineModule = {
         buildStockKey: (typeof buildStockKey !== 'undefined' ? buildStockKey : null),
         processMovement: (typeof processMovement !== 'undefined' ? processMovement : null),
-        rebuildStockFromMovements: (typeof rebuildStockFromMovements !== 'undefined' ? rebuildStockFromMovements : null)
+        rebuildStockFromMovements: (typeof rebuildStockFromMovements !== 'undefined' ? rebuildStockFromMovements : null),
+        sortFifoLayers: (typeof sortFifoLayers !== 'undefined' ? sortFifoLayers : null)
       };
     }
     this.engine = EngineModule;
 
+    let LibroModule = options.libro || null;
+    if (!LibroModule && typeof require !== 'undefined') {
+      try {
+        LibroModule = require('./Libro');
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (!LibroModule) {
+      LibroModule = {
+        aplicarMovimiento: (typeof aplicarMovimiento !== 'undefined' ? aplicarMovimiento : null),
+        reconstruir: (typeof reconstruir !== 'undefined' ? reconstruir : null),
+        extraerConsumosFifoDeObservaciones: (typeof extraerConsumosFifoDeObservaciones !== 'undefined' ? extraerConsumosFifoDeObservaciones : null),
+        anexarConsumosFifoAObservaciones: (typeof anexarConsumosFifoAObservaciones !== 'undefined' ? anexarConsumosFifoAObservaciones : null),
+        ordenarMovimientosPorSecuencia: (typeof ordenarMovimientosPorSecuencia !== 'undefined' ? ordenarMovimientosPorSecuencia : null)
+      };
+    }
+    this.libro = LibroModule;
+
     this.defaultTenantId = options.defaultTenantId || 'DEFAULT';
     this.ingestionService = options.articuloEnvaseIngestionService || null;
+  }
+
+  /**
+   * Genera un identificador único con prefijo mediante `nuevoId` (D-024).
+   * @param {string} prefijo
+   * @returns {string}
+   */
+  _nuevoId(prefijo = 'ID') {
+    const fn = typeof nuevoId === 'function' ? nuevoId : (typeof global !== 'undefined' ? global.nuevoId : null);
+    if (typeof fn === 'function') {
+      return fn(prefijo);
+    }
+    throw new Error('nuevoId no está disponible en MovementService');
   }
 
   /**
@@ -93,6 +139,289 @@ class MovementService {
         // En caso de que ya haya expirado o liberado
       }
     }
+  }
+
+  /**
+   * Carga el estado vivo actual `{ capas, stock, consumosPorMovimiento }` y los movimientos existentes.
+   * Carga `consumosPorMovimiento` a partir del JSON `FIFO:` de `observaciones` (Regla 9) y de los
+   * movimientos históricos de ajuste/anulación con `id_movimiento_ref`.
+   * @returns {{ estado: { capas: Array<Object>, stock: Object, consumosPorMovimiento: Object }, movimientos: Array<Object> }}
+   */
+  _cargarEstado() {
+    const capas = this.repo && typeof this.repo.getCapasFifo === 'function' ? this.repo.getCapasFifo() : [];
+    const stockList = this.repo && typeof this.repo.getStockActual === 'function' ? this.repo.getStockActual() : [];
+    const movimientos = this.repo && typeof this.repo.getMovimientos === 'function' ? this.repo.getMovimientos() : [];
+
+    const stock = {};
+    stockList.forEach(s => {
+      stock[s.stock_key] = Number(s.cajas_actuales || 0);
+    });
+
+    const consumosPorMovimiento = {};
+    const ordenarFn = this.libro && typeof this.libro.ordenarMovimientosPorSecuencia === 'function'
+      ? this.libro.ordenarMovimientosPorSecuencia
+      : (arr => [...arr]);
+    const extraerFn = this.libro && typeof this.libro.extraerConsumosFifoDeObservaciones === 'function'
+      ? this.libro.extraerConsumosFifoDeObservaciones
+      : (() => []);
+
+    const movsOrdenados = ordenarFn(movimientos);
+
+    for (const m of movsOrdenados) {
+      const idMov = String(m.id_movimiento || '').trim();
+      const tipo = String(m.tipo_movimiento || '').trim().toUpperCase();
+      const signo = Number(m.signo || (tipo === 'ENTRADA' ? 1 : -1));
+      const idRef = String(m.id_movimiento_ref || '').trim();
+      const idCapaObj = String(m.id_capa_objetivo || '').trim();
+      const idCapaCreada = String(m.id_capa_creada || '').trim();
+      const cajas = Math.abs(Number(m.cajas || 0));
+
+      if (!idMov) continue;
+
+      if ((tipo === 'SALIDA' || (tipo === 'AJUSTE' && signo === -1)) && !idCapaObj) {
+        const parsed = extraerFn(m.observaciones);
+        if (parsed.length > 0) {
+          consumosPorMovimiento[idMov] = parsed.map(c => ({
+            id_capa: c.id_capa,
+            cajas: Number(c.cajas !== undefined ? c.cajas : c.cajas_descontadas)
+          }));
+          if (idRef) {
+            if (!Array.isArray(consumosPorMovimiento[idRef])) {
+              consumosPorMovimiento[idRef] = [];
+            }
+            for (const c of parsed) {
+              const cant = Number(c.cajas !== undefined ? c.cajas : c.cajas_descontadas);
+              const ex = consumosPorMovimiento[idRef].find(item => item.id_capa === c.id_capa);
+              if (ex) {
+                ex.cajas = Number(ex.cajas || 0) + cant;
+              } else {
+                consumosPorMovimiento[idRef].push({ id_capa: c.id_capa, cajas: cant });
+              }
+            }
+          }
+        }
+      } else if (tipo === 'AJUSTE' && signo === -1 && idCapaObj) {
+        consumosPorMovimiento[idMov] = [{ id_capa: idCapaObj, cajas }];
+      } else if (tipo === 'AJUSTE' && signo === 1 && !idCapaObj && !idCapaCreada && idRef) {
+        // Corrección de salida a la baja: reduce consumosPorMovimiento[idRef] en orden inverso
+        const list = consumosPorMovimiento[idRef];
+        if (Array.isArray(list) && list.length > 0) {
+          let porRestaurar = cajas;
+          for (let i = list.length - 1; i >= 0 && porRestaurar > 0; i--) {
+            const disp = Number(list[i].cajas || 0);
+            const rest = Math.min(porRestaurar, disp);
+            list[i].cajas = disp - rest;
+            porRestaurar -= rest;
+          }
+          consumosPorMovimiento[idRef] = list.filter(item => Number(item.cajas || 0) > 0);
+        }
+      } else if (tipo === 'ANULACION' && idRef) {
+        if (consumosPorMovimiento[idRef]) {
+          consumosPorMovimiento[idRef] = [];
+        }
+      }
+    }
+
+    return {
+      estado: { capas, stock, consumosPorMovimiento },
+      movimientos
+    };
+  }
+
+  /**
+   * Único método de persistencia (T-022 Regla 5), ejecutado dentro del lock y en este orden estricto:
+   * 1. añadir movimientos (con su `secuencia` asignada en `repo.appendMovimientos`);
+   * 2. reescribir `CAPAS_FIFO`;
+   * 3. reescribir `STOCK_ACTUAL`;
+   * 4. actualizar `DOCUMENTOS`.
+   *
+   * Ningún otro método escribe esas hojas.
+   *
+   * @param {Object} payload
+   * @param {Array<Object>} [payload.movimientos]
+   * @param {Object} [payload.estado]
+   * @param {Object} [payload.documentos]
+   * @param {string} [payload.ultimoMovimientoId]
+   */
+  _persistir({ movimientos = [], estado = null, documentos = null, ultimoMovimientoId = '' } = {}) {
+    // 1. Añadir movimientos (con su secuencia en SheetsRepository.appendMovimientos)
+    if (Array.isArray(movimientos) && movimientos.length > 0) {
+      this.repo.appendMovimientos(movimientos);
+    }
+
+    // 2. Reescribir CAPAS_FIFO
+    if (estado && Array.isArray(estado.capas)) {
+      this.repo.saveCapasFifo(estado.capas);
+    }
+
+    // 3. Reescribir STOCK_ACTUAL
+    if (estado && estado.stock && typeof estado.stock === 'object') {
+      const maestro = (this.repo && typeof this.repo.getMaestro === 'function') ? this.repo.getMaestro() : [];
+      const maestroMap = {};
+      maestro.forEach(m => {
+        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
+        maestroMap[k] = m;
+      });
+
+      const lastMovId = ultimoMovimientoId || (movimientos.length > 0 ? movimientos[movimientos.length - 1].id_movimiento : '');
+      const nowIso = new Date().toISOString();
+
+      const updatedStockRecords = Object.keys(estado.stock).map(stockKey => {
+        const [art, env] = stockKey.split('|');
+        const m = maestroMap[stockKey] || {};
+        return {
+          stock_key: stockKey,
+          codigo_articulo: art,
+          nombre_articulo: m.nombre_articulo || '',
+          codigo_envase: env,
+          descripcion_envase: m.descripcion_envase || '',
+          cajas_actuales: Number(estado.stock[stockKey] || 0),
+          fecha_ultima_actualizacion: nowIso,
+          ultimo_movimiento_id: lastMovId || ''
+        };
+      });
+
+      this.repo.saveStockActual(updatedStockRecords);
+    }
+
+    // 4. Actualizar DOCUMENTOS
+    if (documentos) {
+      if (documentos.append && Array.isArray(documentos.append)) {
+        for (const doc of documentos.append) {
+          this.repo.appendDocumento(doc);
+        }
+      } else if (documentos.append && typeof documentos.append === 'object') {
+        this.repo.appendDocumento(documentos.append);
+      }
+
+      if (documentos.updateEstado && documentos.updateEstado.idDocumento) {
+        const { idDocumento, nuevoEstado, fallbackDocs } = documentos.updateEstado;
+        if (typeof this.repo.updateDocumentoEstado === 'function') {
+          this.repo.updateDocumentoEstado(idDocumento, nuevoEstado);
+        } else if (Array.isArray(fallbackDocs) && typeof this.repo.replaceTable === 'function') {
+          this.repo.replaceTable('DOCUMENTOS', fallbackDocs);
+        }
+      }
+
+      if (documentos.replace && Array.isArray(documentos.replace) && typeof this.repo.replaceTable === 'function') {
+        this.repo.replaceTable('DOCUMENTOS', documentos.replace);
+      }
+    }
+  }
+
+  /**
+   * Comprueba la consistencia entre el estado reconstruido en memoria desde `MOVIMIENTOS`
+   * y las hojas `CAPAS_FIFO` y `STOCK_ACTUAL` guardadas (T-022 Regla 7).
+   * Devuelve las diferencias por capa y por clave. NO escribe nada.
+   *
+   * @returns {{
+   *   consistente: boolean,
+   *   totalDiferencias: number,
+   *   diferenciasCapas: Array<Object>,
+   *   diferenciasStock: Array<Object>,
+   *   avisos: Array<Object>
+   * }}
+   */
+  comprobarConsistencia() {
+    const movimientos = this.repo.getMovimientos();
+    const capasGuardadas = this.repo.getCapasFifo();
+    const stockGuardadoList = this.repo.getStockActual();
+
+    const reconstruccion = this.libro.reconstruir(movimientos);
+    const capasReconstruidas = reconstruccion.estado.capas;
+    const stockReconstruido = reconstruccion.estado.stock;
+
+    const diferenciasCapas = [];
+    const mapaGuardadas = new Map();
+    for (const c of capasGuardadas) {
+      mapaGuardadas.set(String(c.id_capa || ''), c);
+    }
+    const mapaReconstruidas = new Map();
+    for (const c of capasReconstruidas) {
+      mapaReconstruidas.set(String(c.id_capa || ''), c);
+    }
+
+    const todosIdsCapa = new Set([...mapaGuardadas.keys(), ...mapaReconstruidas.keys()]);
+    for (const idCapa of todosIdsCapa) {
+      const g = mapaGuardadas.get(idCapa);
+      const r = mapaReconstruidas.get(idCapa);
+      if (!g) {
+        diferenciasCapas.push({
+          id_capa: idCapa,
+          tipo: 'FALTA_EN_VIVO',
+          vivo: null,
+          reconstruido: r
+        });
+        continue;
+      }
+      if (!r) {
+        diferenciasCapas.push({
+          id_capa: idCapa,
+          tipo: 'SOBRA_EN_VIVO',
+          vivo: g,
+          reconstruido: null
+        });
+        continue;
+      }
+
+      const camposComparar = [
+        'codigo_articulo',
+        'codigo_envase',
+        'cajas_iniciales',
+        'cajas_consumidas',
+        'cajas_restantes',
+        'estado_capa',
+        'fecha_capa',
+        'proveedor'
+      ];
+      const diffsCampo = {};
+      for (const campo of camposComparar) {
+        const esNum = campo.startsWith('cajas_');
+        const valVivo = esNum ? Number(g[campo] || 0) : String(g[campo] || '').trim();
+        const valRec = esNum ? Number(r[campo] || 0) : String(r[campo] || '').trim();
+        if (valVivo !== valRec) {
+          diffsCampo[campo] = { vivo: valVivo, reconstruido: valRec };
+        }
+      }
+      if (Object.keys(diffsCampo).length > 0) {
+        diferenciasCapas.push({
+          id_capa: idCapa,
+          tipo: 'DIFERENCIA_CAMPOS',
+          diferencias: diffsCampo
+        });
+      }
+    }
+
+    const diferenciasStock = [];
+    const stockVivoMap = {};
+    for (const s of stockGuardadoList) {
+      const k = s.stock_key || this.engine.buildStockKey(s.codigo_articulo, s.codigo_envase);
+      stockVivoMap[k] = Number(s.cajas_actuales || 0);
+    }
+
+    const todasClavesStock = new Set([...Object.keys(stockVivoMap), ...Object.keys(stockReconstruido)]);
+    for (const key of todasClavesStock) {
+      const vivoVal = Number(stockVivoMap[key] || 0);
+      const recVal = Number(stockReconstruido[key] || 0);
+      if (vivoVal !== recVal) {
+        diferenciasStock.push({
+          stock_key: key,
+          vivo: vivoVal,
+          reconstruido: recVal,
+          diferencia: vivoVal - recVal
+        });
+      }
+    }
+
+    const totalDiferencias = diferenciasCapas.length + diferenciasStock.length;
+
+    return {
+      consistente: totalDiferencias === 0 && Boolean(reconstruccion.isConsistent),
+      totalDiferencias,
+      diferenciasCapas,
+      diferenciasStock,
+      avisos: reconstruccion.avisos || []
+    };
   }
 
   /**
@@ -133,8 +462,8 @@ class MovementService {
         l.incidencia === 'ENVASE_NO_DETERMINABLE_DESDE_PDF'
       );
 
-      const docId = docPayload.id_documento || `DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      let totalCajas = lineas.reduce((acc, l) => acc + (Number(l.cajas) || 0), 0);
+      const docId = docPayload.id_documento || this._nuevoId('DOC');
+      const totalCajas = lineas.reduce((acc, l) => acc + (Number(l.cajas) || 0), 0);
 
       // Si el documento está marcado como PENDIENTE_REVISION o contiene líneas ambiguas:
       if (docPayload.estado_proceso === 'PENDIENTE_REVISION' || hasUnresolvedPackaging) {
@@ -156,7 +485,7 @@ class MovementService {
         };
 
         // Persistir ÚNICAMENTE la cabecera en DOCUMENTOS (cero movimientos, cero capas FIFO, cero stock_actual)
-        this.repo.appendDocumento(docRecord);
+        this._persistir({ documentos: { append: docRecord } });
 
         return {
           success: false,
@@ -178,50 +507,71 @@ class MovementService {
         };
       }
 
-      // 3. Cargar estado actual de capas vivas y stock
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      // 3. Cargar estado actual
+      let { estado } = this._cargarEstado();
+      const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
 
-      // 4. Procesar cada línea en el motor de dominio
+      let fechaNegocio = '';
+      if (docPayload.fecha_documento) {
+        try {
+          fechaNegocio = normFn(docPayload.fecha_documento);
+        } catch (e) {
+          fechaNegocio = hoyFn();
+        }
+      } else {
+        fechaNegocio = hoyFn();
+      }
+
       const generatedMovements = [];
-      const newLayers = [];
+      const docRefStr = (docPayload.serie !== undefined && docPayload.numero !== undefined)
+        ? `${String(docPayload.serie || '').trim()}/${String(docPayload.numero || '').trim()}`
+        : docId;
 
       for (let i = 0; i < lineas.length; i++) {
         const linea = lineas[i];
         const cajas = Number(linea.cajas);
+        const idMov = this._nuevoId('MOV');
+        const idCapa = this._nuevoId('CAPA');
+        const origenDato = linea.origen_dato || linea.origenDato || docPayload.origen_dato || docPayload.origenDato || 'MANUAL';
+        const kgInformativo = (linea.kg !== undefined && linea.kg !== null && linea.kg !== '')
+          ? Number(linea.kg)
+          : (linea.kg_informativo !== undefined && linea.kg_informativo !== null && linea.kg_informativo !== '' ? Number(linea.kg_informativo) : '');
 
-        const movInput = {
-          tipo: 'ENTRADA',
-          codigoArticulo: linea.codigo_articulo,
-          codigoEnvase: linea.codigo_envase,
+        const mov = {
+          id_movimiento: idMov,
+          fecha_hora: new Date().toISOString(),
+          tipo_movimiento: 'ENTRADA',
+          id_documento_ref: docId,
+          documento_ref: docRefStr,
+          codigo_articulo: String(linea.codigo_articulo).trim(),
+          codigo_envase: String(linea.codigo_envase).trim(),
           cajas,
-          partida: linea.partida || '',
-          fecha: docPayload.fecha_documento,
-          fechaHora: new Date().toISOString(),
-          idDocumentoRef: docId,
-          documentoRef: `${docPayload.serie}/${docPayload.numero}`,
-          usuario,
-          entidad: docPayload.entidad_nombre || '',
-          origenDato: linea.origen_dato || linea.origenDato || docPayload.origen_dato || docPayload.origenDato || 'MANUAL',
-          kg: linea.kg !== undefined ? linea.kg : (linea.kg_informativo !== undefined ? linea.kg_informativo : '')
+          signo: 1,
+          partida_origen: linea.partida || '',
+          motivo_ajuste: '',
+          usuario: usuario || 'SISTEMA',
+          observaciones: linea.observaciones || '',
+          estado: 'CONFIRMADO',
+          fecha_negocio: fechaNegocio,
+          entidad_nombre: String(docPayload.entidad_nombre || '').trim(),
+          secuencia: '',
+          origen_dato: origenDato,
+          kg_informativo: kgInformativo,
+          id_movimiento_ref: '',
+          id_capa_objetivo: '',
+          id_capa_creada: idCapa
         };
 
-        const res = this.engine.processMovement(movInput, currentLayers, currentStock);
-        if (!res.success) {
-          throw new Error(`Error inesperado al procesar entrada: ${res.message}`);
+        const res = this.libro.aplicarMovimiento(estado, mov);
+        if (!res.ok) {
+          throw new Error(`Error inesperado al procesar entrada: ${res.error}`);
         }
 
-        currentLayers = res.updatedLayers;
-        Object.assign(currentStock, res.updatedStock);
-        generatedMovements.push(res.generatedMovement);
-        if (res.newLayer) newLayers.push(res.newLayer);
+        estado = res.estado;
+        generatedMovements.push(mov);
       }
 
-      // 4. Preparar registro de documento
       const docRecord = {
         id_documento: docId,
         sha256_hash: docPayload.sha256_hash || '',
@@ -239,34 +589,12 @@ class MovementService {
         usuario_subida: usuario
       };
 
-      // 5. Preparar actualización de STOCK_ACTUAL
-      const maestro = this.repo.getMaestro();
-      const maestroMap = {};
-      maestro.forEach(m => {
-        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-        maestroMap[k] = m;
+      // 4. Persistencia atómica en orden canónico (_persistir)
+      this._persistir({
+        movimientos: generatedMovements,
+        estado,
+        documentos: { append: docRecord }
       });
-
-      const updatedStockRecords = Object.keys(currentStock).map(stockKey => {
-        const [art, env] = stockKey.split('|');
-        const m = maestroMap[stockKey] || {};
-        return {
-          stock_key: stockKey,
-          codigo_articulo: art,
-          nombre_articulo: m.nombre_articulo || '',
-          codigo_envase: env,
-          descripcion_envase: m.descripcion_envase || '',
-          cajas_actuales: currentStock[stockKey],
-          fecha_ultima_actualizacion: new Date().toISOString(),
-          ultimo_movimiento_id: generatedMovements[generatedMovements.length - 1].id_movimiento
-        };
-      });
-
-      // 6. Persistencia atómica en lote
-      this.repo.appendDocumento(docRecord);
-      this.repo.appendMovimientos(generatedMovements);
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.saveStockActual(updatedStockRecords);
 
       return {
         success: true,
@@ -313,12 +641,7 @@ class MovementService {
       }
 
       // 2. Cargar estado de capas y stock
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      let { estado } = this._cargarEstado();
 
       // 3. Pre-validación de stock disponible para TODO el documento
       const deficitReports = [];
@@ -331,7 +654,7 @@ class MovementService {
       }
 
       for (const key in stockKeyNeeds) {
-        const disponible = currentStock[key] || 0;
+        const disponible = estado.stock[key] || 0;
         const solicitado = stockKeyNeeds[key];
         if (disponible < solicitado) {
           deficitReports.push({
@@ -343,7 +666,7 @@ class MovementService {
         }
       }
 
-      const docId = docPayload.id_documento || `DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const docId = docPayload.id_documento || this._nuevoId('DOC');
 
       // Si existe déficit: NO TOCAR STOCK NI CAPAS FIFO. Registrar en revisión.
       if (deficitReports.length > 0) {
@@ -364,7 +687,7 @@ class MovementService {
           usuario_subida: usuario
         };
 
-        this.repo.appendDocumento(pendingDocRecord);
+        this._persistir({ documentos: { append: pendingDocRecord } });
 
         return {
           success: false,
@@ -376,46 +699,68 @@ class MovementService {
         };
       }
 
-      // 4. Si hay stock suficiente: procesar deducciones FIFO
+      // 4. Si hay stock suficiente: procesar deducciones FIFO con aplicarMovimiento
+      const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
+      let fechaNegocio = '';
+      if (docPayload.fecha_documento) {
+        try {
+          fechaNegocio = normFn(docPayload.fecha_documento);
+        } catch (e) {
+          fechaNegocio = hoyFn();
+        }
+      } else {
+        fechaNegocio = hoyFn();
+      }
+
       const generatedMovements = [];
       let totalCajas = 0;
 
       for (const linea of lineas) {
         const cajas = Number(linea.cajas);
         totalCajas += cajas;
+        const idMov = this._nuevoId('MOV');
+        const origenDato = linea.origen_dato || linea.origenDato || docPayload.origen_dato || docPayload.origenDato || 'MANUAL';
+        const kgInformativo = (linea.kg !== undefined && linea.kg !== null && linea.kg !== '')
+          ? Number(linea.kg)
+          : (linea.kg_informativo !== undefined && linea.kg_informativo !== null && linea.kg_informativo !== '' ? Number(linea.kg_informativo) : '');
 
-        const movInput = {
-          tipo: 'SALIDA',
-          codigoArticulo: linea.codigo_articulo,
-          codigoEnvase: linea.codigo_envase,
+        const mov = {
+          id_movimiento: idMov,
+          fecha_hora: new Date().toISOString(),
+          tipo_movimiento: 'SALIDA',
+          id_documento_ref: docId,
+          codigo_articulo: String(linea.codigo_articulo).trim(),
+          codigo_envase: String(linea.codigo_envase).trim(),
           cajas,
-          fecha: docPayload.fecha_documento,
-          fechaHora: new Date().toISOString(),
-          idDocumentoRef: docId,
-          documentoRef: `${docPayload.serie}/${docPayload.numero}`,
-          usuario,
-          entidad: docPayload.entidad_nombre || '',
-          origenDato: linea.origen_dato || linea.origenDato || docPayload.origen_dato || docPayload.origenDato || 'MANUAL',
-          kg: linea.kg !== undefined ? linea.kg : (linea.kg_informativo !== undefined ? linea.kg_informativo : '')
+          signo: -1,
+          partida_origen: linea.partida || '',
+          motivo_ajuste: '',
+          usuario: usuario || 'SISTEMA',
+          observaciones: linea.observaciones || '',
+          estado: 'CONFIRMADO',
+          fecha_negocio: fechaNegocio,
+          entidad_nombre: String(docPayload.entidad_nombre || '').trim(),
+          secuencia: '',
+          origen_dato: origenDato,
+          kg_informativo: kgInformativo,
+          id_movimiento_ref: '',
+          id_capa_objetivo: '',
+          id_capa_creada: ''
         };
 
-        const res = this.engine.processMovement(movInput, currentLayers, currentStock);
-        if (!res.success) {
-          throw new Error(`Inconsistencia en deducción FIFO: ${res.message}`);
+        const res = this.libro.aplicarMovimiento(estado, mov);
+        if (!res.ok) {
+          throw new Error(`Inconsistencia en deducción FIFO: ${res.error}`);
         }
 
-        currentLayers = res.updatedLayers;
-        Object.assign(currentStock, res.updatedStock);
-        if (res.fifoConsumptions && res.fifoConsumptions.length > 0) {
-          const obsExisting = res.generatedMovement.observaciones || '';
-          res.generatedMovement.observaciones = obsExisting
-            ? `${obsExisting} | FIFO:${JSON.stringify(res.fifoConsumptions)}`
-            : `FIFO:${JSON.stringify(res.fifoConsumptions)}`;
+        estado = res.estado;
+        if (res.consumos && res.consumos.length > 0) {
+          mov.observaciones = this.libro.anexarConsumosFifoAObservaciones(mov.observaciones, res.consumos);
         }
-        generatedMovements.push(res.generatedMovement);
+        generatedMovements.push(mov);
       }
 
-      // 5. Persistir documento aprobado y movimientos
       const docRecord = {
         id_documento: docId,
         sha256_hash: docPayload.sha256_hash || '',
@@ -433,32 +778,11 @@ class MovementService {
         usuario_subida: usuario
       };
 
-      const maestro = this.repo.getMaestro();
-      const maestroMap = {};
-      maestro.forEach(m => {
-        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-        maestroMap[k] = m;
+      this._persistir({
+        movimientos: generatedMovements,
+        estado,
+        documentos: { append: docRecord }
       });
-
-      const updatedStockRecords = Object.keys(currentStock).map(stockKey => {
-        const [art, env] = stockKey.split('|');
-        const m = maestroMap[stockKey] || {};
-        return {
-          stock_key: stockKey,
-          codigo_articulo: art,
-          nombre_articulo: m.nombre_articulo || '',
-          codigo_envase: env,
-          descripcion_envase: m.descripcion_envase || '',
-          cajas_actuales: currentStock[stockKey],
-          fecha_ultima_actualizacion: new Date().toISOString(),
-          ultimo_movimiento_id: generatedMovements[generatedMovements.length - 1].id_movimiento
-        };
-      });
-
-      this.repo.appendDocumento(docRecord);
-      this.repo.appendMovimientos(generatedMovements);
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.saveStockActual(updatedStockRecords);
 
       return {
         success: true,
@@ -484,74 +808,115 @@ class MovementService {
   registrarAjuste(ajusteInput, usuario = 'SISTEMA') {
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
-
+      const { estado } = this._cargarEstado();
       const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
-      const movInput = {
-        tipo: 'AJUSTE',
-        codigoArticulo: ajusteInput.codigo_articulo,
-        codigoEnvase: ajusteInput.codigo_envase,
-        cajas: Number(ajusteInput.cajas),
-        signo: Number(ajusteInput.signo),
-        motivo: ajusteInput.motivo,
-        partida: ajusteInput.partida || '',
-        observaciones: ajusteInput.observaciones || '',
-        usuario,
-        fecha: ajusteInput.fecha || hoyFn(),
-        fechaHora: new Date().toISOString(),
-        documentoRef: `AJUSTE:${ajusteInput.motivo}`,
-        entidad: ajusteInput.entidad || ajusteInput.entidad_nombre || '',
-        origenDato: ajusteInput.origenDato || ajusteInput.origen_dato || 'MANUAL',
-        kg: ajusteInput.kg !== undefined ? ajusteInput.kg : ajusteInput.kg_informativo
-      };
+      const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
 
-      const res = this.engine.processMovement(movInput, currentLayers, currentStock);
-      if (!res.success) {
-        return res; // Retornar STOCK_INSUFICIENTE si intentó ajustar en negativo más de lo que había
+      const rawFecha = ajusteInput.fecha || hoyFn();
+      let fechaNegocio = '';
+      try {
+        fechaNegocio = normFn(rawFecha);
+      } catch (e) {
+        fechaNegocio = hoyFn();
       }
 
-      currentLayers = res.updatedLayers;
-      Object.assign(currentStock, res.updatedStock);
+      const codigoArticulo = String(ajusteInput.codigo_articulo || ajusteInput.codigoArticulo || '').trim();
+      const codigoEnvase = String(ajusteInput.codigo_envase || ajusteInput.codigoEnvase || '').trim();
+      const cajas = Number(ajusteInput.cajas);
+      const signo = Number(ajusteInput.signo);
+      const motivo = String(ajusteInput.motivo || '').trim();
 
-      const maestro = this.repo.getMaestro();
-      const maestroMap = {};
-      maestro.forEach(m => {
-        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-        maestroMap[k] = m;
-      });
+      // Validar entrada de dominio
+      if (this.engine && typeof this.engine.validateMovementInput === 'function') {
+        this.engine.validateMovementInput({
+          tipo: 'AJUSTE',
+          codigoArticulo,
+          codigoEnvase,
+          cajas,
+          signo,
+          motivo,
+          usuario
+        });
+      } else {
+        if (!codigoArticulo) throw new Error('codigoArticulo es obligatorio');
+        if (!codigoEnvase) throw new Error('codigoEnvase es obligatorio');
+        if (!Number.isInteger(cajas) || cajas <= 0) throw new Error(`Cantidad de cajas debe ser un entero positivo mayor a 0. Valor recibido: ${ajusteInput.cajas}`);
+        if (![1, -1].includes(signo)) throw new Error(`Signo de ajuste debe ser 1 o -1. Valor recibido: ${ajusteInput.signo}`);
+        if (!motivo) throw new Error('Motivo es obligatorio en movimientos de tipo AJUSTE');
+        if (!usuario || String(usuario).trim() === '') throw new Error('Usuario es obligatorio en movimientos de tipo AJUSTE');
+      }
 
-      const updatedStockRecords = Object.keys(currentStock).map(stockKey => {
-        const [art, env] = stockKey.split('|');
-        const m = maestroMap[stockKey] || {};
+      const stockKey = this.engine.buildStockKey(codigoArticulo, codigoEnvase);
+      const stockAnterior = Number(estado.stock[stockKey] || 0);
+      const idMov = this._nuevoId('MOV');
+      const idCapaObj = String(ajusteInput.id_capa_objetivo || ajusteInput.idCapaObjetivo || '').trim();
+      const idMovRef = String(ajusteInput.id_movimiento_ref || ajusteInput.idMovimientoRef || '').trim();
+      const idCapaCreada = (signo === 1 && !idCapaObj && !idMovRef)
+        ? (ajusteInput.id_capa_creada || ajusteInput.idCapa || this._nuevoId('CAPA-AJUSTE'))
+        : '';
+
+      const kgInformativo = (ajusteInput.kg !== undefined && ajusteInput.kg !== null && ajusteInput.kg !== '')
+        ? Number(ajusteInput.kg)
+        : (ajusteInput.kg_informativo !== undefined && ajusteInput.kg_informativo !== null && ajusteInput.kg_informativo !== '' ? Number(ajusteInput.kg_informativo) : '');
+
+      const mov = {
+        id_movimiento: idMov,
+        fecha_hora: new Date().toISOString(),
+        tipo_movimiento: 'AJUSTE',
+        id_documento_ref: ajusteInput.id_documento_ref || ajusteInput.documentoRef || `AJUSTE:${motivo}`,
+        codigo_articulo: codigoArticulo,
+        codigo_envase: codigoEnvase,
+        cajas,
+        signo,
+        partida_origen: ajusteInput.partida || '',
+        motivo_ajuste: motivo,
+        usuario,
+        observaciones: ajusteInput.observaciones || '',
+        estado: 'CONFIRMADO',
+        fecha_negocio: fechaNegocio,
+        entidad_nombre: String(ajusteInput.entidad || ajusteInput.entidad_nombre || '').trim(),
+        secuencia: '',
+        origen_dato: ajusteInput.origenDato || ajusteInput.origen_dato || 'MANUAL',
+        kg_informativo: kgInformativo,
+        id_movimiento_ref: idMovRef,
+        id_capa_objetivo: idCapaObj,
+        id_capa_creada: idCapaCreada
+      };
+
+      const res = this.libro.aplicarMovimiento(estado, mov);
+      if (!res.ok) {
         return {
-          stock_key: stockKey,
-          codigo_articulo: art,
-          nombre_articulo: m.nombre_articulo || '',
-          codigo_envase: env,
-          descripcion_envase: m.descripcion_envase || '',
-          cajas_actuales: currentStock[stockKey],
-          fecha_ultima_actualizacion: new Date().toISOString(),
-          ultimo_movimiento_id: res.generatedMovement.id_movimiento
+          success: false,
+          status: 'PENDIENTE_REVISION',
+          errorCode: res.errorCode || 'STOCK_INSUFICIENTE',
+          stockKey,
+          stockDisponible: res.stockDisponible !== undefined ? res.stockDisponible : stockAnterior,
+          cajasSolicitadas: cajas,
+          deficit: res.deficit !== undefined ? res.deficit : Math.max(0, cajas - stockAnterior),
+          message: res.error
         };
-      });
+      }
 
-      this.repo.appendMovimientos([res.generatedMovement]);
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.saveStockActual(updatedStockRecords);
+      if (signo === -1 && res.consumos && res.consumos.length > 0) {
+        mov.observaciones = this.libro.anexarConsumosFifoAObservaciones(mov.observaciones, res.consumos);
+      }
+
+      const nuevoEstado = res.estado;
+      const stockNuevo = Number(nuevoEstado.stock[stockKey] || 0);
+
+      this._persistir({
+        movimientos: [mov],
+        estado: nuevoEstado
+      });
 
       return {
         success: true,
         status: 'CONFIRMADO',
-        stockKey: res.stockKey,
-        cajasAfectadas: res.cajasAfectadas,
-        stockAnterior: res.stockAnterior,
-        stockNuevo: res.stockNuevo,
-        movimientoId: res.generatedMovement.id_movimiento
+        stockKey,
+        cajasAfectadas: cajas,
+        stockAnterior,
+        stockNuevo,
+        movimientoId: mov.id_movimiento
       };
     } finally {
       this._releaseLock();
@@ -605,20 +970,18 @@ class MovementService {
    * Registra una reclasificación u operación de traspaso entre dos combinaciones de stock
    * (ejemplo: 10 cajas de Rosa Cartón a Rosa EPS).
    * 
-   * Ejecuta atómicamente:
-   * 1. Salida/Ajuste negativo en la combinación origen (consumiendo FIFO).
-   * 2. Entrada/Ajuste positivo en la combinación destino (creando nueva capa FIFO).
-   * 3. Ambas operaciones quedan vinculadas por la misma referencia en MOVIMIENTOS.
+   * Regla 4 (T-022): combinaciones de consumo dirigido + creación de capas,
+   * con la fecha y el proveedor de la capa de origen.
    * 
    * @param {Object} params
    * @param {string} [usuario='SISTEMA']
    * @returns {Object}
    */
   registrarReclasificacion(params, usuario = 'SISTEMA') {
-    const artOrigen = params.codigo_articulo_origen || params.codigo_articulo || params.codigoArticulo;
-    const artDestino = params.codigo_articulo_destino || params.codigo_articulo || params.codigoArticulo;
-    const envOrigen = params.codigo_envase_origen || params.codigoEnvaseOrigen;
-    const envDestino = params.codigo_envase_destino || params.codigoEnvaseDestino;
+    const artOrigen = String(params.codigo_articulo_origen || params.codigo_articulo || params.codigoArticulo || '').trim();
+    const artDestino = String(params.codigo_articulo_destino || params.codigo_articulo || params.codigoArticulo || '').trim();
+    const envOrigen = String(params.codigo_envase_origen || params.codigoEnvaseOrigen || '').trim();
+    const envDestino = String(params.codigo_envase_destino || params.codigoEnvaseDestino || '').trim();
     const cajas = Math.abs(Number(params.cajas));
     const motivo = params.motivo || 'RECLASIFICACION';
     const observaciones = params.observaciones || `Reclasificación de ${cajas} cajas de ${artOrigen}|${envOrigen} a ${artDestino}|${envDestino}`;
@@ -633,15 +996,11 @@ class MovementService {
 
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
-
+      let { estado } = this._cargarEstado();
       const keyOrigen = this.engine.buildStockKey(artOrigen, envOrigen);
-      const stockDisp = currentStock[keyOrigen] || 0;
+      const keyDestino = this.engine.buildStockKey(artDestino, envDestino);
+      const stockDisp = Number(estado.stock[keyOrigen] || 0);
+
       if (stockDisp < cajas) {
         return {
           success: false,
@@ -652,100 +1011,147 @@ class MovementService {
         };
       }
 
-      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
-      const refOperacion = `RECLASIF:${Date.now()}`;
-      const fechaHoy = params.fecha || hoyFn();
+      const stockAnteriorOrigen = stockDisp;
+      const stockAnteriorDestino = Number(estado.stock[keyDestino] || 0);
+      const refOperacion = this._nuevoId('RECLASIF:');
       const nowIso = new Date().toISOString();
 
-      // 1. Movimiento de Salida (Ajuste Negativo)
-      const movSalidaInput = {
-        tipo: 'AJUSTE',
-        codigoArticulo: artOrigen,
-        codigoEnvase: envOrigen,
-        cajas: cajas,
-        signo: -1,
-        motivo: `${motivo}_ORIGEN`,
-        observaciones: `${observaciones} (SALIDA)`,
-        usuario,
-        fecha: fechaHoy,
-        fechaHora: nowIso,
-        documentoRef: refOperacion
-      };
+      // Identificar capas de origen por FIFO para consumir de forma dirigida y crear capas destino con la fecha y proveedor de cada capa origen
+      const ordenarFn = this.engine && typeof this.engine.sortFifoLayers === 'function'
+        ? this.engine.sortFifoLayers
+        : (arr => [...arr]);
+      const capasOrigenActivas = ordenarFn(
+        estado.capas.filter(l =>
+          this.engine.buildStockKey(l.codigo_articulo, l.codigo_envase) === keyOrigen &&
+          l.estado_capa === 'ACTIVA' &&
+          Number(l.cajas_restantes || 0) > 0
+        )
+      );
 
-      const resSalida = this.engine.processMovement(movSalidaInput, currentLayers, currentStock);
-      if (!resSalida.success) {
-        return resSalida;
+      let porConsumir = cajas;
+      const tramos = [];
+      for (const capa of capasOrigenActivas) {
+        if (porConsumir <= 0) break;
+        const disp = Number(capa.cajas_restantes || 0);
+        const cant = Math.min(porConsumir, disp);
+        tramos.push({
+          capaOrigen: capa,
+          cajas: cant
+        });
+        porConsumir -= cant;
       }
-      currentLayers = resSalida.updatedLayers;
-      Object.assign(currentStock, resSalida.updatedStock);
 
-      // 2. Movimiento de Entrada (Ajuste Positivo)
-      const movEntradaInput = {
-        tipo: 'AJUSTE',
-        codigoArticulo: artDestino,
-        codigoEnvase: envDestino,
-        cajas: cajas,
-        signo: 1,
-        motivo: `${motivo}_DESTINO`,
-        observaciones: `${observaciones} (ENTRADA)`,
-        usuario,
-        fecha: fechaHoy,
-        fechaHora: nowIso,
-        documentoRef: refOperacion,
-        partida: params.partida || ''
-      };
-
-      const resEntrada = this.engine.processMovement(movEntradaInput, currentLayers, currentStock);
-      if (!resEntrada.success) {
-        throw new Error(`Error en reclasificación destino: ${resEntrada.message}`);
-      }
-      currentLayers = resEntrada.updatedLayers;
-      Object.assign(currentStock, resEntrada.updatedStock);
-
-      // 3. Actualizar registros en STOCK_ACTUAL
-      const maestro = this.repo.getMaestro();
-      const maestroMap = {};
-      maestro.forEach(m => {
-        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-        maestroMap[k] = m;
-      });
-
-      const updatedStockRecords = Object.keys(currentStock).map(stockKey => {
-        const [art, env] = stockKey.split('|');
-        const m = maestroMap[stockKey] || {};
+      if (porConsumir > 0) {
         return {
-          stock_key: stockKey,
-          codigo_articulo: art,
-          nombre_articulo: m.nombre_articulo || '',
-          codigo_envase: env,
-          descripcion_envase: m.descripcion_envase || '',
-          cajas_actuales: currentStock[stockKey],
-          fecha_ultima_actualizacion: nowIso,
-          ultimo_movimiento_id: resEntrada.generatedMovement.id_movimiento
+          success: false,
+          status: 'STOCK_INSUFICIENTE',
+          message: `Stock insuficiente en capas FIFO de origen (${keyOrigen}).`,
+          disponible: stockDisp - porConsumir,
+          solicitado: cajas
         };
-      });
+      }
 
-      // 4. Persistencia en lote
-      this.repo.appendMovimientos([resSalida.generatedMovement, resEntrada.generatedMovement]);
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.saveStockActual(updatedStockRecords);
+      const generatedMovements = [];
+      let primerMovSalidaId = '';
+      let ultimoMovEntradaId = '';
+
+      for (const tramo of tramos) {
+        const { capaOrigen, cajas: cantTramo } = tramo;
+        const idMovSal = this._nuevoId('MOV');
+        const idMovEnt = this._nuevoId('MOV');
+        const idCapaNueva = this._nuevoId('CAPA');
+
+        if (!primerMovSalidaId) primerMovSalidaId = idMovSal;
+        ultimoMovEntradaId = idMovEnt;
+
+        const movSalida = {
+          id_movimiento: idMovSal,
+          fecha_hora: nowIso,
+          tipo_movimiento: 'AJUSTE',
+          id_documento_ref: refOperacion,
+          codigo_articulo: artOrigen,
+          codigo_envase: envOrigen,
+          cajas: cantTramo,
+          signo: -1,
+          partida_origen: capaOrigen.partida || '',
+          motivo_ajuste: `${motivo}_ORIGEN`,
+          usuario,
+          observaciones: `${observaciones} (SALIDA)`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: capaOrigen.fecha_capa,
+          entidad_nombre: capaOrigen.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: '',
+          id_capa_objetivo: capaOrigen.id_capa,
+          id_capa_creada: ''
+        };
+
+        const resSal = this.libro.aplicarMovimiento(estado, movSalida);
+        if (!resSal.ok) {
+          throw new Error(`Error en reclasificación origen: ${resSal.error}`);
+        }
+        estado = resSal.estado;
+        if (resSal.consumos && resSal.consumos.length > 0) {
+          movSalida.observaciones = this.libro.anexarConsumosFifoAObservaciones(movSalida.observaciones, resSal.consumos);
+        }
+        generatedMovements.push(movSalida);
+
+        const movEntrada = {
+          id_movimiento: idMovEnt,
+          fecha_hora: nowIso,
+          tipo_movimiento: 'AJUSTE',
+          id_documento_ref: refOperacion,
+          codigo_articulo: artDestino,
+          codigo_envase: envDestino,
+          cajas: cantTramo,
+          signo: 1,
+          partida_origen: params.partida || capaOrigen.partida || '',
+          motivo_ajuste: `${motivo}_DESTINO`,
+          usuario,
+          observaciones: `${observaciones} (ENTRADA)`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: capaOrigen.fecha_capa,
+          entidad_nombre: capaOrigen.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: idMovSal,
+          id_capa_objetivo: '',
+          id_capa_creada: idCapaNueva,
+          id_capa_origen: capaOrigen.id_capa
+        };
+
+        const resEnt = this.libro.aplicarMovimiento(estado, movEntrada);
+        if (!resEnt.ok) {
+          throw new Error(`Error en reclasificación destino: ${resEnt.error}`);
+        }
+        estado = resEnt.estado;
+        generatedMovements.push(movEntrada);
+      }
+
+      this._persistir({
+        movimientos: generatedMovements,
+        estado
+      });
 
       return {
         success: true,
         status: 'CONFIRMADO',
         referenciaOperacion: refOperacion,
-        movimientoSalidaId: resSalida.generatedMovement.id_movimiento,
-        movimientoEntradaId: resEntrada.generatedMovement.id_movimiento,
+        movimientoSalidaId: primerMovSalidaId,
+        movimientoEntradaId: ultimoMovEntradaId,
         cajasReclasificadas: cajas,
         origen: {
           stockKey: keyOrigen,
-          stockAnterior: resSalida.stockAnterior,
-          stockNuevo: resSalida.stockNuevo
+          stockAnterior: stockAnteriorOrigen,
+          stockNuevo: Number(estado.stock[keyOrigen] || 0)
         },
         destino: {
-          stockKey: this.engine.buildStockKey(artDestino, envDestino),
-          stockAnterior: resEntrada.stockAnterior,
-          stockNuevo: resEntrada.stockNuevo
+          stockKey: keyDestino,
+          stockAnterior: stockAnteriorDestino,
+          stockNuevo: Number(estado.stock[keyDestino] || 0)
         }
       };
     } finally {
@@ -755,18 +1161,18 @@ class MovementService {
 
   /**
    * Mueve cajas entre partidas dentro del mismo artículo y envase.
-   * Deduce cajas de la partida origen y crea una nueva capa para la partida destino,
-   * preservando el total de stock_key y registrando ambos movimientos vinculados.
+   * Regla 4 (T-022): combinaciones de consumo dirigido + creación de capas,
+   * con la fecha y el proveedor de la capa de origen.
    * 
    * @param {Object} params
    * @param {string} [usuario='SISTEMA']
    * @returns {Object}
    */
   registrarMovimientoPartida(params, usuario = 'SISTEMA') {
-    const art = params.codigo_articulo || params.codigoArticulo;
-    const env = params.codigo_envase || params.codigoEnvase;
-    const partidaOrigen = params.partida_origen || params.partidaOrigen;
-    const partidaDestino = params.partida_destino || params.partidaDestino;
+    const art = String(params.codigo_articulo || params.codigoArticulo || '').trim();
+    const env = String(params.codigo_envase || params.codigoEnvase || '').trim();
+    const partidaOrigen = String(params.partida_origen || params.partidaOrigen || '').trim();
+    const partidaDestino = String(params.partida_destino || params.partidaDestino || '').trim();
     const cajas = Math.abs(Number(params.cajas));
     const motivo = params.motivo || 'MOVER_PARTIDA';
     const observaciones = params.observaciones || `Movimiento de ${cajas} cajas de partida ${partidaOrigen} a ${partidaDestino}`;
@@ -780,19 +1186,21 @@ class MovementService {
 
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      let { estado } = this._cargarEstado();
 
       const key = this.engine.buildStockKey(art, env);
-      const capasOrigen = currentLayers.filter(c => 
-        this.engine.buildStockKey(c.codigo_articulo, c.codigo_envase) === key &&
-        (c.partida === partidaOrigen || c.partida_id === partidaOrigen) &&
-        Number(c.cajas_restantes || 0) > 0
+      const ordenarFn = this.engine && typeof this.engine.sortFifoLayers === 'function'
+        ? this.engine.sortFifoLayers
+        : (arr => [...arr]);
+      const capasOrigen = ordenarFn(
+        estado.capas.filter(c => 
+          this.engine.buildStockKey(c.codigo_articulo, c.codigo_envase) === key &&
+          (c.partida === partidaOrigen || c.partida_id === partidaOrigen) &&
+          c.estado_capa === 'ACTIVA' &&
+          Number(c.cajas_restantes || 0) > 0
+        )
       );
+
       const dispEnPartida = capasOrigen.reduce((sum, c) => sum + Number(c.cajas_restantes || 0), 0);
       if (dispEnPartida < cajas) {
         return {
@@ -806,103 +1214,102 @@ class MovementService {
         };
       }
 
-      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
-      const refOperacion = `MOV_PARTIDA:${Date.now()}`;
-      const fechaHoy = params.fecha || hoyFn();
+      const refOperacion = this._nuevoId('MOV_PARTIDA:');
       const nowIso = new Date().toISOString();
 
       let porDescontar = cajas;
+      const generatedMovements = [];
+      let primerMovSalidaId = '';
+      let ultimoMovEntradaId = '';
+
       for (const capa of capasOrigen) {
         if (porDescontar <= 0) break;
         const dispCapa = Number(capa.cajas_restantes || 0);
         const aRestar = Math.min(porDescontar, dispCapa);
-        capa.cajas_consumidas = Number(capa.cajas_consumidas || 0) + aRestar;
-        capa.cajas_restantes = dispCapa - aRestar;
-        if (capa.cajas_restantes === 0) {
-          capa.estado_capa = 'AGOTADA';
-        }
         porDescontar -= aRestar;
+
+        const idMovSal = this._nuevoId('MOV');
+        const idMovEnt = this._nuevoId('MOV');
+        const idCapaNueva = this._nuevoId('CAPA');
+
+        if (!primerMovSalidaId) primerMovSalidaId = idMovSal;
+        ultimoMovEntradaId = idMovEnt;
+
+        const movSalida = {
+          id_movimiento: idMovSal,
+          fecha_hora: nowIso,
+          tipo_movimiento: 'AJUSTE',
+          id_documento_ref: refOperacion,
+          codigo_articulo: art,
+          codigo_envase: env,
+          cajas: aRestar,
+          signo: -1,
+          partida_origen: partidaOrigen,
+          motivo_ajuste: `${motivo}_ORIGEN`,
+          usuario,
+          observaciones: `${observaciones} (ORIGEN)`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: capa.fecha_capa,
+          entidad_nombre: capa.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: '',
+          id_capa_objetivo: capa.id_capa,
+          id_capa_creada: ''
+        };
+
+        const resSal = this.libro.aplicarMovimiento(estado, movSalida);
+        if (!resSal.ok) {
+          throw new Error(`Error al descontar partida origen: ${resSal.error}`);
+        }
+        estado = resSal.estado;
+        generatedMovements.push(movSalida);
+
+        const movEntrada = {
+          id_movimiento: idMovEnt,
+          fecha_hora: nowIso,
+          tipo_movimiento: 'AJUSTE',
+          id_documento_ref: refOperacion,
+          codigo_articulo: art,
+          codigo_envase: env,
+          cajas: aRestar,
+          signo: 1,
+          partida_origen: partidaDestino,
+          motivo_ajuste: `${motivo}_DESTINO`,
+          usuario,
+          observaciones: `${observaciones} (DESTINO)`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: capa.fecha_capa,
+          entidad_nombre: capa.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: idMovSal,
+          id_capa_objetivo: '',
+          id_capa_creada: idCapaNueva,
+          id_capa_origen: capa.id_capa
+        };
+
+        const resEnt = this.libro.aplicarMovimiento(estado, movEntrada);
+        if (!resEnt.ok) {
+          throw new Error(`Error al crear capa de partida destino: ${resEnt.error}`);
+        }
+        estado = resEnt.estado;
+        generatedMovements.push(movEntrada);
       }
 
-      const idCapaNueva = `CAPA-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      const nuevaCapa = {
-        id_capa: idCapaNueva,
-        id_movimiento_entrada: refOperacion,
-        fecha_capa: fechaHoy,
-        codigo_articulo: art,
-        codigo_envase: env,
-        cajas_iniciales: cajas,
-        cajas_consumidas: 0,
-        cajas_restantes: cajas,
-        estado_capa: 'ACTIVA',
-        partida: partidaDestino,
-        documento_ref: refOperacion
-      };
-      currentLayers.push(nuevaCapa);
-
-      const movSalida = {
-        id_movimiento: `MOV-${Date.now()}-1`,
-        fecha_hora: nowIso,
-        tipo_movimiento: 'AJUSTE',
-        id_documento_ref: refOperacion,
-        codigo_articulo: art,
-        codigo_envase: env,
-        cajas: cajas,
-        signo: -1,
-        partida_origen: partidaOrigen,
-        motivo_ajuste: `${motivo}_ORIGEN`,
-        usuario,
-        observaciones: `${observaciones} (ORIGEN)`,
-        estado: 'CONFIRMADO'
-      };
-
-      const movEntrada = {
-        id_movimiento: `MOV-${Date.now()}-2`,
-        fecha_hora: nowIso,
-        tipo_movimiento: 'AJUSTE',
-        id_documento_ref: refOperacion,
-        codigo_articulo: art,
-        codigo_envase: env,
-        cajas: cajas,
-        signo: 1,
-        partida_origen: partidaDestino,
-        motivo_ajuste: `${motivo}_DESTINO`,
-        usuario,
-        observaciones: `${observaciones} (DESTINO)`,
-        estado: 'CONFIRMADO'
-      };
-
-      this.repo.appendMovimientos([movSalida, movEntrada]);
-      this.repo.saveCapasFifo(currentLayers);
-
-      const maestro = this.repo.getMaestro();
-      const maestroMap = {};
-      maestro.forEach(m => {
-        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-        maestroMap[k] = m;
+      this._persistir({
+        movimientos: generatedMovements,
+        estado
       });
-      const updatedStockRecords = Object.keys(currentStock).map(stockKey => {
-        const [a, e] = stockKey.split('|');
-        const m = maestroMap[stockKey] || {};
-        return {
-          stock_key: stockKey,
-          codigo_articulo: a,
-          nombre_articulo: m.nombre_articulo || '',
-          codigo_envase: e,
-          descripcion_envase: m.descripcion_envase || '',
-          cajas_actuales: currentStock[stockKey],
-          fecha_ultima_actualizacion: nowIso,
-          ultimo_movimiento_id: movEntrada.id_movimiento
-        };
-      });
-      this.repo.saveStockActual(updatedStockRecords);
 
       return {
         success: true,
         status: 'CONFIRMADO',
         referenciaOperacion: refOperacion,
-        movimientoSalidaId: movSalida.id_movimiento,
-        movimientoEntradaId: movEntrada.id_movimiento,
+        movimientoSalidaId: primerMovSalidaId,
+        movimientoEntradaId: ultimoMovEntradaId,
         cajasMovidas: cajas,
         partidaOrigen,
         partidaDestino
@@ -914,7 +1321,7 @@ class MovementService {
 
   /**
    * Reconstruye determinísticamente el stock actual y las capas FIFO a partir de la totalidad
-   * de movimientos confirmados.
+   * de movimientos confirmados usando `reconstruir(movimientos)` de `src/Libro.js`.
    * No altera los registros de la tabla MOVIMIENTOS.
    * 
    * @returns {Object} Informe de auditoría y conciliación
@@ -923,34 +1330,24 @@ class MovementService {
     this._acquireLock(30000);
     try {
       const allMovements = this.repo.getMovimientos();
-      const maestro = this.repo.getMaestro();
+      const rec = this.libro.reconstruir(allMovements);
 
-      const report = this.engine.rebuildStockFromMovements(allMovements, maestro);
+      const report = {
+        stockMap: rec.estado.stock,
+        reconstructedLayers: rec.estado.capas,
+        consumosPorMovimiento: rec.estado.consumosPorMovimiento,
+        avisos: rec.avisos,
+        totalCajasPorCapas: rec.totalCajasPorCapas,
+        totalCajasPorStock: rec.totalCajasPorStock,
+        isConsistent: rec.isConsistent,
+        totalMovimientosProcesados: rec.totalMovimientosProcesados
+      };
 
-      const maestroMap = {};
-      maestro.forEach(m => {
-        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-        maestroMap[k] = m;
+      this._persistir({
+        movimientos: [],
+        estado: rec.estado,
+        ultimoMovimientoId: 'REBUILD'
       });
-
-      const updatedStockRecords = Object.keys(report.stockMap).map(stockKey => {
-        const [art, env] = stockKey.split('|');
-        const m = maestroMap[stockKey] || {};
-        return {
-          stock_key: stockKey,
-          codigo_articulo: art,
-          nombre_articulo: m.nombre_articulo || '',
-          codigo_envase: env,
-          descripcion_envase: m.descripcion_envase || '',
-          cajas_actuales: report.stockMap[stockKey],
-          fecha_ultima_actualizacion: new Date().toISOString(),
-          ultimo_movimiento_id: 'REBUILD'
-        };
-      });
-
-      // Sobrescribir capas FIFO regeneradas y STOCK_ACTUAL
-      this.repo.saveCapasFifo(report.reconstructedLayers);
-      this.repo.saveStockActual(updatedStockRecords);
 
       return {
         success: true,
@@ -1163,78 +1560,78 @@ class MovementService {
         throw new Error(`Trust Boundary violado: El total de cajas procesadas (${totalCajas}) no coincide con el total de cajas del documento original (${doc.total_cajas}).`);
       }
 
-      // 6. Cargar capas FIFO y stock actual
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      // 6. Cargar estado vivo y aplicar entradas con Libro.aplicarMovimiento
+      let { estado } = this._cargarEstado();
+      const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
+
+      let fechaNegocio = '';
+      if (doc.fecha_documento) {
+        try {
+          fechaNegocio = normFn(doc.fecha_documento);
+        } catch (e) {
+          fechaNegocio = hoyFn();
+        }
+      } else {
+        fechaNegocio = hoyFn();
+      }
 
       const generatedMovements = [];
-      const newLayers = [];
+      const docRefStr = `${String(doc.serie || '').trim()}/${String(doc.numero || '').trim()}`;
 
       for (const linea of resolvedLines) {
-        const movInput = {
-          tipo: 'ENTRADA',
-          codigoArticulo: linea.codigo_articulo,
-          codigoEnvase: linea.codigo_envase,
-          cajas: linea.cajas,
-          partida: linea.partida || '',
-          fecha: doc.fecha_documento,
-          fechaHora: new Date().toISOString(),
-          idDocumentoRef: idDocumento,
-          documentoRef: `${doc.serie}/${doc.numero}`,
-          usuario
+        const idMov = this._nuevoId('MOV');
+        const idCapa = this._nuevoId('CAPA');
+
+        const mov = {
+          id_movimiento: idMov,
+          fecha_hora: new Date().toISOString(),
+          tipo_movimiento: 'ENTRADA',
+          id_documento_ref: idDocumento,
+          documento_ref: docRefStr,
+          codigo_articulo: String(linea.codigo_articulo).trim(),
+          codigo_envase: String(linea.codigo_envase).trim(),
+          cajas: Number(linea.cajas),
+          signo: 1,
+          partida_origen: linea.partida || '',
+          motivo_ajuste: '',
+          usuario: usuario || 'SISTEMA',
+          observaciones: '',
+          estado: 'CONFIRMADO',
+          fecha_negocio: fechaNegocio,
+          entidad_nombre: String(doc.entidad_nombre || '').trim(),
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: '',
+          id_capa_objetivo: '',
+          id_capa_creada: idCapa
         };
 
-        const res = this.engine.processMovement(movInput, currentLayers, currentStock);
-        if (!res.success) {
-          throw new Error(`Error inesperado al procesar entrada: ${res.message}`);
+        const res = this.libro.aplicarMovimiento(estado, mov);
+        if (!res.ok) {
+          throw new Error(`Error inesperado al procesar entrada: ${res.error}`);
         }
 
-        currentLayers = res.updatedLayers;
-        Object.assign(currentStock, res.updatedStock);
-        generatedMovements.push(res.generatedMovement);
-        if (res.newLayer) newLayers.push(res.newLayer);
+        estado = res.estado;
+        generatedMovements.push(mov);
       }
 
-      // 7. Preparar actualización de STOCK_ACTUAL
-      const maestroMap = {};
-      maestroRecords.forEach(m => {
-        const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-        maestroMap[k] = m;
+      // 7. Persistir en orden canónico (_persistir: 1. movimientos, 2. capas, 3. stock, 4. documentos)
+      doc.estado_proceso = 'CONFIRMADO';
+      this._persistir({
+        movimientos: generatedMovements,
+        estado,
+        documentos: {
+          updateEstado: {
+            idDocumento,
+            nuevoEstado: 'CONFIRMADO',
+            fallbackDocs: existingDocs
+          }
+        }
       });
 
-      const updatedStockRecords = Object.keys(currentStock).map(stockKey => {
-        const [art, env] = stockKey.split('|');
-        const m = maestroMap[stockKey] || {};
-        return {
-          stock_key: stockKey,
-          codigo_articulo: art,
-          nombre_articulo: m.nombre_articulo || '',
-          codigo_envase: env,
-          descripcion_envase: m.descripcion_envase || '',
-          cajas_actuales: currentStock[stockKey],
-          fecha_ultima_actualizacion: new Date().toISOString(),
-          ultimo_movimiento_id: generatedMovements[generatedMovements.length - 1].id_movimiento
-        };
-      });
-
-      // 8. Actualizar DOCUMENTOS: cambiar estado a 'CONFIRMADO'
-      if (typeof this.repo.updateDocumentoEstado === 'function') {
-        this.repo.updateDocumentoEstado(idDocumento, 'CONFIRMADO');
-      } else {
-        doc.estado_proceso = 'CONFIRMADO';
-        this.repo.replaceTable('DOCUMENTOS', existingDocs);
-      }
-
-      // 9. Persistir movimientos, capas y stock
-      this.repo.appendMovimientos(generatedMovements);
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.saveStockActual(updatedStockRecords);
-
-      // 10. Persistir aprendizaje dinámico si se especificó 'recordar: true'
+      // 8. Persistir aprendizaje dinámico si se especificó 'recordar: true'
       const rememberedAssociations = [];
       const IngestionServiceClass = (typeof ArticuloEnvaseIngestionService !== 'undefined')
         ? ArticuloEnvaseIngestionService
@@ -1317,37 +1714,9 @@ class MovementService {
   }
 
   /**
-   * Helper privado para sincronizar la tabla STOCK_ACTUAL a partir de un mapa de saldos.
-   */
-  _syncStockActual(currentStock, ultimoMovId = '') {
-    const maestro = this.repo.getMaestro();
-    const maestroMap = {};
-    maestro.forEach(m => {
-      const k = this.engine.buildStockKey(m.codigo_articulo, m.codigo_envase);
-      maestroMap[k] = m;
-    });
-    const updatedStockRecords = Object.keys(currentStock).map(stockKey => {
-      const [a, e] = stockKey.split('|');
-      const m = maestroMap[stockKey] || {};
-      return {
-        stock_key: stockKey,
-        codigo_articulo: a,
-        nombre_articulo: m.nombre_articulo || '',
-        codigo_envase: e,
-        descripcion_envase: m.descripcion_envase || '',
-        cajas_actuales: Number(currentStock[stockKey] || 0),
-        fecha_ultima_actualizacion: new Date().toISOString(),
-        ultimo_movimiento_id: ultimoMovId || ''
-      };
-    });
-    this.repo.saveStockActual(updatedStockRecords);
-    return updatedStockRecords;
-  }
-
-  /**
    * Anula una entrada de inventario de forma segura y no destructiva.
-   * Si la entrada ya tiene consumos posteriores, BLOQUEA la operación (REVISION_NECESARIA)
-   * para evitar generar existencias negativas o descuadres históricos.
+   * Regla 4 (T-022): Anular = un movimiento ANULACION, con estado CONFIRMADO y id_movimiento_ref.
+   * Si la entrada ya tiene consumos posteriores, BLOQUEA la operación (REVISION_NECESARIA).
    * 
    * @param {Object} params
    * @param {string} [usuario='SISTEMA']
@@ -1356,14 +1725,9 @@ class MovementService {
   anularEntrada(params = {}, usuario = 'SISTEMA') {
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      let { estado } = this._cargarEstado();
 
-      const layer = this._findLayer(currentLayers, params);
+      const layer = this._findLayer(estado.capas, params);
       if (!layer) {
         return {
           success: false,
@@ -1388,15 +1752,11 @@ class MovementService {
 
       const cajasAnuladas = Number(layer.cajas_restantes || layer.cajas_iniciales);
       const stockKey = this.engine.buildStockKey(layer.codigo_articulo, layer.codigo_envase);
-
-      layer.cajas_restantes = 0;
-      layer.estado_capa = 'ANULADA';
-
-      currentStock[stockKey] = Math.max(0, (currentStock[stockKey] || 0) - cajasAnuladas);
-
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
       const nowIso = new Date().toISOString();
+
       const movAnulacion = {
-        id_movimiento: `MOV-ANUL-${Date.now()}`,
+        id_movimiento: this._nuevoId('MOV-ANUL'),
         fecha_hora: nowIso,
         tipo_movimiento: 'ANULACION',
         id_documento_ref: layer.documento_ref || layer.id_movimiento_entrada || '',
@@ -1408,23 +1768,52 @@ class MovementService {
         motivo_ajuste: params.motivo || 'ANULAR_ENTRADA',
         usuario,
         observaciones: params.observaciones || 'Anulación de entrada sin consumos',
-        estado: 'ANULADO'
+        estado: 'CONFIRMADO',
+        fecha_negocio: layer.fecha_capa || hoyFn(),
+        entidad_nombre: layer.proveedor || '',
+        secuencia: '',
+        origen_dato: 'MANUAL',
+        kg_informativo: '',
+        id_movimiento_ref: layer.id_movimiento_entrada || '',
+        id_capa_objetivo: layer.id_capa,
+        id_capa_creada: ''
       };
 
-      // Si existe documento en DOCUMENTOS, actualizar estado
+      const res = this.libro.aplicarMovimiento(estado, movAnulacion);
+      if (!res.ok) {
+        return {
+          success: false,
+          status: 'REVISION_NECESARIA',
+          errorCode: res.errorCode || 'ENTRADA_CON_CONSUMOS',
+          message: res.error
+        };
+      }
+
+      estado = res.estado;
+
+      // Si existe documento en DOCUMENTOS, preparar actualización de estado
       const docs = this.repo.getDocumentos();
       const doc = docs.find(d => 
         (layer.documento_ref && `${d.serie}/${d.numero}` === layer.documento_ref) ||
         (d.id_documento && d.id_documento === layer.documento_ref)
       );
+      let docUpdate = null;
       if (doc) {
         doc.estado_proceso = 'ANULADO';
-        this.repo.replaceTable('DOCUMENTOS', docs);
+        docUpdate = {
+          updateEstado: {
+            idDocumento: doc.id_documento,
+            nuevoEstado: 'ANULADO',
+            fallbackDocs: docs
+          }
+        };
       }
 
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.appendMovimientos([movAnulacion]);
-      this._syncStockActual(currentStock, movAnulacion.id_movimiento);
+      this._persistir({
+        movimientos: [movAnulacion],
+        estado,
+        documentos: docUpdate
+      });
 
       return {
         success: true,
@@ -1432,7 +1821,7 @@ class MovementService {
         estado: 'ANULADA',
         cajasAnuladas,
         stockKey,
-        stockRestante: currentStock[stockKey],
+        stockRestante: Number(estado.stock[stockKey] || 0),
         movimientoId: movAnulacion.id_movimiento
       };
     } finally {
@@ -1442,7 +1831,7 @@ class MovementService {
 
   /**
    * Anula una salida de inventario, restituyendo exactamente las cajas consumidas a sus capas
-   * FIFO originales y respetando el modelo de inventario.
+   * FIFO originales mediante movimientos `ANULACION` con `estado: 'CONFIRMADO'` y `id_movimiento_ref` (D-012, T-022).
    * 
    * @param {Object} params
    * @param {string} [usuario='SISTEMA']
@@ -1451,12 +1840,7 @@ class MovementService {
   anularSalida(params = {}, usuario = 'SISTEMA') {
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      let { estado, movimientos: allMovs } = this._cargarEstado();
 
       const docs = this.repo.getDocumentos();
       const docRef = (params.serie && params.numero)
@@ -1470,13 +1854,12 @@ class MovementService {
       );
       const targetDocId = docObj ? docObj.id_documento : null;
 
-      const allMovs = this.repo.getMovimientos();
       const salidaMovs = allMovs.filter(m => 
         m.tipo_movimiento === 'SALIDA' &&
         (m.id_documento_ref === docRef ||
          (targetDocId && m.id_documento_ref === targetDocId) ||
          m.id_movimiento === params.id_movimiento ||
-         (docRef && m.id_documento_ref.includes(docRef)))
+         (docRef && String(m.id_documento_ref || '').includes(docRef)))
       );
 
       if (salidaMovs.length === 0) {
@@ -1491,84 +1874,70 @@ class MovementService {
       let totalCajasRestauradas = 0;
       const movsAnulacion = [];
       const nowIso = new Date().toISOString();
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
 
       for (const mov of salidaMovs) {
-        const cajas = Number(mov.cajas);
-        const stockKey = this.engine.buildStockKey(mov.codigo_articulo, mov.codigo_envase);
+        // Calcular cuántas cajas quedan efectivamente consumidas por esta salida (por si tuvo correcciones previas)
+        const consumosActivos = estado.consumosPorMovimiento[mov.id_movimiento];
+        const cajasEfectivas = Array.isArray(consumosActivos) && consumosActivos.length > 0
+          ? consumosActivos.reduce((s, c) => s + Number(c.cajas || 0), 0)
+          : Number(mov.cajas || 0);
 
-        // Extraer consumos FIFO si están disponibles en observaciones
-        let consumos = [];
-        if (mov.observaciones && mov.observaciones.includes('FIFO:')) {
-          try {
-            const jsonPart = mov.observaciones.split('FIFO:')[1].trim();
-            consumos = JSON.parse(jsonPart);
-          } catch (e) {
-            consumos = [];
-          }
-        }
-
-        if (consumos.length > 0) {
-          for (const c of consumos) {
-            const layer = currentLayers.find(l => l.id_capa === c.id_capa);
-            if (layer) {
-              layer.cajas_consumidas = Math.max(0, Number(layer.cajas_consumidas || 0) - Number(c.cajas_descontadas));
-              layer.cajas_restantes = Number(layer.cajas_restantes || 0) + Number(c.cajas_descontadas);
-              layer.estado_capa = 'ACTIVA';
-            }
-          }
-        } else {
-          // Fallback LIFO sobre capas con consumos de esa clave
-          const capasConsumidas = currentLayers.filter(l => 
-            this.engine.buildStockKey(l.codigo_articulo, l.codigo_envase) === stockKey &&
-            Number(l.cajas_consumidas || 0) > 0
-          );
-          // Ordenar descendente por fecha de capa (LIFO)
-          capasConsumidas.sort((a, b) => String(b.fecha_capa || '').localeCompare(String(a.fecha_capa || '')));
-          let porRestaurar = cajas;
-          for (const layer of capasConsumidas) {
-            if (porRestaurar <= 0) break;
-            const consumidasCapa = Number(layer.cajas_consumidas || 0);
-            const aRestaurar = Math.min(porRestaurar, consumidasCapa);
-            layer.cajas_consumidas -= aRestaurar;
-            layer.cajas_restantes = Number(layer.cajas_restantes || 0) + aRestaurar;
-            layer.estado_capa = 'ACTIVA';
-            porRestaurar -= aRestaurar;
-          }
-        }
-
-        currentStock[stockKey] = (currentStock[stockKey] || 0) + cajas;
-        totalCajasRestauradas += cajas;
-
-        movsAnulacion.push({
-          id_movimiento: `MOV-ANUL-${Date.now()}-${totalCajasRestauradas}`,
+        const movAnul = {
+          id_movimiento: this._nuevoId('MOV-ANUL'),
           fecha_hora: nowIso,
           tipo_movimiento: 'ANULACION',
           id_documento_ref: mov.id_documento_ref || docRef || '',
           codigo_articulo: mov.codigo_articulo,
           codigo_envase: mov.codigo_envase,
-          cajas,
+          cajas: cajasEfectivas,
           signo: 1,
           partida_origen: mov.partida_origen || '',
           motivo_ajuste: params.motivo || 'ANULAR_SALIDA',
           usuario,
           observaciones: params.observaciones || 'Anulación y restitución FIFO de salida',
-          estado: 'ANULADO'
-        });
+          estado: 'CONFIRMADO',
+          fecha_negocio: mov.fecha_negocio || hoyFn(),
+          entidad_nombre: mov.entidad_nombre || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: mov.id_movimiento,
+          id_capa_objetivo: '',
+          id_capa_creada: ''
+        };
+
+        const res = this.libro.aplicarMovimiento(estado, movAnul);
+        if (!res.ok) {
+          throw new Error(`Error al anular salida ${mov.id_movimiento}: ${res.error}`);
+        }
+
+        estado = res.estado;
+        totalCajasRestauradas += cajasEfectivas;
+        movsAnulacion.push(movAnul);
       }
 
-      // Actualizar estado de documento si existe
-      const doc = docs.find(d => 
+      let docUpdate = null;
+      const doc = docObj || docs.find(d => 
         (docRef && `${d.serie}/${d.numero}` === docRef) ||
         (d.id_documento && d.id_documento === docRef)
       );
       if (doc) {
         doc.estado_proceso = 'ANULADO';
-        this.repo.replaceTable('DOCUMENTOS', docs);
+        docUpdate = {
+          updateEstado: {
+            idDocumento: doc.id_documento,
+            nuevoEstado: 'ANULADO',
+            fallbackDocs: docs
+          }
+        };
       }
 
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.appendMovimientos(movsAnulacion);
-      this._syncStockActual(currentStock, movsAnulacion[0] ? movsAnulacion[0].id_movimiento : '');
+      this._persistir({
+        movimientos: movsAnulacion,
+        estado,
+        documentos: docUpdate
+      });
 
       return {
         success: true,
@@ -1583,9 +1952,35 @@ class MovementService {
   }
 
   /**
-   * Corrige la cantidad de una salida histórica.
-   * Si la nueva cantidad es menor, devuelve las cajas excedentes al inventario restituyendo capas FIFO.
-   * Si la nueva cantidad es mayor, descuenta cajas adicionales mediante FIFO asegurando saldo suficiente.
+   * Calcula la cantidad efectiva actual de una salida histórica teniendo en cuenta ajustes previos con `id_movimiento_ref`.
+   * @param {Object} movSalida
+   * @param {Array<Object>} allMovs
+   * @returns {number}
+   */
+  _calcularCantidadEfectivaSalida(movSalida, allMovs = []) {
+    let total = Number(movSalida.cajas || 0);
+    const idSal = String(movSalida.id_movimiento || '').trim();
+    if (!idSal) return total;
+
+    for (const m of allMovs) {
+      if (String(m.id_movimiento_ref || '').trim() !== idSal) continue;
+      if (String(m.estado || '').trim().toUpperCase() !== 'CONFIRMADO') continue;
+      const tipo = String(m.tipo_movimiento || '').trim().toUpperCase();
+      const signo = Number(m.signo || 0);
+      const c = Math.abs(Number(m.cajas || 0));
+      if (tipo === 'AJUSTE' && signo === 1) {
+        total -= c; // devolvió cajas a capas -> redujo la salida
+      } else if ((tipo === 'AJUSTE' || tipo === 'SALIDA') && signo === -1) {
+        total += c; // consumió más cajas -> amplió la salida
+      }
+    }
+    return total;
+  }
+
+  /**
+   * Corrige la cantidad de una salida histórica sin tocar el movimiento original (D-022, T-022 Regla 4):
+   * - A la baja: AJUSTE + con `id_movimiento_ref` a la salida. Devuelve las cajas a las capas de esa salida, en orden inverso al consumo.
+   * - Al alza: AJUSTE − por FIFO con `id_movimiento_ref`.
    * 
    * @param {Object} params
    * @param {string} [usuario='SISTEMA']
@@ -1599,12 +1994,7 @@ class MovementService {
 
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      let { estado, movimientos: allMovs } = this._cargarEstado();
 
       const docs = this.repo.getDocumentos();
       const docRef = (params.serie && params.numero)
@@ -1618,13 +2008,12 @@ class MovementService {
       );
       const targetDocId = docObj ? docObj.id_documento : null;
 
-      const allMovs = this.repo.getMovimientos();
       const mov = allMovs.find(m => 
         m.tipo_movimiento === 'SALIDA' &&
         (m.id_documento_ref === docRef ||
          (targetDocId && m.id_documento_ref === targetDocId) ||
          m.id_movimiento === params.id_movimiento ||
-         (docRef && m.id_documento_ref.includes(docRef)))
+         (docRef && String(m.id_documento_ref || '').includes(docRef)))
       );
 
       if (!mov) {
@@ -1636,8 +2025,8 @@ class MovementService {
         };
       }
 
-      const cajasOriginales = Number(mov.cajas);
-      const delta = cajasOriginales - nuevaCantidad; // positivo = devolver cajas a stock, negativo = consumir más
+      const cajasActualesSalida = this._calcularCantidadEfectivaSalida(mov, allMovs);
+      const delta = cajasActualesSalida - nuevaCantidad; // positivo = devolver cajas a stock, negativo = consumir más
 
       if (delta === 0) {
         return { success: true, status: 'CONFIRMADO', message: 'Cantidad idéntica, sin cambios.' };
@@ -1645,56 +2034,12 @@ class MovementService {
 
       const stockKey = this.engine.buildStockKey(mov.codigo_articulo, mov.codigo_envase);
       const nowIso = new Date().toISOString();
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
 
       if (delta > 0) {
-        // Salida fue menor: devolver 'delta' cajas a las capas FIFO
-        let consumos = [];
-        if (mov.observaciones && mov.observaciones.includes('FIFO:')) {
-          try {
-            const jsonPart = mov.observaciones.split('FIFO:')[1].trim();
-            consumos = JSON.parse(jsonPart);
-          } catch (e) {
-            consumos = [];
-          }
-        }
-
-        let porRestaurar = delta;
-        if (consumos.length > 0) {
-          // Revertir consumos en orden inverso
-          for (let i = consumos.length - 1; i >= 0 && porRestaurar > 0; i--) {
-            const c = consumos[i];
-            const layer = currentLayers.find(l => l.id_capa === c.id_capa);
-            if (layer) {
-              const aRestaurar = Math.min(porRestaurar, c.cajas_descontadas);
-              layer.cajas_consumidas = Math.max(0, Number(layer.cajas_consumidas || 0) - aRestaurar);
-              layer.cajas_restantes = Number(layer.cajas_restantes || 0) + aRestaurar;
-              layer.estado_capa = 'ACTIVA';
-              c.cajas_descontadas -= aRestaurar;
-              porRestaurar -= aRestaurar;
-            }
-          }
-        } else {
-          // Fallback sobre capas con consumos
-          const capasConsumidas = currentLayers.filter(l => 
-            this.engine.buildStockKey(l.codigo_articulo, l.codigo_envase) === stockKey &&
-            Number(l.cajas_consumidas || 0) > 0
-          );
-          capasConsumidas.sort((a, b) => String(b.fecha_capa || '').localeCompare(String(a.fecha_capa || '')));
-          for (const layer of capasConsumidas) {
-            if (porRestaurar <= 0) break;
-            const consumidasCapa = Number(layer.cajas_consumidas || 0);
-            const aRestaurar = Math.min(porRestaurar, consumidasCapa);
-            layer.cajas_consumidas -= aRestaurar;
-            layer.cajas_restantes = Number(layer.cajas_restantes || 0) + aRestaurar;
-            layer.estado_capa = 'ACTIVA';
-            porRestaurar -= aRestaurar;
-          }
-        }
-
-        currentStock[stockKey] = (currentStock[stockKey] || 0) + delta;
-
+        // Corrección a la baja: AJUSTE + con id_movimiento_ref a la salida
         const movAjuste = {
-          id_movimiento: `MOV-CORR-SAL-${Date.now()}`,
+          id_movimiento: this._nuevoId('MOV-CORR-SAL'),
           fecha_hora: nowIso,
           tipo_movimiento: 'AJUSTE',
           id_documento_ref: mov.id_documento_ref || '',
@@ -1705,64 +2050,90 @@ class MovementService {
           partida_origen: mov.partida_origen || '',
           motivo_ajuste: params.motivo || 'CORRECCION_CANTIDAD_SALIDA',
           usuario,
-          observaciones: `Corrección de salida: reducción de ${cajasOriginales} a ${nuevaCantidad} cajas (+${delta} reintegradas a FIFO)`,
-          estado: 'CONFIRMADO'
+          observaciones: `Corrección de salida: reducción de ${cajasActualesSalida} a ${nuevaCantidad} cajas (+${delta} reintegradas a FIFO)`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: mov.fecha_negocio || hoyFn(),
+          entidad_nombre: mov.entidad_nombre || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: mov.id_movimiento,
+          id_capa_objetivo: '',
+          id_capa_creada: ''
         };
 
-        mov.cajas = nuevaCantidad;
-        this.repo.saveCapasFifo(currentLayers);
-        this.repo.replaceTable('MOVIMIENTOS', allMovs);
-        this.repo.appendMovimientos([movAjuste]);
-        this._syncStockActual(currentStock, movAjuste.id_movimiento);
+        const res = this.libro.aplicarMovimiento(estado, movAjuste);
+        if (!res.ok) {
+          throw new Error(`Error al corregir salida a la baja: ${res.error}`);
+        }
+
+        estado = res.estado;
+        this._persistir({
+          movimientos: [movAjuste],
+          estado
+        });
 
         return {
           success: true,
           status: 'CONFIRMADO',
           cajasRestauradas: delta,
           nuevaCantidad,
-          stockNuevo: currentStock[stockKey]
+          stockNuevo: Number(estado.stock[stockKey] || 0)
         };
       } else {
-        // delta < 0: Salida fue mayor, requiere consumir más cajas
+        // Corrección al alza: AJUSTE - por FIFO con id_movimiento_ref
         const aConsumir = Math.abs(delta);
-        const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
-        const movInput = {
-          tipo: 'SALIDA',
-          codigoArticulo: mov.codigo_articulo,
-          codigoEnvase: mov.codigo_envase,
+        const movAjuste = {
+          id_movimiento: this._nuevoId('MOV-CORR-SAL'),
+          fecha_hora: nowIso,
+          tipo_movimiento: 'AJUSTE',
+          id_documento_ref: mov.id_documento_ref || '',
+          codigo_articulo: mov.codigo_articulo,
+          codigo_envase: mov.codigo_envase,
           cajas: aConsumir,
-          fecha: hoyFn(),
-          fechaHora: nowIso,
-          documentoRef: mov.id_documento_ref || '',
-          usuario
+          signo: -1,
+          partida_origen: mov.partida_origen || '',
+          motivo_ajuste: params.motivo || 'CORRECCION_CANTIDAD_SALIDA',
+          usuario,
+          observaciones: `Corrección de salida: ampliación de ${cajasActualesSalida} a ${nuevaCantidad} cajas (-${aConsumir} por FIFO)`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: mov.fecha_negocio || hoyFn(),
+          entidad_nombre: mov.entidad_nombre || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: mov.id_movimiento,
+          id_capa_objetivo: '',
+          id_capa_creada: ''
         };
 
-        const resProc = this.engine.processMovement(movInput, currentLayers, currentStock);
-        if (!resProc.success) {
+        const res = this.libro.aplicarMovimiento(estado, movAjuste);
+        if (!res.ok) {
           return {
             success: false,
             status: 'REVISION_NECESARIA',
             errorCode: 'STOCK_INSUFICIENTE',
             message: `Stock insuficiente para ampliar la salida en ${aConsumir} cajas.`,
-            deficit: resProc.deficit
+            deficit: res.deficit
           };
         }
 
-        currentLayers = resProc.updatedLayers;
-        Object.assign(currentStock, resProc.updatedStock);
-        mov.cajas = nuevaCantidad;
+        estado = res.estado;
+        if (res.consumos && res.consumos.length > 0) {
+          movAjuste.observaciones = this.libro.anexarConsumosFifoAObservaciones(movAjuste.observaciones, res.consumos);
+        }
 
-        this.repo.saveCapasFifo(currentLayers);
-        this.repo.replaceTable('MOVIMIENTOS', allMovs);
-        this.repo.appendMovimientos([resProc.generatedMovement]);
-        this._syncStockActual(currentStock, resProc.generatedMovement.id_movimiento);
+        this._persistir({
+          movimientos: [movAjuste],
+          estado
+        });
 
         return {
           success: true,
           status: 'CONFIRMADO',
           cajasDeducidas: aConsumir,
           nuevaCantidad,
-          stockNuevo: currentStock[stockKey]
+          stockNuevo: Number(estado.stock[stockKey] || 0)
         };
       }
     } finally {
@@ -1771,9 +2142,39 @@ class MovementService {
   }
 
   /**
+   * Calcula la cantidad efectiva actual de una capa de entrada teniendo en cuenta
+   * correcciones de cantidad previas (`AJUSTE` ± con `id_capa_objetivo === layer.id_capa`
+   * y motivo `CORRECCION_CANTIDAD_ENTRADA`), ya que `cajas_iniciales` nunca se modifica (Regla 4).
+   * @param {Object} layer
+   * @param {Array<Object>} allMovs
+   * @returns {number}
+   */
+  _calcularCantidadEfectivaEntrada(layer, allMovs = []) {
+    let total = Number(layer.cajas_iniciales || 0);
+    const idCapa = String(layer.id_capa || '').trim();
+    if (!idCapa) return total;
+
+    for (const m of allMovs) {
+      if (String(m.id_capa_objetivo || '').trim() !== idCapa) continue;
+      if (String(m.estado || '').trim().toUpperCase() !== 'CONFIRMADO') continue;
+      if (String(m.tipo_movimiento || '').trim().toUpperCase() !== 'AJUSTE') continue;
+      // Si tiene id_movimiento_ref a una salida o es transferencia/división con capa creada después,
+      // solo los ajustes de corrección de cantidad cambian el total de la entrada
+      const obs = String(m.observaciones || '');
+      const motivo = String(m.motivo_ajuste || '');
+      if (motivo === 'CORRECCION_CANTIDAD_ENTRADA' || obs.startsWith('Corrección de entrada:')) {
+        const signo = Number(m.signo || 0);
+        const c = Math.abs(Number(m.cajas || 0));
+        total += signo * c;
+      }
+    }
+    return total;
+  }
+
+  /**
    * Corrige la cantidad de una entrada histórica de forma determinista y segura.
-   * Si la nueva cantidad reduce la entrada, verifica que la capa conserve suficientes cajas
-   * disponibles (no consumidas) para absorber la reducción sin generar inconsistencias.
+   * Regla 4 (T-022): Corregir la cantidad de una entrada = AJUSTE ± con `id_capa_objetivo` = su capa.
+   * `cajas_iniciales` de la capa NO se toca: la capa muestra su historial.
    * 
    * @param {Object} params
    * @param {string} [usuario='SISTEMA']
@@ -1787,14 +2188,9 @@ class MovementService {
 
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      let { estado, movimientos: allMovs } = this._cargarEstado();
 
-      const layer = this._findLayer(currentLayers, params);
+      const layer = this._findLayer(estado.capas, params);
       if (!layer) {
         return {
           success: false,
@@ -1804,10 +2200,10 @@ class MovementService {
         };
       }
 
-      const cajasOriginales = Number(layer.cajas_iniciales);
+      const cajasEfectivas = this._calcularCantidadEfectivaEntrada(layer, allMovs);
       const cajasRestantes = Number(layer.cajas_restantes || 0);
       const cajasConsumidas = Number(layer.cajas_consumidas || 0);
-      const delta = nuevaCantidad - cajasOriginales; // negativo = reducción, positivo = aumento
+      const delta = nuevaCantidad - cajasEfectivas; // negativo = reducción, positivo = aumento
 
       if (delta === 0) {
         return { success: true, status: 'CONFIRMADO', message: 'Cantidad idéntica, sin cambios.' };
@@ -1815,6 +2211,7 @@ class MovementService {
 
       const stockKey = this.engine.buildStockKey(layer.codigo_articulo, layer.codigo_envase);
       const nowIso = new Date().toISOString();
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
 
       if (delta < 0) {
         const reduccion = Math.abs(delta);
@@ -1832,16 +2229,8 @@ class MovementService {
           };
         }
 
-        layer.cajas_iniciales = nuevaCantidad;
-        layer.cajas_restantes = cajasRestantes - reduccion;
-        if (layer.cajas_restantes === 0 && cajasConsumidas > 0) {
-          layer.estado_capa = 'AGOTADA';
-        }
-
-        currentStock[stockKey] = Math.max(0, (currentStock[stockKey] || 0) - reduccion);
-
         const movAjuste = {
-          id_movimiento: `MOV-CORR-ENT-${Date.now()}`,
+          id_movimiento: this._nuevoId('MOV-CORR-ENT'),
           fecha_hora: nowIso,
           tipo_movimiento: 'AJUSTE',
           id_documento_ref: layer.documento_ref || '',
@@ -1852,32 +2241,45 @@ class MovementService {
           partida_origen: layer.partida || '',
           motivo_ajuste: params.motivo || 'CORRECCION_CANTIDAD_ENTRADA',
           usuario,
-          observaciones: `Corrección de entrada: reducción de ${cajasOriginales} a ${nuevaCantidad} cajas`,
-          estado: 'CONFIRMADO'
+          observaciones: `Corrección de entrada: reducción de ${cajasEfectivas} a ${nuevaCantidad} cajas`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: layer.fecha_capa || hoyFn(),
+          entidad_nombre: layer.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: layer.id_movimiento_entrada || '',
+          id_capa_objetivo: layer.id_capa,
+          id_capa_creada: ''
         };
 
-        this.repo.saveCapasFifo(currentLayers);
-        this.repo.appendMovimientos([movAjuste]);
-        this._syncStockActual(currentStock, movAjuste.id_movimiento);
+        const res = this.libro.aplicarMovimiento(estado, movAjuste);
+        if (!res.ok) {
+          return {
+            success: false,
+            status: 'REVISION_NECESARIA',
+            errorCode: res.errorCode || 'CANTIDAD_INSUFICIENTE_EN_CAPA',
+            message: res.error
+          };
+        }
+
+        estado = res.estado;
+        this._persistir({
+          movimientos: [movAjuste],
+          estado
+        });
 
         return {
           success: true,
           status: 'CONFIRMADO',
           cajasReducidas: reduccion,
           nuevaCantidad,
-          stockNuevo: currentStock[stockKey]
+          stockNuevo: Number(estado.stock[stockKey] || 0)
         };
       } else {
-        // delta > 0: Aumento de entrada
         const aumento = delta;
-        layer.cajas_iniciales = nuevaCantidad;
-        layer.cajas_restantes = cajasRestantes + aumento;
-        layer.estado_capa = 'ACTIVA';
-
-        currentStock[stockKey] = (currentStock[stockKey] || 0) + aumento;
-
         const movAjuste = {
-          id_movimiento: `MOV-CORR-ENT-${Date.now()}`,
+          id_movimiento: this._nuevoId('MOV-CORR-ENT'),
           fecha_hora: nowIso,
           tipo_movimiento: 'AJUSTE',
           id_documento_ref: layer.documento_ref || '',
@@ -1888,20 +2290,35 @@ class MovementService {
           partida_origen: layer.partida || '',
           motivo_ajuste: params.motivo || 'CORRECCION_CANTIDAD_ENTRADA',
           usuario,
-          observaciones: `Corrección de entrada: aumento de ${cajasOriginales} a ${nuevaCantidad} cajas`,
-          estado: 'CONFIRMADO'
+          observaciones: `Corrección de entrada: aumento de ${cajasEfectivas} a ${nuevaCantidad} cajas`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: layer.fecha_capa || hoyFn(),
+          entidad_nombre: layer.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: layer.id_movimiento_entrada || '',
+          id_capa_objetivo: layer.id_capa,
+          id_capa_creada: ''
         };
 
-        this.repo.saveCapasFifo(currentLayers);
-        this.repo.appendMovimientos([movAjuste]);
-        this._syncStockActual(currentStock, movAjuste.id_movimiento);
+        const res = this.libro.aplicarMovimiento(estado, movAjuste);
+        if (!res.ok) {
+          throw new Error(`Error al ampliar entrada: ${res.error}`);
+        }
+
+        estado = res.estado;
+        this._persistir({
+          movimientos: [movAjuste],
+          estado
+        });
 
         return {
           success: true,
           status: 'CONFIRMADO',
           cajasAumentadas: aumento,
           nuevaCantidad,
-          stockNuevo: currentStock[stockKey]
+          stockNuevo: Number(estado.stock[stockKey] || 0)
         };
       }
     } finally {
@@ -1911,8 +2328,8 @@ class MovementService {
 
   /**
    * Corrige una entrada que ya ha sido parcialmente consumida por salidas posteriores.
-   * Mantiene intactas las cajas ya consumidas en la combinación original (para no falsear el histórico de ventas)
-   * y traslada de forma segura el saldo disponible restante a la nueva combinación.
+   * Regla 4 (T-022): combinación de consumo dirigido (`AJUSTE -` con `id_capa_objetivo`) +
+   * creación de nueva capa (`AJUSTE +` con `id_capa_creada`), con la fecha y el proveedor de la capa de origen.
    * 
    * @param {Object} params
    * @param {string} [usuario='SISTEMA']
@@ -1928,14 +2345,9 @@ class MovementService {
 
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      let { estado } = this._cargarEstado();
 
-      const layer = this._findLayer(currentLayers, params);
+      const layer = this._findLayer(estado.capas, params);
       if (!layer) {
         return {
           success: false,
@@ -1961,46 +2373,19 @@ class MovementService {
 
       const artOrigen = layer.codigo_articulo;
       const envOrigen = layer.codigo_envase;
-      const targetArt = artDestino || artOrigen;
-      const targetEnv = envDestino || envOrigen;
+      const targetArt = String(artDestino || artOrigen).trim();
+      const targetEnv = String(envDestino || envOrigen).trim();
 
       const keyOrigen = this.engine.buildStockKey(artOrigen, envOrigen);
       const keyDestino = this.engine.buildStockKey(targetArt, targetEnv);
-
-      // Si tiene consumos, la capa origen conserva exactamente las cajas consumidas como histórico
-      if (cajasConsumidas > 0) {
-        layer.cajas_iniciales = cajasConsumidas;
-        layer.cajas_restantes = 0;
-        layer.estado_capa = 'AGOTADA';
-      } else {
-        layer.cajas_restantes = 0;
-        layer.estado_capa = 'ANULADA';
-      }
-
-      // Crear nueva capa para la combinación destino con el saldo restante disponible
-      const idCapaNueva = `CAPA-CORR-${Date.now()}`;
-      const nuevaCapa = {
-        id_capa: idCapaNueva,
-        id_movimiento_entrada: `MOV-CORR-ENT-${Date.now()}`,
-        fecha_capa: layer.fecha_capa,
-        codigo_articulo: targetArt,
-        codigo_envase: targetEnv,
-        cajas_iniciales: cajasRestantes,
-        cajas_consumidas: 0,
-        cajas_restantes: cajasRestantes,
-        estado_capa: 'ACTIVA',
-        partida: layer.partida || '',
-        documento_ref: layer.documento_ref || ''
-      };
-      currentLayers.push(nuevaCapa);
-
-      // Actualizar stocks
-      currentStock[keyOrigen] = Math.max(0, (currentStock[keyOrigen] || 0) - cajasRestantes);
-      currentStock[keyDestino] = (currentStock[keyDestino] || 0) + cajasRestantes;
-
       const nowIso = new Date().toISOString();
+
+      const idMovOrigen = this._nuevoId('MOV-CORR-ORIG');
+      const idMovDestino = this._nuevoId('MOV-CORR-DEST');
+      const idCapaNueva = this._nuevoId('CAPA-CORR');
+
       const movOrigen = {
-        id_movimiento: `MOV-CORR-ORIG-${Date.now()}`,
+        id_movimiento: idMovOrigen,
         fecha_hora: nowIso,
         tipo_movimiento: 'AJUSTE',
         id_documento_ref: layer.documento_ref || '',
@@ -2012,14 +2397,29 @@ class MovementService {
         motivo_ajuste: params.motivo || 'CORRECCION_ENTRADA_ORIGEN',
         usuario,
         observaciones: `Corrección entrada parcial: ${cajasConsumidas} consumidas mantenidas en origen, ${cajasRestantes} transferidas a ${targetArt}|${targetEnv}`,
-        estado: 'CONFIRMADO'
+        estado: 'CONFIRMADO',
+        fecha_negocio: layer.fecha_capa,
+        entidad_nombre: layer.proveedor || '',
+        secuencia: '',
+        origen_dato: 'MANUAL',
+        kg_informativo: '',
+        id_movimiento_ref: layer.id_movimiento_entrada || '',
+        id_capa_objetivo: layer.id_capa,
+        id_capa_creada: ''
       };
 
+      const resOrig = this.libro.aplicarMovimiento(estado, movOrigen);
+      if (!resOrig.ok) {
+        throw new Error(`Error al consumir capa de origen en corrección parcial: ${resOrig.error}`);
+      }
+      estado = resOrig.estado;
+
       const movDestino = {
-        id_movimiento: `MOV-CORR-DEST-${Date.now()}`,
+        id_movimiento: idMovDestino,
         fecha_hora: nowIso,
         tipo_movimiento: 'AJUSTE',
         id_documento_ref: layer.documento_ref || '',
+        documento_ref: layer.documento_ref || '',
         codigo_articulo: targetArt,
         codigo_envase: targetEnv,
         cajas: cajasRestantes,
@@ -2028,12 +2428,28 @@ class MovementService {
         motivo_ajuste: params.motivo || 'CORRECCION_ENTRADA_DESTINO',
         usuario,
         observaciones: `Recepción por corrección de entrada desde ${artOrigen}|${envOrigen}`,
-        estado: 'CONFIRMADO'
+        estado: 'CONFIRMADO',
+        fecha_negocio: layer.fecha_capa,
+        entidad_nombre: layer.proveedor || '',
+        secuencia: '',
+        origen_dato: 'MANUAL',
+        kg_informativo: '',
+        id_movimiento_ref: idMovOrigen,
+        id_capa_objetivo: '',
+        id_capa_creada: idCapaNueva,
+        id_capa_origen: layer.id_capa
       };
 
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.appendMovimientos([movOrigen, movDestino]);
-      this._syncStockActual(currentStock, movDestino.id_movimiento);
+      const resDest = this.libro.aplicarMovimiento(estado, movDestino);
+      if (!resDest.ok) {
+        throw new Error(`Error al crear capa de destino en corrección parcial: ${resDest.error}`);
+      }
+      estado = resDest.estado;
+
+      this._persistir({
+        movimientos: [movOrigen, movDestino],
+        estado
+      });
 
       return {
         success: true,
@@ -2042,8 +2458,8 @@ class MovementService {
         cajasMantenidasConsumidas: cajasConsumidas,
         origen: keyOrigen,
         destino: keyDestino,
-        stockOrigen: currentStock[keyOrigen],
-        stockDestino: currentStock[keyDestino]
+        stockOrigen: Number(estado.stock[keyOrigen] || 0),
+        stockDestino: Number(estado.stock[keyDestino] || 0)
       };
     } finally {
       this._releaseLock();
@@ -2052,9 +2468,8 @@ class MovementService {
 
   /**
    * Divide una entrada histórica en múltiples combinaciones comerciales.
-   * Si la entrada ya tiene consumos previos, comprueba determinísticamente que la cantidad
-   * asignada a la combinación original sea suficiente para cubrir las cajas ya consumidas.
-   * Si no lo es, BLOQUEA la operación con REVISION_NECESARIA.
+   * Regla 4 (T-022): combinaciones de consumo dirigido + creación de capas,
+   * con la fecha y el proveedor de la capa de origen.
    * 
    * @param {Object} params
    * @param {string} [usuario='SISTEMA']
@@ -2068,14 +2483,9 @@ class MovementService {
 
     this._acquireLock(30000);
     try {
-      let currentLayers = this.repo.getCapasFifo();
-      const stockList = this.repo.getStockActual();
-      const currentStock = {};
-      stockList.forEach(s => {
-        currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
-      });
+      let { estado } = this._cargarEstado();
 
-      const layer = this._findLayer(currentLayers, params);
+      const layer = this._findLayer(estado.capas, params);
       if (!layer) {
         return {
           success: false,
@@ -2085,18 +2495,19 @@ class MovementService {
         };
       }
 
-      const cajasIniciales = Number(layer.cajas_iniciales);
       const cajasConsumidas = Number(layer.cajas_consumidas || 0);
+      const cajasRestantes = Number(layer.cajas_restantes || 0);
+      const totalActualCapa = cajasConsumidas + cajasRestantes;
       const sumaDivisiones = divisiones.reduce((s, d) => s + Number(d.cajas || 0), 0);
 
-      if (sumaDivisiones !== cajasIniciales) {
+      if (sumaDivisiones !== totalActualCapa) {
         return {
           success: false,
           status: 'REVISION_NECESARIA',
           errorCode: 'SUMA_DIVISION_NO_COINCIDE',
-          message: `La suma de las divisiones (${sumaDivisiones}) no coincide con el total inicial de la entrada (${cajasIniciales}). REVISIÓN NECESARIA`,
+          message: `La suma de las divisiones (${sumaDivisiones}) no coincide con el total inicial de la entrada (${totalActualCapa}). REVISIÓN NECESARIA`,
           sumaDivisiones,
-          totalEntrada: cajasIniciales
+          totalEntrada: totalActualCapa
         };
       }
 
@@ -2123,24 +2534,18 @@ class MovementService {
         }
       }
 
-      const keyOrig = this.engine.buildStockKey(layer.codigo_articulo, layer.codigo_envase);
       const cajasOrig = divOrig ? Number(divOrig.cajas) : 0;
-      const cajasTransferidas = cajasIniciales - cajasOrig;
-
-      // Actualizar capa original
-      layer.cajas_iniciales = cajasOrig;
-      layer.cajas_restantes = Math.max(0, cajasOrig - cajasConsumidas);
-      layer.estado_capa = layer.cajas_restantes > 0 ? 'ACTIVA' : 'AGOTADA';
-
-      currentStock[keyOrig] = Math.max(0, (currentStock[keyOrig] || 0) - cajasTransferidas);
+      const cajasTransferidas = totalActualCapa - cajasOrig;
 
       const nowIso = new Date().toISOString();
       const generatedMovs = [];
+      let idMovOrig = '';
 
-      // Registrar movimiento de ajuste negativo en origen por las cajas transferidas
+      // 1. Consumo dirigido en la capa original por las cajas transferidas a las otras divisiones
       if (cajasTransferidas > 0) {
-        generatedMovs.push({
-          id_movimiento: `MOV-DIV-ORIG-${Date.now()}`,
+        idMovOrig = this._nuevoId('MOV-DIV-ORIG');
+        const movOrig = {
+          id_movimiento: idMovOrig,
           fecha_hora: nowIso,
           tipo_movimiento: 'AJUSTE',
           id_documento_ref: layer.documento_ref || '',
@@ -2152,42 +2557,41 @@ class MovementService {
           motivo_ajuste: params.motivo || 'DIVISION_ENTRADA',
           usuario,
           observaciones: `División de entrada: ${cajasTransferidas} cajas transferidas a nuevas líneas`,
-          estado: 'CONFIRMADO'
-        });
+          estado: 'CONFIRMADO',
+          fecha_negocio: layer.fecha_capa,
+          entidad_nombre: layer.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: layer.id_movimiento_entrada || '',
+          id_capa_objetivo: layer.id_capa,
+          id_capa_creada: ''
+        };
+
+        const resOrig = this.libro.aplicarMovimiento(estado, movOrig);
+        if (!resOrig.ok) {
+          throw new Error(`Error al consumir capa original en división: ${resOrig.error}`);
+        }
+        estado = resOrig.estado;
+        generatedMovs.push(movOrig);
       }
 
-      // Crear nuevas capas para las demás divisiones
+      // 2. Crear nuevas capas para las demás divisiones conservando fecha y proveedor de la capa de origen
       for (const d of divisiones) {
-        const dArt = d.articulo || d.codigo_articulo;
-        const dEnv = d.envase || d.codigo_envase || layer.codigo_envase;
+        if (d === divOrig) continue;
+
+        const dArt = String(d.articulo || d.codigo_articulo).trim();
+        const dEnv = String(d.envase || d.codigo_envase || layer.codigo_envase).trim();
         const dCajas = Number(d.cajas);
+        const idMovDest = this._nuevoId('MOV-DIV-DEST');
+        const idCapaNueva = this._nuevoId('CAPA-DIV');
 
-        if (d === divOrig) continue; // Ya procesada la original
-
-        const dKey = this.engine.buildStockKey(dArt, dEnv);
-        const idCapaNueva = `CAPA-DIV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-        const nuevaCapa = {
-          id_capa: idCapaNueva,
-          id_movimiento_entrada: `MOV-DIV-DEST-${Date.now()}`,
-          fecha_capa: layer.fecha_capa,
-          codigo_articulo: dArt,
-          codigo_envase: dEnv,
-          cajas_iniciales: dCajas,
-          cajas_consumidas: 0,
-          cajas_restantes: dCajas,
-          estado_capa: 'ACTIVA',
-          partida: d.partida || layer.partida || '',
-          documento_ref: layer.documento_ref || ''
-        };
-        currentLayers.push(nuevaCapa);
-        currentStock[dKey] = (currentStock[dKey] || 0) + dCajas;
-
-        generatedMovs.push({
-          id_movimiento: `MOV-DIV-DEST-${Date.now()}-${dArt}`,
+        const movDest = {
+          id_movimiento: idMovDest,
           fecha_hora: nowIso,
           tipo_movimiento: 'AJUSTE',
           id_documento_ref: layer.documento_ref || '',
+          documento_ref: layer.documento_ref || '',
           codigo_articulo: dArt,
           codigo_envase: dEnv,
           cajas: dCajas,
@@ -2196,21 +2600,40 @@ class MovementService {
           motivo_ajuste: params.motivo || 'DIVISION_ENTRADA',
           usuario,
           observaciones: `Línea creada por división de entrada ${layer.documento_ref || ''}`,
-          estado: 'CONFIRMADO'
-        });
+          estado: 'CONFIRMADO',
+          fecha_negocio: layer.fecha_capa,
+          entidad_nombre: layer.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: idMovOrig || layer.id_movimiento_entrada || '',
+          id_capa_objetivo: '',
+          id_capa_creada: idCapaNueva,
+          id_capa_origen: layer.id_capa
+        };
+
+        const resDest = this.libro.aplicarMovimiento(estado, movDest);
+        if (!resDest.ok) {
+          throw new Error(`Error al crear capa de división: ${resDest.error}`);
+        }
+        estado = resDest.estado;
+        generatedMovs.push(movDest);
       }
 
-      this.repo.saveCapasFifo(currentLayers);
-      this.repo.appendMovimientos(generatedMovs);
-      this._syncStockActual(currentStock, generatedMovs[0] ? generatedMovs[0].id_movimiento : '');
+      this._persistir({
+        movimientos: generatedMovs,
+        estado
+      });
+
+      const capaOrigActualizada = estado.capas.find(c => c.id_capa === layer.id_capa);
 
       return {
         success: true,
         status: 'CONFIRMADO',
         divisionesRealizadas: divisiones,
         cajasMantenidasConsumidas: cajasConsumidas,
-        cajasDisponiblesOrigen: layer.cajas_restantes,
-        stockActualizado: currentStock
+        cajasDisponiblesOrigen: capaOrigActualizada ? Number(capaOrigActualizada.cajas_restantes || 0) : 0,
+        stockActualizado: estado.stock
       };
     } finally {
       this._releaseLock();

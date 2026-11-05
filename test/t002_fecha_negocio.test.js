@@ -261,9 +261,9 @@ runTest('5. provisionDatabase añade 5 columnas al final de MOVIMIENTOS y conser
   // Ejecutar provisionDatabase
   repo.provisionDatabase();
 
-  // Verificar que la cabecera ahora tiene 18 columnas
+  // Verificar que la cabecera ahora incluye las 5 columnas de T-002 (y el total de SCHEMA_DEFINITIONS.MOVIMIENTOS)
   const headersNuevos = sheetMov.rows[0];
-  assert.strictEqual(headersNuevos.length, 18);
+  assert.strictEqual(headersNuevos.length, 21);
   assert.strictEqual(headersNuevos[13], 'fecha_negocio');
   assert.strictEqual(headersNuevos[14], 'entidad_nombre');
   assert.strictEqual(headersNuevos[15], 'secuencia');

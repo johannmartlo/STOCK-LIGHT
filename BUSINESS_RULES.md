@@ -34,10 +34,28 @@ $$\text{Unidad de Stock} = \langle \text{CÓDIGO DE ARTÍCULO HISPATEC}, \; \tex
 
 $$\text{EXISTENCIAS ACTUALES} = \sum \text{ENTRADAS} - \sum \text{SALIDAS} \pm \sum \text{AJUSTES}$$
 
-### Regla de Oro de Inmutabilidad:
+### Regla de Oro de Inmutabilidad (Libro de Solo Añadir — D-012, D-022, D-024):
 * **Las existencias jamás se editan directamente en la base de datos.**
 * Ningún usuario ni proceso puede modificar el número de stock sin que exista un registro inmutable en la tabla `MOVIMIENTOS`.
-* Toda variación de saldo es consecuencia de un evento documentado y trazable.
+* **El libro `MOVIMIENTOS` es estrictamente de solo añadir (`append-only`).** Ninguna operación ni corrección histórica modifica ni borra una fila existente de `MOVIMIENTOS`.
+* Todos los identificadores (`MOV`, `CAPA`, `DOC`) se generan con UUID mediante `nuevoId(prefijo)` (`src/Ids.js`, D-024), nunca con `Date.now()`.
+* Toda variación de saldo, tanto en vivo como en reconstrucción (`reconstruir(movimientos)` en `src/Libro.js`), se rige por la siguiente tabla de semántica única:
+
+| Movimiento | Efecto |
+| :--- | :--- |
+| `ENTRADA`, o `AJUSTE +` sin `id_capa_objetivo` | Crea la capa `id_capa_creada` con `fecha_capa = fecha_negocio` y `proveedor = entidad_nombre` |
+| `AJUSTE +` con `id_capa_objetivo` | Devuelve cajas a esa capa (restitución) |
+| `SALIDA`, o `AJUSTE −` sin `id_capa_objetivo` | Consume por FIFO y anota los consumos |
+| `AJUSTE −` con `id_capa_objetivo` | Consume solo de esa capa (consumo dirigido) |
+| `ANULACION` con `id_movimiento_ref` = una entrada | Consume todo lo que quede en la capa creada por ella y la marca `ANULADA`. Si la capa ya tiene consumos, error |
+| `ANULACION` con `id_movimiento_ref` = una salida o un `AJUSTE −` | Devuelve a cada capa exactamente lo que ese movimiento consumió, según `consumosPorMovimiento` (D-012) |
+
+* **Equivalencias de correcciones históricas (D-022):**
+  * **Anular entrada o salida:** un movimiento `ANULACION` con `estado = 'CONFIRMADO'` y `id_movimiento_ref`.
+  * **Corregir la cantidad de una salida a la baja:** `AJUSTE +` con `id_movimiento_ref` a la salida (devuelve las cajas a las capas de esa salida en orden inverso al consumo).
+  * **Corregir una salida al alza:** `AJUSTE −` por FIFO con `id_movimiento_ref`.
+  * **Corregir la cantidad de una entrada:** `AJUSTE ±` con `id_capa_objetivo` = su capa (`cajas_iniciales` de la capa no se toca).
+  * **Dividir capa, corregir entrada parcial, reclasificar y mover partida:** combinaciones de consumo dirigido (`AJUSTE −` con `id_capa_objetivo`) + creación de capas (`AJUSTE +` con `id_capa_creada`), conservando la fecha y el proveedor de la capa de origen.
 
 ---
 

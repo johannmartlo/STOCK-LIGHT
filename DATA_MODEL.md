@@ -78,6 +78,9 @@ erDiagram
         int secuencia UK
         string origen_dato
         decimal kg_informativo
+        string id_movimiento_ref FK
+        string id_capa_objetivo FK
+        string id_capa_creada FK
     }
 
     CAPAS_FIFO {
@@ -175,6 +178,23 @@ Libro diario inmutable de eventos de inventario. Cada fila representa un cambio 
 | `secuencia` | `INTEGER` | NO | Secuencia estrictamente creciente asignada dentro del lock. Define el orden determinista de reproducción en reconstrucción. |
 | `origen_dato` | `ENUM` | NO | Origen documental (`CSV`, `PDF`, `FOTO`, `MANUAL`; D-023). Por defecto `MANUAL`. |
 | `kg_informativo`| `DECIMAL` | SÍ | Kilos netos del documento para estadísticas y previsiones futuras (D-025). No computa en stock (D-004). |
+| `id_movimiento_ref`| `VARCHAR(50)`| SÍ | Vínculo al movimiento original afectado (en anulaciones, correcciones de salida/entrada, divisiones y traspasos; D-022, T-022). |
+| `id_capa_objetivo` | `VARCHAR(50)`| SÍ | Identificador de la capa FIFO específica sobre la que opera un ajuste dirigido o una anulación de entrada (D-022, T-022). |
+| `id_capa_creada` | `VARCHAR(50)`| SÍ | Identificador de la capa FIFO creada por una entrada o ajuste positivo (garantiza que la reconstrucción preserve los mismos `id_capa` que el estado vivo; D-022, T-022). |
+
+### 3.3.1. Semántica Canónica de Movimientos (Libro de Solo Añadir — D-012, D-022, T-022)
+El libro de movimientos (`MOVIMIENTOS`) es **estrictamente de solo añadir** (`append-only`). Queda prohibido modificar o sobrescribir filas existentes. Tanto la operación en vivo como `reconstruir(movimientos)` aplican cada movimiento mediante la función pura `aplicarMovimiento(estado, movimiento)` de `src/Libro.js`, cuya única semántica es:
+
+| Movimiento | Efecto |
+| :--- | :--- |
+| `ENTRADA`, o `AJUSTE +` sin `id_capa_objetivo` | Crea la capa `id_capa_creada` con `fecha_capa = fecha_negocio` y `proveedor = entidad_nombre` |
+| `AJUSTE +` con `id_capa_objetivo` | Devuelve cajas a esa capa (restitución). `cajas_iniciales` no se toca |
+| `SALIDA`, o `AJUSTE −` sin `id_capa_objetivo` | Consume por FIFO y anota los consumos en `consumosPorMovimiento` |
+| `AJUSTE −` con `id_capa_objetivo` | Consume solo de esa capa (consumo dirigido). `cajas_iniciales` no se toca |
+| `ANULACION` con `id_movimiento_ref` = una entrada | Consume todo lo que quede en la capa creada por ella y la marca `ANULADA`. Si la capa ya tiene consumos, error |
+| `ANULACION` con `id_movimiento_ref` = una salida o un `AJUSTE −` | Devuelve a cada capa exactamente lo que ese movimiento consumió, según `consumosPorMovimiento` (D-012) |
+
+*(Además, corregir una salida a la baja se registra como `AJUSTE +` con `id_movimiento_ref` apuntando a la salida, devolviendo las cajas a las capas consumidas por esa salida en orden inverso al consumo; corregir una salida al alza se registra como `AJUSTE −` por FIFO con `id_movimiento_ref`).*
 
 ---
 

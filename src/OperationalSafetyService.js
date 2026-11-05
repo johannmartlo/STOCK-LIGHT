@@ -911,7 +911,9 @@ class OperationalSafetyService {
         };
       }
 
-      const cajasOriginal = Number(mov.cajas);
+      const cajasOriginal = this.movementService && typeof this.movementService._calcularCantidadEfectivaSalida === 'function'
+        ? this.movementService._calcularCantidadEfectivaSalida(mov, allMovs)
+        : Number(mov.cajas);
       if (accion === 'ANULAR_SALIDA') {
         return {
           semaforo: 'OK',
@@ -1003,7 +1005,10 @@ class OperationalSafetyService {
       };
     }
 
-    const cajasIniciales = Number(layer.cajas_iniciales);
+    const allMovsForLayer = this.repo && typeof this.repo.getMovimientos === 'function' ? this.repo.getMovimientos() : [];
+    const cajasIniciales = this.movementService && typeof this.movementService._calcularCantidadEfectivaEntrada === 'function'
+      ? this.movementService._calcularCantidadEfectivaEntrada(layer, allMovsForLayer)
+      : Number(layer.cajas_iniciales);
     const cajasConsumidas = Number(layer.cajas_consumidas || 0);
     const cajasRestantes = Number(layer.cajas_restantes || 0);
 

@@ -237,12 +237,13 @@ runTest('2. Corrección entrada parcialmente consumida: Mantiene ventas en orige
   assert.strictEqual(Number(stockG.cajas_actuales), 0);
   assert.strictEqual(Number(stockGG.cajas_actuales), 80);
 
-  // Capas FIFO: La capa original queda agotada con 120 consumidas, y la nueva activa con 80
+  // Capas FIFO: La capa original conserva cajas_iniciales=200 y queda agotada con 200 consumidas (120 venta + 80 traspaso dirigido), y la nueva activa con 80 (D-022)
   const capas = repo.getCapasFifo();
   const capaG = capas.find(c => c.codigo_articulo === 'TOMATE VOLLEY I G');
   const capaGG = capas.find(c => c.codigo_articulo === 'TOMATE VOLLEY I GG');
 
-  assert.strictEqual(Number(capaG.cajas_consumidas), 120);
+  assert.strictEqual(Number(capaG.cajas_iniciales), 200);
+  assert.strictEqual(Number(capaG.cajas_consumidas), 200);
   assert.strictEqual(Number(capaG.cajas_restantes), 0);
   assert.strictEqual(capaG.estado_capa, 'AGOTADA');
 

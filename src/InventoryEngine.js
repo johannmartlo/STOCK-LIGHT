@@ -14,6 +14,10 @@ if (typeof require !== 'undefined') {
     global.hoyMadrid = global.hoyMadrid || fechasMod.hoyMadrid;
     global.normalizarFechaNegocio = global.normalizarFechaNegocio || fechasMod.normalizarFechaNegocio;
   } catch (e) {}
+  try {
+    const idsMod = require('./Ids');
+    global.nuevoId = global.nuevoId || idsMod.nuevoId;
+  } catch (e) {}
 }
 
 /**
@@ -150,11 +154,12 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
   }
 
   const stockDisponible = stockCopy[stockKey];
+  const genIdFn = typeof nuevoId === 'function' ? nuevoId : (global.nuevoId || (p => `${p}-${Math.random()}`));
 
   // 1. GESTIÓN DE ENTRADA
   if (movementInput.tipo === 'ENTRADA') {
-    const idCapa = movementInput.idCapa || `CAPA-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-    const idMovimiento = movementInput.idMovimiento || `MOV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const idCapa = movementInput.idCapa || movementInput.id_capa_creada || genIdFn('CAPA');
+    const idMovimiento = movementInput.idMovimiento || movementInput.id_movimiento || genIdFn('MOV');
     const fechaCapa = fechaNegocio;
 
     const newLayer = {
@@ -195,7 +200,10 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
       entidad_nombre: entidadNombre,
       secuencia: secuenciaMov,
       origen_dato: origenDato,
-      kg_informativo: kgInformativo
+      kg_informativo: kgInformativo,
+      id_movimiento_ref: movementInput.idMovimientoRef || movementInput.id_movimiento_ref || '',
+      id_capa_objetivo: movementInput.idCapaObjetivo || movementInput.id_capa_objetivo || '',
+      id_capa_creada: idCapa
     };
 
     return {
@@ -292,7 +300,7 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
     const nuevoStock = stockDisponible - cajasSolicitadas;
     stockCopy[stockKey] = nuevoStock;
 
-    const idMovimiento = movementInput.idMovimiento || `MOV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const idMovimiento = movementInput.idMovimiento || movementInput.id_movimiento || genIdFn('MOV');
     const generatedMovement = {
       id_movimiento: idMovimiento,
       fecha_hora: movementInput.fechaHora || new Date().toISOString(),
@@ -311,7 +319,10 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
       entidad_nombre: entidadNombre,
       secuencia: secuenciaMov,
       origen_dato: origenDato,
-      kg_informativo: kgInformativo
+      kg_informativo: kgInformativo,
+      id_movimiento_ref: movementInput.idMovimientoRef || movementInput.id_movimiento_ref || '',
+      id_capa_objetivo: movementInput.idCapaObjetivo || movementInput.id_capa_objetivo || '',
+      id_capa_creada: ''
     };
 
     return {
@@ -332,8 +343,8 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
 
   // 3. GESTIÓN DE AJUSTE POSITIVO (Creación de Capa de Corrección / Stock Inicial)
   if (movementInput.tipo === 'AJUSTE' && Number(movementInput.signo) === 1) {
-    const idCapa = movementInput.idCapa || `CAPA-AJUSTE-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-    const idMovimiento = movementInput.idMovimiento || `MOV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const idCapa = movementInput.idCapa || movementInput.id_capa_creada || genIdFn('CAPA-AJUSTE');
+    const idMovimiento = movementInput.idMovimiento || movementInput.id_movimiento || genIdFn('MOV');
     const fechaCapa = fechaNegocio;
 
     const newLayer = {
@@ -374,7 +385,10 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
       entidad_nombre: entidadNombre,
       secuencia: secuenciaMov,
       origen_dato: origenDato,
-      kg_informativo: kgInformativo
+      kg_informativo: kgInformativo,
+      id_movimiento_ref: movementInput.idMovimientoRef || movementInput.id_movimiento_ref || '',
+      id_capa_objetivo: movementInput.idCapaObjetivo || movementInput.id_capa_objetivo || '',
+      id_capa_creada: idCapa
     };
 
     return {
@@ -410,6 +424,26 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
  *   - isConsistent: boolean (conciliación perfecta)
  */
 function rebuildStockFromMovements(movements = [], maestro = []) {
+  let recFn = typeof reconstruir === 'function' ? reconstruir : (typeof global !== 'undefined' ? global.reconstruir : null);
+  if (typeof recFn !== 'function' && typeof require !== 'undefined') {
+    try {
+      recFn = require('./Libro').reconstruir;
+    } catch (e) {}
+  }
+  if (typeof recFn === 'function') {
+    const res = recFn(movements);
+    return {
+      stockMap: res.estado.stock,
+      reconstructedLayers: res.estado.capas,
+      consumosPorMovimiento: res.estado.consumosPorMovimiento,
+      avisos: res.avisos,
+      totalCajasPorCapas: res.totalCajasPorCapas,
+      totalCajasPorStock: res.totalCajasPorStock,
+      isConsistent: res.isConsistent,
+      totalMovimientosProcesados: res.totalMovimientosProcesados
+    };
+  }
+
   const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
 
   // Ordenar movimientos por secuencia ASC (filas antiguas sin secuencia van antes, ordenadas por fecha_hora, id_movimiento)

@@ -65,7 +65,10 @@ const SCHEMA_DEFINITIONS = {
     'entidad_nombre',
     'secuencia',
     'origen_dato',
-    'kg_informativo'
+    'kg_informativo',
+    'id_movimiento_ref',
+    'id_capa_objetivo',
+    'id_capa_creada'
   ],
   CAPAS_FIFO: [
     'id_capa',
