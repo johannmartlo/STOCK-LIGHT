@@ -24,6 +24,7 @@ const { SheetsRepository } = require('../src/Repository');
 const { CommercialGroupResolver, COMMERCIAL_GROUPS } = require('../src/CommercialGroupResolver');
 const { StockQueryService } = require('../src/StockQueryService');
 const { MovementService } = require('../src/MovementService');
+const { SEMILLA_CATALOGO, sembrarCatalogoEnRepositorio_ } = require('../src/SemillaCatalogo');
 
 // --------------------------------------------------------------------------
 // MOCKS PARA EMULAR ENTORNO GOOGLE SHEETS
@@ -134,6 +135,13 @@ function createTestRepository() {
   return { repo, ss };
 }
 
+function createSeededResolver() {
+  const { repo, ss } = createTestRepository();
+  sembrarCatalogoEnRepositorio_(repo);
+  const resolver = new CommercialGroupResolver({ repository: repo });
+  return { repo, ss, resolver };
+}
+
 // Mock simple de LockService
 const mockLockService = {
   waitLock: () => true,
@@ -227,12 +235,21 @@ runTest('3. GRUPOS_COMERCIALES: Persistencia y configuración dinámica (nunca l
   assert.strictEqual(grupos[2].id, 'GOURMET');
   assert.strictEqual(grupos[2].tipo, 'ESPECIAL');
 
-  // Resolver cargando desde repositorio
+  // Resolver cargando desde agrupación COMERCIAL en repositorio (D-029)
+  sembrarCatalogoEnRepositorio_(repo);
+  repo.upsertAgrupacion({
+    agrupacion: 'COMERCIAL',
+    orden: 99,
+    grupo: 'GOURMET',
+    subgrupo: '',
+    filtro: 'PROGRAMA=GOURMET',
+    activo: true
+  });
   const resolver = new CommercialGroupResolver({ repository: repo });
   const configuredGroups = resolver.getGroups();
   const gourmet = configuredGroups.find(g => g.id === 'GOURMET');
   assert.ok(gourmet, 'El grupo GOURMET debe estar presente en CommercialGroupResolver');
-  assert.strictEqual(gourmet.name, 'TOMATES SELECCIÓN GOURMET');
+  assert.strictEqual(gourmet.id, 'GOURMET');
 });
 
 // --------------------------------------------------------------------------
@@ -258,7 +275,8 @@ runTest('4. MATRIZ_ARTICULO_ENVASE: Persistencia con prioridad, subgrupo y obser
   assert.strictEqual(matriz[0].subgrupo, 'ROSA');
   assert.strictEqual(Number(matriz[0].prioridad), 20);
 
-  // Carga automática en resolver
+  // Carga automática en resolver con catálogo sembrado
+  sembrarCatalogoEnRepositorio_(repo);
   const resolver = new CommercialGroupResolver({ repository: repo });
   const res = resolver.resolve('TOMATE ROSA', 'CARTON 40X30X14 ROSA');
   assert.strictEqual(res.groupId, 'CARTON');
@@ -270,67 +288,68 @@ runTest('4. MATRIZ_ARTICULO_ENVASE: Persistencia con prioridad, subgrupo y obser
 // TEST 5: Jerarquía Nivel 1 — Regla específica de artículo: ROSA DE SABOR + CARTÓN
 // --------------------------------------------------------------------------
 runTest('5. Jerarquía Nivel 1: TOMATE ROSA DE SABOR con envase CARTÓN clasifica en CARTÓN / ROSA', () => {
-  const resolver = new CommercialGroupResolver();
+  const { resolver } = createSeededResolver();
   const res = resolver.resolve('TOMATE ROSA DE SABOR G', 'CARTON 40X30X14 GENERICA');
   assert.strictEqual(res.groupId, 'CARTON');
   assert.strictEqual(res.subgroupId, 'ROSA');
-  assert.strictEqual(res.ruleId, 'REGLA_ROSA_DE_SABOR');
-  assert.ok(res.auditTrace.includes('NIVEL 1'));
+  assert.strictEqual(res.ruleId, 'REGLA_ROSA_SABOR');
+  assert.ok(res.auditTrace.includes('Agrupación COMERCIAL orden 8 -> CARTON / ROSA'));
 });
 
 // --------------------------------------------------------------------------
 // TEST 6: Jerarquía Nivel 1 — Regla específica de artículo: ROSA DE SABOR + EPS
 // Prevalece sobre Nivel 3 (Regla EPS)
 // --------------------------------------------------------------------------
-runTest('6. Jerarquía Nivel 1: TOMATE ROSA DE SABOR con envase EPS clasifica en CARTÓN / ROSA (prevalece sobre EPS)', () => {
-  const resolver = new CommercialGroupResolver();
+runTest('6. Jerarquía Nivel 1: TOMATE ROSA DE SABOR con envase EPS clasifica en EPS por material (D-029)', () => {
+  const { resolver } = createSeededResolver();
   const res = resolver.resolve('TOMATE ROSA DE SABOR G', 'EPS 104');
-  assert.strictEqual(res.groupId, 'CARTON', 'ROSA DE SABOR en EPS debe ir a CARTÓN por Nivel 1');
-  assert.strictEqual(res.subgroupId, 'ROSA', 'Subgrupo debe ser ROSA');
-  assert.strictEqual(res.ruleId, 'REGLA_ROSA_DE_SABOR');
-  assert.ok(res.auditTrace.includes('NIVEL 1'));
+  assert.strictEqual(res.groupId, 'EPS', 'ROSA DE SABOR en EPS debe ir a EPS por material (D-029)');
+  assert.strictEqual(res.subgroupId, null, 'Subgrupo debe ser null en EPS');
+  assert.strictEqual(res.ruleId, 'REGLA_ROSA_SABOR');
+  assert.ok(res.auditTrace.includes('Agrupación COMERCIAL orden 2 -> EPS'));
 });
 
 // --------------------------------------------------------------------------
 // TEST 7: Jerarquía Nivel 1 — Regla específica de artículo: ROSA DE SABOR + MADERA
 // --------------------------------------------------------------------------
-runTest('7. Jerarquía Nivel 1: TOMATE ROSA DE SABOR con envase MADERA clasifica en CARTÓN / ROSA', () => {
-  const resolver = new CommercialGroupResolver();
+runTest('7. Jerarquía Nivel 1: TOMATE ROSA DE SABOR con envase MADERA clasifica en JAPI_JAPONES (D-029)', () => {
+  const { resolver } = createSeededResolver();
   const res = resolver.resolve('TOMATE ROSA DE SABOR EXTRA', 'MADERA 40X30X14');
-  assert.strictEqual(res.groupId, 'CARTON');
-  assert.strictEqual(res.subgroupId, 'ROSA');
-  assert.strictEqual(res.ruleId, 'REGLA_ROSA_DE_SABOR');
-  assert.ok(res.auditTrace.includes('NIVEL 1'));
+  assert.strictEqual(res.groupId, 'JAPI_JAPONES');
+  assert.strictEqual(res.subgroupId, null);
+  assert.strictEqual(res.ruleId, 'REGLA_ROSA_SABOR');
+  assert.ok(res.auditTrace.includes('Agrupación COMERCIAL orden 6 -> JAPI_JAPONES'));
 });
 
 // --------------------------------------------------------------------------
-// TEST 8: Jerarquía Nivel 2 — Asociación explícita en MATRIZ prevalece sobre reglas de menor nivel
+// TEST 8: Jerarquía Nivel 2 — Asociación explícita en CATALOGO prevalece sobre reglas de menor nivel
 // --------------------------------------------------------------------------
-runTest('8. Jerarquía Nivel 2: Asociación configurable en MATRIZ prevalece sobre regla genérica', () => {
-  const resolver = new CommercialGroupResolver();
-  // Supongamos una asociación explícita que asigna una variedad genérica a un grupo específico
-  resolver.addAssociation('TOMATE ENSALADA ESPECIAL', 'MADERA 40X30X14', {
-    grupoComercial: 'TOMATE VOLLEY Y CORAZÓN DE BUEY',
-    subgrupo: null,
-    prioridad: 25,
-    ruleId: 'MATRIZ_CUSTOM_2026'
+runTest('8. Jerarquía Nivel 2: Excepción configurable en CATALOGO prevalece sobre regla genérica', () => {
+  const { repo, resolver } = createSeededResolver();
+  repo.upsertExcepcionCatalogo({
+    articulo: 'TOMATE ENSALADA ESPECIAL',
+    envase: 'MADERA 40X30X14',
+    atributo: 'FAMILIA',
+    valor: 'VOLLEY',
+    activo: true,
+    observaciones: 'MATRIZ_CUSTOM_2026'
   });
 
   const res = resolver.resolve('TOMATE ENSALADA ESPECIAL', 'MADERA 40X30X14');
   assert.strictEqual(res.groupId, 'VOLLEY');
   assert.strictEqual(res.ruleId, 'MATRIZ_CUSTOM_2026');
-  assert.ok(res.auditTrace.includes('NIVEL 2'));
+  assert.ok(res.auditTrace.includes('Agrupación COMERCIAL orden 4 -> VOLLEY'));
 });
 
 // --------------------------------------------------------------------------
 // TEST 9: Jerarquía Nivel 2 — Regla de par Carrefour con envases autorizados
 // --------------------------------------------------------------------------
 runTest('9. Jerarquía Nivel 2: Artículo oficial Carrefour con envase IFCO clasifica en CARREFOUR', () => {
-  const resolver = new CommercialGroupResolver();
+  const { resolver } = createSeededResolver();
   const res = resolver.resolve('TOMATE PERA RAMA I M', 'IFCO 6413');
   assert.strictEqual(res.groupId, 'CARREFOUR');
   assert.strictEqual(res.ruleId, 'REGLA_CARREFOUR');
-  assert.ok(res.auditTrace.includes('NIVEL 2'));
+  assert.ok(res.auditTrace.includes('Agrupación COMERCIAL orden 1 -> CARREFOUR'));
 
   // Pero si el envase no es Carrefour ni homologado, no asume Carrefour a ciegas
   const resNoHomologado = resolver.resolve('TOMATE PERA RAMA I M', 'MADERA GENERICA RUSTICA');
@@ -342,67 +361,73 @@ runTest('9. Jerarquía Nivel 2: Artículo oficial Carrefour con envase IFCO clas
 // Nivel 3 (Envase EPS) prevalece sobre Nivel 4 (Regla Genérica Huevo de Toro)
 // --------------------------------------------------------------------------
 runTest('10. Jerarquía Nivel 3: HUEVO DE TORO en envase EPS clasifica en TOMATE EN CAJA EPS', () => {
-  const resolver = new CommercialGroupResolver();
+  const { resolver } = createSeededResolver();
   const res = resolver.resolve('TOMATE HUEVO DE TORO G', 'EPS 104');
   assert.strictEqual(res.groupId, 'EPS', 'Huevo de Toro en EPS debe ser clasificado como EPS');
-  assert.strictEqual(res.ruleId, 'REGLA_ENVASE_EPS');
-  assert.ok(res.auditTrace.includes('NIVEL 3'));
+  assert.strictEqual(res.ruleId, 'REGLA_HUEVO_DE_TORO');
+  assert.ok(res.auditTrace.includes('Agrupación COMERCIAL orden 2 -> EPS'));
 });
 
 // --------------------------------------------------------------------------
 // TEST 11: Jerarquía Nivel 3 — Regla de envase: JAPONÉS en EPS clasifica en EPS
 // --------------------------------------------------------------------------
 runTest('11. Jerarquía Nivel 3: TOMATE JAPONÉS en envase EPS clasifica en TOMATE EN CAJA EPS', () => {
-  const resolver = new CommercialGroupResolver();
+  const { resolver } = createSeededResolver();
   const res = resolver.resolve('TOMATE JAPONES I G', 'EPS 154');
   assert.strictEqual(res.groupId, 'EPS', 'Japonés en EPS debe clasificarse en grupo EPS');
-  assert.strictEqual(res.ruleId, 'REGLA_ENVASE_EPS');
-  assert.ok(res.auditTrace.includes('NIVEL 3'));
+  assert.strictEqual(res.ruleId, 'REGLA_JAPONES');
+  assert.ok(res.auditTrace.includes('Agrupación COMERCIAL orden 2 -> EPS'));
 });
 
 // --------------------------------------------------------------------------
 // TEST 12: Jerarquía Nivel 4 — Regla genérica: HUEVO DE TORO en envase tradicional
 // --------------------------------------------------------------------------
 runTest('12. Jerarquía Nivel 4: HUEVO DE TORO en formato tradicional madera/cartón clasifica en HUEVO DE TORO', () => {
-  const resolver = new CommercialGroupResolver();
+  const { resolver } = createSeededResolver();
   const res = resolver.resolve('TOMATE HUEVO DE TORO G', 'MADERA 40X30X14');
   assert.strictEqual(res.groupId, 'HUEVO_TORO');
   assert.strictEqual(res.ruleId, 'REGLA_HUEVO_DE_TORO');
-  assert.ok(res.auditTrace.includes('NIVEL 4'));
+  assert.ok(res.auditTrace.includes('Agrupación COMERCIAL orden 3 -> HUEVO_TORO'));
 });
 
 // --------------------------------------------------------------------------
 // TEST 13: Jerarquía Nivel 5 — Fallback: Combinación no clasificada devuelve PENDIENTE DE ASOCIACIÓN
 // --------------------------------------------------------------------------
 runTest('13. Jerarquía Nivel 5: Combinación desconocida devuelve PENDIENTE DE ASOCIACIÓN sin inventar grupo', () => {
-  const resolver = new CommercialGroupResolver();
+  const { resolver } = createSeededResolver();
   const res = resolver.resolve('VARIEDAD DESCONOCIDA EXPERIMENTAL 2026', 'ENVASE NUEVO NO REGISTRADO');
   assert.strictEqual(res.groupId, 'NO_CLASIFICADO');
   assert.strictEqual(res.status, 'PENDIENTE_ASOCIACION');
   assert.strictEqual(res.ruleId, 'FALLBACK_PENDIENTE_ASOCIACION');
-  assert.ok(res.auditTrace.includes('NIVEL 5'));
+  assert.ok(res.auditTrace.includes('PENDIENTE'));
 });
 
 // --------------------------------------------------------------------------
 // TEST 14: Dinamismo total: Creación de nuevo grupo e integración en StockQueryService
 // --------------------------------------------------------------------------
 runTest('14. Dinamismo: Creación de nuevo grupo comercial e integración inmediata en StockQueryService sin tocar código', () => {
-  const resolver = new CommercialGroupResolver();
-  resolver.registerGroup({
-    id: 'GRUPO_NUEVO',
-    name: 'TOMATES ESPECIALES EXPORTACIÓN',
-    order: 8,
-    subgroups: [
-      { id: 'PREMIUM', name: 'PREMIUM EXPORT', order: 1 }
-    ]
+  const { repo, resolver } = createSeededResolver();
+  repo.upsertAgrupacion({
+    agrupacion: 'COMERCIAL',
+    orden: 1,
+    grupo: 'GRUPO_NUEVO',
+    subgrupo: 'PREMIUM',
+    filtro: 'PROGRAMA=EXPORTACION',
+    activo: true
   });
-
-  resolver.addAssociation('TOMATE EXPORTACION SELECCION', 'CARTON EXPORT 50X30', {
-    groupId: 'GRUPO_NUEVO',
-    groupName: 'TOMATES ESPECIALES EXPORTACIÓN',
-    subgroupId: 'PREMIUM',
-    subgroupName: 'PREMIUM EXPORT',
-    prioridad: 20
+  repo.upsertExcepcionCatalogo({
+    articulo: 'TOMATE EXPORTACION SELECCION',
+    envase: 'CARTON EXPORT 50X30',
+    atributo: 'SEGUIMIENTO',
+    valor: 'SI',
+    activo: true
+  });
+  repo.upsertExcepcionCatalogo({
+    articulo: 'TOMATE EXPORTACION SELECCION',
+    envase: 'CARTON EXPORT 50X30',
+    atributo: 'PROGRAMA',
+    valor: 'EXPORTACION',
+    activo: true
   });
 
   const stockMock = [
@@ -425,7 +450,7 @@ runTest('14. Dinamismo: Creación de nuevo grupo comercial e integración inmedi
   const grupoExport = resumen.grupos.find(g => g.groupId === 'GRUPO_NUEVO');
   assert.ok(grupoExport, 'El nuevo grupo debe figurar en el resumen de stock visual');
   assert.strictEqual(grupoExport.totalCajas, 450);
-  assert.strictEqual(grupoExport.groupName, 'TOMATES ESPECIALES EXPORTACIÓN');
+  assert.strictEqual(grupoExport.groupName, 'GRUPO_NUEVO');
   assert.ok(grupoExport.tieneSubgrupos);
   assert.strictEqual(grupoExport.subgrupos[0].subgroupId, 'PREMIUM');
   assert.strictEqual(grupoExport.subgrupos[0].totalCajas, 450);
@@ -436,7 +461,7 @@ runTest('14. Dinamismo: Creación de nuevo grupo comercial e integración inmedi
 // GRUPO -> SUBGRUPO -> ARTÍCULO -> ENVASE -> PARTIDA
 // --------------------------------------------------------------------------
 runTest('15. Drill-Down completo (5 niveles): Grupo -> Subgrupo -> Artículo -> Envase -> Partidas', () => {
-  const resolver = new CommercialGroupResolver();
+  const { resolver } = createSeededResolver();
   const stockMock = [
     {
       stock_key: 'ART-ROSA|CT-ROSA',

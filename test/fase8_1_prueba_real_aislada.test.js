@@ -174,15 +174,17 @@ runTest('3. Pasada 1 en hoja de pruebas: Provisiona las 9 hojas e importa los ca
   const res1 = service.ejecutarCargaInicial(catalogos, { usuario: 'OPERADOR_TEST_8_1' });
 
   assert.strictEqual(res1.success, true);
-  assert.strictEqual(res1.resumen.gruposComerciales.insertados, 7);
   assert.strictEqual(res1.resumen.articulos.insertados, 162);
   assert.strictEqual(res1.resumen.envases.insertados, 83);
-  assert.strictEqual(res1.resumen.matrizArticuloEnvase.insertados, 300);
+  assert.strictEqual(res1.resumen.catalogo.atributos.insertados, 5);
+  assert.strictEqual(res1.resumen.catalogo.reglas.insertados, 16);
+  assert.strictEqual(res1.resumen.catalogo.agrupaciones.insertados, 11);
 
-  // Verificar que la hoja de pruebas contiene exactamente las 9 tablas oficiales
+  // Verificar que la hoja de pruebas contiene las tablas oficiales de maestros, inventario y catálogo
   const expectedSheets = [
     'MAESTRO_ARTICULOS', 'MAESTRO_ENVASES', 'GRUPOS_COMERCIALES',
-    'MATRIZ_ARTICULO_ENVASE', 'DOCUMENTOS', 'MOVIMIENTOS',
+    'MATRIZ_ARTICULO_ENVASE', 'ATRIBUTOS', 'REGLAS_CLASIFICACION',
+    'CATALOGO', 'AGRUPACIONES', 'DOCUMENTOS', 'MOVIMIENTOS',
     'CAPAS_FIFO', 'STOCK_ACTUAL', 'LOG_OPERACIONES'
   ];
   for (const s of expectedSheets) {
@@ -212,16 +214,16 @@ runTest('4. Pasada 2 en hoja de pruebas: Cero inserciones, cero duplicados, recu
 
   assert.strictEqual(informe.success, true);
   assert.strictEqual(informe.idempotencia.conforme, true);
-  assert.strictEqual(informe.pasada2.gruposComerciales.insertados, 0);
   assert.strictEqual(informe.pasada2.articulos.insertados, 0);
   assert.strictEqual(informe.pasada2.envases.insertados, 0);
-  assert.strictEqual(informe.pasada2.matrizArticuloEnvase.insertados, 0);
+  assert.strictEqual(informe.pasada2.catalogo.totalAnadidas, 0);
 
   // Recuentos estables
-  assert.strictEqual(informe.idempotencia.estadoFinal.gruposCount, 7);
   assert.strictEqual(informe.idempotencia.estadoFinal.articulosCount, 162);
   assert.strictEqual(informe.idempotencia.estadoFinal.envasesCount, 83);
-  assert.strictEqual(informe.idempotencia.estadoFinal.matrizCount, 300);
+  assert.strictEqual(informe.idempotencia.estadoFinal.atributosCount, 5);
+  assert.strictEqual(informe.idempotencia.estadoFinal.reglasCount, 16);
+  assert.strictEqual(informe.idempotencia.estadoFinal.agrupacionesCount, 11);
 });
 
 // -------------------------------------------------------------
@@ -268,10 +270,11 @@ runTest('6. Aislamiento de combinaciones no homologadas: 83 a revisar y 55 fuera
   assert.strictEqual(informe.aislamientoNoHomologadas.fueraCatalogoAisladas, 55);
   assert.strictEqual(informe.aislamientoNoHomologadas.asignacionesAmbiguas, 0);
 
-  // Asegurar que en MATRIZ_ARTICULO_ENVASE todas las 300 tienen grupo asignado
-  const matriz = repo.getMatrizArticuloEnvase();
-  assert.strictEqual(matriz.length, 300);
-  assert.ok(matriz.every(m => m.grupo_comercial && m.grupo_comercial !== 'NO_CLASIFICADO'));
+  // Asegurar que la configuración del catálogo se sembró y que MATRIZ_ARTICULO_ENVASE no se pobló desde el CSV (D-029)
+  assert.strictEqual(repo.getMatrizArticuloEnvase().length, 0);
+  assert.strictEqual(repo.getAtributos().length, 5);
+  assert.strictEqual(repo.getReglasClasificacion().length, 16);
+  assert.strictEqual(repo.getAgrupaciones().length, 11);
 });
 
 // -------------------------------------------------------------

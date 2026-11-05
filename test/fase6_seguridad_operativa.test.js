@@ -31,6 +31,7 @@ const { execSync } = require('child_process');
 
 const { SheetsRepository } = require('../src/Repository');
 const { CommercialGroupResolver } = require('../src/CommercialGroupResolver');
+const { sembrarCatalogoEnRepositorio_ } = require('../src/SemillaCatalogo');
 const { MovementService } = require('../src/MovementService');
 const { StockQueryService } = require('../src/StockQueryService');
 const { OperationalSafetyService } = require('../src/OperationalSafetyService');
@@ -128,6 +129,7 @@ function createTestEnvironment() {
   const ss = new MockSpreadsheet();
   const repo = new SheetsRepository({ spreadsheet: ss });
   repo.provisionDatabase();
+  sembrarCatalogoEnRepositorio_(repo);
 
   const resolver = new CommercialGroupResolver({ repository: repo });
   const lockMock = { waitLock: () => true, releaseLock: () => {} };
@@ -655,7 +657,7 @@ runTest('16. Mover entre partidas: Traspaso de cajas de Partida A a Partida B de
 // --------------------------------------------------------------------------
 // TEST 17: Regla especial Rosa de Sabor
 // --------------------------------------------------------------------------
-runTest('17. Regla especial Rosa de Sabor: CARTÓN / ROSA con cartón, madera o EPS', () => {
+runTest('17. Regla especial Rosa de Sabor: CARTÓN / ROSA con cartón, JAPI_JAPONES en madera (D-029)', () => {
   const { resolver } = createTestEnvironment();
 
   const rCarton = resolver.resolve('TOMATE ROSA DE SABOR', 'CARTON 40X30X14 GENERICA');
@@ -663,19 +665,19 @@ runTest('17. Regla especial Rosa de Sabor: CARTÓN / ROSA con cartón, madera o 
   assert.strictEqual(rCarton.subgroupId, 'ROSA');
 
   const rMadera = resolver.resolve('TOMATE ROSA DE SABOR', 'MADERA 40X30X14');
-  assert.strictEqual(rMadera.groupId, 'CARTON');
-  assert.strictEqual(rMadera.subgroupId, 'ROSA');
+  assert.strictEqual(rMadera.groupId, 'JAPI_JAPONES');
+  assert.strictEqual(rMadera.subgroupId, null);
 
   const rEps = resolver.resolve('TOMATE ROSA DE SABOR', 'EPS 104');
-  assert.strictEqual(rEps.groupId, 'CARTON');
-  assert.strictEqual(rEps.subgroupId, 'ROSA');
+  assert.strictEqual(rEps.groupId, 'EPS');
+  assert.strictEqual(rEps.subgroupId, null);
 });
 
 // --------------------------------------------------------------------------
 // TEST 18: Nueva asociación dinámica
 // --------------------------------------------------------------------------
 runTest('18. Extensibilidad: Nueva asociación dinámica sin tocar código', () => {
-  const { safetyService, resolver } = createTestEnvironment();
+  const { safetyService, repo } = createTestEnvironment();
 
   // Antes: combinación desconocida -> PENDIENTE
   const valAntes = safetyService.validarDocumento(
@@ -685,12 +687,28 @@ runTest('18. Extensibilidad: Nueva asociación dinámica sin tocar código', () 
   );
   assert.strictEqual(valAntes.semaforo, 'PENDIENTE');
 
-  // Registrar grupo y asociación dinámicamente en caliente
-  resolver.registerGroup({ id: 'GOURMET', name: 'GRUPO GOURMET', order: 10 });
-  resolver.addAssociation('TOMATE ASURCADO 300', 'BANDEJA PLASTICA 500G', {
-    groupId: 'GOURMET',
-    groupName: 'GRUPO GOURMET',
-    prioridad: 20
+  // Registrar grupo y excepción en el catálogo dinámicamente en caliente (D-029)
+  repo.upsertAgrupacion({
+    agrupacion: 'COMERCIAL',
+    orden: 1,
+    grupo: 'GOURMET',
+    subgrupo: '',
+    filtro: 'PROGRAMA=GOURMET',
+    activo: true
+  });
+  repo.upsertExcepcionCatalogo({
+    articulo: 'TOMATE ASURCADO 300',
+    envase: 'BANDEJA PLASTICA 500G',
+    atributo: 'SEGUIMIENTO',
+    valor: 'SI',
+    activo: true
+  });
+  repo.upsertExcepcionCatalogo({
+    articulo: 'TOMATE ASURCADO 300',
+    envase: 'BANDEJA PLASTICA 500G',
+    atributo: 'PROGRAMA',
+    valor: 'GOURMET',
+    activo: true
   });
 
   // Después: combinación conocida -> 🟢 OK
@@ -700,7 +718,7 @@ runTest('18. Extensibilidad: Nueva asociación dinámica sin tocar código', () 
     'ENTRADA'
   );
   assert.strictEqual(valDespues.semaforo, 'OK');
-  assert.strictEqual(valDespues.lineasValidadas[0].grupoComercial, 'GRUPO GOURMET');
+  assert.strictEqual(valDespues.lineasValidadas[0].grupoComercial, 'GOURMET');
 });
 
 // --------------------------------------------------------------------------

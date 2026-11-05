@@ -46,10 +46,15 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `apiRegistrarAjustePositivo` | `src/Código.js` | ESCRITURA | Ajuste positivo; usuario del servidor. |
 | `apiRegistrarAjusteNegativo` | `src/Código.js` | ESCRITURA | Ajuste negativo; usuario del servidor. |
 | `apiRegistrarReclasificacion` | `src/Código.js` | ESCRITURA | Reclasificación entre formatos; usuario del servidor. |
-| `apiGetGruposComerciales` | `src/Código.js` | LECTURA | Grupos comerciales configurados. |
-| `apiUpsertGrupoComercial` | `src/Código.js` | ESCRITURA | Inserta o actualiza un grupo comercial. |
-| `apiGetMatrizArticuloEnvase` | `src/Código.js` | LECTURA | Asociaciones de la matriz artículo + envase. |
-| `apiUpsertMatrizArticuloEnvase` | `src/Código.js` | ESCRITURA | Inserta o actualiza una asociación de la matriz. |
+| `apiGetGruposComerciales` | `src/Código.js` | OBSOLETA | Grupos comerciales configurados (se retira en T-012, D-029). |
+| `apiUpsertGrupoComercial` | `src/Código.js` | OBSOLETA | Lanza error claro sin escribir (se retira en T-012, D-029). |
+| `apiGetMatrizArticuloEnvase` | `src/Código.js` | OBSOLETA | Asociaciones de la matriz artículo + envase (se retira en T-012, D-029). |
+| `apiUpsertMatrizArticuloEnvase` | `src/Código.js` | OBSOLETA | Lanza error claro sin escribir (se retira en T-012, D-029). |
+| `sembrarCatalogo` | `src/Código.js` | ADMIN | Siembra la configuración inicial del catálogo de forma idempotente (D-029). |
+| `apiGetConfiguracionCatalogo` | `src/Código.js` | LECTURA | Devuelve las cuatro tablas de configuración del catálogo (D-029). |
+| `apiClasificarCombinacion` | `src/Código.js` | LECTURA | Devuelve la explicación de la clasificación de una combinación (D-029). |
+| `apiUpsertReglaClasificacion` | `src/Código.js` | ESCRITURA | Añade o actualiza una regla en REGLAS_CLASIFICACION; usuario del servidor (D-029). |
+| `apiUpsertExcepcionCatalogo` | `src/Código.js` | ESCRITURA | Añade o actualiza una excepción en CATALOGO; usuario del servidor (D-029). |
 | `_resolveOperationalSafetyService` | `src/Código.js` | INTERNA | Resuelve el servicio de seguridad operativa. |
 | `apiValidarDocumento` | `src/Código.js` | LECTURA | Valida un documento sin mutar datos. |
 | `apiPrevisualizarDocumento` | `src/Código.js` | LECTURA | Previsualización con semáforo. |
@@ -77,8 +82,10 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `setDriveFolderIdConfig` | `src/Config.js` | ADMIN | Persiste el DRIVE_FOLDER_ID. |
 | `resolveDatabaseSpreadsheet` | `src/Config.js` | INTERNA | Resuelve la hoja de cálculo de trabajo. |
 | `normalizeCommercialText` | `src/CommercialGroupResolver.js` | INTERNA | Normaliza texto comercial. |
-| `parseRawGroupName` | `src/CommercialGroupResolver.js` | INTERNA | Parsea el nombre crudo de un grupo. |
-| `extraerCalibreYCategoria` | `src/CommercialGroupResolver.js` | INTERNA | Extrae calibre y categoría de un artículo. |
+| `extraerCalibreYCategoria` | `src/CalibreCategoria.js` | INTERNA | Extrae calibre y categoría de un artículo. |
+| `clasificarCombinacion` | `src/Catalogo.js` | INTERNA | Clasifica una combinación artículo + envase de forma pura (D-029). |
+| `explicarCombinacion` | `src/Catalogo.js` | INTERNA | Explica la evaluación de atributos y agrupaciones de una combinación (D-029). |
+| `cumpleFiltro` | `src/Catalogo.js` | INTERNA | Evalúa un filtro declarativo sobre un mapa de atributos (D-029). |
 | `normalizeDocKey` | `src/DeduplicationService.js` | INTERNA | Normaliza la clave de un documento. |
 | `buildDocumentIdentityKey` | `src/DeduplicationService.js` | INTERNA | Construye la identidad tipo + serie + número. |
 | `buildLineIdentityKey` | `src/DeduplicationService.js` | INTERNA | Construye la identidad de una línea. |

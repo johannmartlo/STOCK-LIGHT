@@ -288,6 +288,60 @@ Catálogo de clasificación de envases en familias o grupos para agregación vis
 
 ---
 
+### 3.9. Tablas del Catálogo y Clasificación Configurable (D-029, T-005)
+El motor de catálogo (`src/Catalogo.js`, `src/CatalogoService.js`) se alimenta de cuatro hojas configurables provisionadas por `Repository.provisionDatabase()` y sembradas de forma idempotente desde `src/SemillaCatalogo.js` (no se sobrescriben si ya tienen filas de datos). Las antiguas hojas `GRUPOS_COMERCIALES` y `MATRIZ_ARTICULO_ENVASE` no se borran por seguridad (D-022), pero quedan obsoletas y dejan de consultarse en la resolución comercial.
+
+#### A) Tabla: `ATRIBUTOS`
+Define los atributos o dimensiones que pueden asignarse a cada par `(articulo, envase)`. Clave de upsert: `normalizarNombre(nombre)`.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `nombre` | `VARCHAR(50)` | NO | Nombre normalizado del atributo (PK; ej. `SEGUIMIENTO`, `FAMILIA`, `MATERIAL`, `PROGRAMA`, `REVISAR`). |
+| `descripcion` | `VARCHAR(200)`| SÍ | Explicación funcional del atributo. |
+| `activo` | `BOOLEAN` | NO | `TRUE` si el atributo está activo. Las reglas o excepciones de atributos inactivos o inexistentes se ignoran y se reportan en `explicarCombinacion`. |
+
+#### B) Tabla: `REGLAS_CLASIFICACION`
+Reglas por patrones de subcadena para asignar el valor de un atributo. Clave de upsert: `id` (o `nuevoId('REGLA')` si no se proporciona).
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `id` | `VARCHAR(50)` | NO | Identificador único de la regla (PK; ej. `REGLA_CARREFOUR` o `REGLA-<uuid>`). |
+| `atributo` | `VARCHAR(50)` | NO | Nombre normalizado del atributo en `ATRIBUTOS`. |
+| `valor` | `VARCHAR(100)`| NO | Valor normalizado que asigna la regla cuando encaja. |
+| `prioridad` | `INTEGER` | NO | Orden de evaluación dentro del mismo atributo (menor número = mayor prioridad; en empate, por orden de fila). |
+| `articulo_contiene` | `VARCHAR(250)`| SÍ | Patrón que debe contener el artículo normalizado (`;` = O, `+` = Y; vacío = cualquiera). |
+| `articulo_excluye` | `VARCHAR(250)`| SÍ | Patrón que NO debe contener el artículo normalizado (`;` = O, `+` = Y; vacío = no excluye). |
+| `envase_contiene` | `VARCHAR(250)`| SÍ | Patrón que debe contener el envase normalizado (`;` = O, `+` = Y; vacío = cualquiera). |
+| `envase_excluye` | `VARCHAR(250)`| SÍ | Patrón que NO debe contener el envase normalizado (`;` = O, `+` = Y; vacío = no excluye). |
+| `activo` | `BOOLEAN` | NO | `TRUE` si la regla está activa. |
+| `observaciones` | `TEXT` | SÍ | Notas descriptivas. |
+
+#### C) Tabla: `CATALOGO`
+Excepciones explícitas por combinación exacta `(articulo, envase)` y `atributo`. Clave compuesta de upsert: `(normalizarNombre(articulo), normalizarNombre(envase), normalizarNombre(atributo))`. Prevalece sobre `REGLAS_CLASIFICACION` solo para ese atributo sin pisar los demás atributos.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `articulo` | `VARCHAR(150)`| NO | Nombre normalizado exacto del artículo (PK compuesta). |
+| `envase` | `VARCHAR(150)`| NO | Nombre normalizado exacto del envase (PK compuesta). |
+| `atributo` | `VARCHAR(50)` | NO | Nombre normalizado del atributo (PK compuesta). |
+| `valor` | `VARCHAR(100)`| NO | Valor normalizado asignado a ese atributo. |
+| `activo` | `BOOLEAN` | NO | `TRUE` si la excepción está activa. |
+| `observaciones` | `TEXT` | SÍ | Motivo o referencia de la excepción. |
+
+#### D) Tabla: `AGRUPACIONES`
+Define vistas de agrupación (como `COMERCIAL`) que proyectan el mapa de atributos de una combinación seguida en `(grupo, subgrupo)`. Clave compuesta de upsert: `(normalizarNombre(agrupacion), normalizarNombre(grupo), normalizarNombre(subgrupo))`.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `agrupacion` | `VARCHAR(50)` | NO | Nombre normalizado de la vista de agrupación (PK compuesta; ej. `COMERCIAL`). |
+| `orden` | `INTEGER` | NO | Orden de evaluación ascendente; gana la primera fila activa cuyo `filtro` se cumpla. |
+| `grupo` | `VARCHAR(100)`| NO | Identificador normalizado del grupo (PK compuesta; ej. `EPS`, `CARREFOUR`, `CARTON`). |
+| `subgrupo` | `VARCHAR(100)`| SÍ | Identificador normalizado del subgrupo (PK compuesta; vacío si el grupo no se subdivide). |
+| `filtro` | `VARCHAR(250)`| SÍ | Expresión de condiciones separadas por `;` (Y lógico): `ATRIBUTO=V1\|V2`, `ATRIBUTO!=V1\|V2`, `ATRIBUTO=*`, `ATRIBUTO=`, o vacío `""` (comodín). |
+| `activo` | `BOOLEAN` | NO | `TRUE` si la fila de agrupación está activa. |
+
+---
+
 ## 4. Reconciliación y Reconstrucción de Stock
 
 Dado que `STOCK_ACTUAL` es una vista materializada para agilizar consultas inmediatas, STOCK-LIGHT cuenta con un procedimiento determinista de **Reconstrucción Integral**:

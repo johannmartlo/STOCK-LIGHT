@@ -36,6 +36,40 @@ $$\text{Unidad de Stock} = \langle \text{NOMBRE NORMALIZADO DE ARTÍCULO}, \; \t
      * Reconciliación o reconstrucción de existencias (`rebuildStock`).
    * Todo envase no mapeado formalmente en la tabla `GRUPOS_ENVASE` se clasifica sin conjeturas como `SIN_CLASIFICAR`.
 
+### 1.4. Catálogo y Clasificación Configurable (D-029, T-005)
+El catálogo resuelve qué combinaciones `(articulo, envase)` se siguen, qué atributos tienen y en qué grupos de vista se muestran, mediante **cuatro hojas configurables** sin lógica de negocio escrita a fuego en el motor:
+
+1. **Las 4 hojas del catálogo:**
+   * `ATRIBUTOS` (`nombre, descripcion, activo`): Define las dimensiones que el catálogo puede asignar a una combinación (ej. `SEGUIMIENTO`, `FAMILIA`, `MATERIAL`, `PROGRAMA`, `REVISAR`).
+   * `REGLAS_CLASIFICACION` (`id, atributo, valor, prioridad, articulo_contiene, articulo_excluye, envase_contiene, envase_excluye, activo, observaciones`): Asigna el valor de un atributo por patrones de texto sobre artículo y envase normalizados.
+   * `CATALOGO` (`articulo, envase, atributo, valor, activo, observaciones`): Excepciones explícitas para un par exacto `(articulo, envase)` y un atributo concreto.
+   * `AGRUPACIONES` (`agrupacion, orden, grupo, subgrupo, filtro, activo`): Vistas jerárquicas (como `COMERCIAL`) que proyectan los atributos calculados en `(grupo, subgrupo)` según su orden.
+
+2. **Orden de resolución por atributo y agrupación (`src/Catalogo.js`):**
+   * **Paso 1 — Normalización:** `articulo` y `envase` se normalizan con `normalizarNombre` (D-003). Si alguno queda vacío, la combinación no es seguida (`SEGUIMIENTO: 'NO_SEGUIDA'`).
+   * **Paso 2 — Resolución de cada atributo activo:** Para cada atributo activo en `ATRIBUTOS`:
+     1. **Excepción exacta (`CATALOGO`):** Si existe una fila activa en `CATALOGO` para `(articulo, envase, atributo)`, se toma su `valor` y no se evalúan reglas para ese atributo (no pisa otros atributos).
+     2. **Reglas por prioridad (`REGLAS_CLASIFICACION`):** Si no hay excepción, se evalúan las reglas activas de ese `atributo` ordenadas por `prioridad` ascendente (en empate, por orden de fila). La primera que encaja fija el valor del atributo.
+        * Sintaxis de `*_contiene` y `*_excluye`: `;` separa alternativas (**O**); dentro de cada alternativa, `+` separa términos que deben aparecer todos (**Y**). Un campo vacío en `*_contiene` no restringe; en `*_excluye` no excluye nada.
+   * **Paso 3 — Estado de seguimiento (`SEGUIMIENTO`):**
+     * `SEGUIMIENTO = 'SI'` $\rightarrow$ `'SEGUIDA'`
+     * `SEGUIMIENTO = 'NO'` $\rightarrow$ `'NO_SEGUIDA'`
+     * Sin valor asignado $\rightarrow$ `'PENDIENTE'`
+   * **Paso 4 — Proyección en agrupaciones (`AGRUPACIONES`):**
+     * Si el estado es `'SEGUIDA'`, para cada `agrupacion` activa se recorren sus filas por `orden` ascendente y gana la primera cuyo `filtro` se cumpla. Si ninguna fila encaja, queda `{ grupo: 'SIN_CLASIFICAR', subgrupo: '' }`.
+
+3. **Sintaxis de filtros en `AGRUPACIONES` (`cumpleFiltro`):**
+   * Condiciones separadas por `;` (**Y lógico**: deben cumplirse todas). Un filtro vacío (`""`) encaja con cualquier combinación seguida.
+   * Cada condición admite:
+     * `ATRIBUTO=V1|V2`: el valor del atributo es `V1` o `V2`.
+     * `ATRIBUTO!=V1|V2`: el valor del atributo no es ni `V1` ni `V2` (incluye atributo sin valor).
+     * `ATRIBUTO=*`: el atributo tiene algún valor no vacío.
+     * `ATRIBUTO=`: el atributo no tiene valor asignado.
+
+4. **Semilla inicial (`src/SemillaCatalogo.js`):**
+   * Toda la configuración inicial de negocio (5 atributos, 16 reglas de clasificación, 11 filas de la agrupación `COMERCIAL` y `METADATOS_GRUPOS_COMERCIALES`) vive aislada en `src/SemillaCatalogo.js`. El motor (`Catalogo.js`), el servicio (`CatalogoService.js`) y la fachada (`CommercialGroupResolver.js`) no contienen ningún nombre de producto, cliente ni envase.
+   * En la agrupación `COMERCIAL`, el orden de precedencia sitúa `CARREFOUR` (orden 1) y `EPS` (orden 2) antes de las familias específicas y genéricas; `TOMATE ROSA SABOR` en madera se clasifica en `JAPI_JAPONES / ROSA_DE_SABOR` (orden 6) y en cartón en `CARTON / ROSA` (orden 8).
+
 ---
 
 ## 2. Ecuación Maestra de Inventario e Inmutabilidad

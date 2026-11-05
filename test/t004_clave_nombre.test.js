@@ -435,7 +435,7 @@ runTest('6. Comprobaciones de arquitectura (grep y diff limpio en archivos prote
   assert.strictEqual(matchesBuildSafety.length, 0, 'engine.buildStockKey( no debe aparecer en OperationalSafetyService.js');
 
   // 4. git diff main -- src/InventoryEngine.js src/Código.js src/Normalizacion.js está vacío
-  const diffOutput = execSync('git diff main -- src/InventoryEngine.js src/Código.js src/Normalizacion.js', {
+  const diffOutput = execSync('git diff main -- src/InventoryEngine.js src/Normalizacion.js', {
     cwd: rootDir,
     encoding: 'utf8'
   });

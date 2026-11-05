@@ -17,6 +17,10 @@ if (typeof require !== 'undefined') {
     const fechasMod = require('./Fechas');
     global.normalizarFechaNegocio = global.normalizarFechaNegocio || fechasMod.normalizarFechaNegocio;
   } catch (e) {}
+  try {
+    const idsMod = require('./Ids');
+    global.nuevoId = global.nuevoId || idsMod.nuevoId;
+  } catch (e) {}
 }
 
 const SCHEMA_DEFINITIONS = {
@@ -140,6 +144,39 @@ const SCHEMA_DEFINITIONS = {
     'activo',
     'observaciones'
   ],
+  ATRIBUTOS: [
+    'nombre',
+    'descripcion',
+    'activo'
+  ],
+  REGLAS_CLASIFICACION: [
+    'id',
+    'atributo',
+    'valor',
+    'prioridad',
+    'articulo_contiene',
+    'articulo_excluye',
+    'envase_contiene',
+    'envase_excluye',
+    'activo',
+    'observaciones'
+  ],
+  CATALOGO: [
+    'articulo',
+    'envase',
+    'atributo',
+    'valor',
+    'activo',
+    'observaciones'
+  ],
+  AGRUPACIONES: [
+    'agrupacion',
+    'orden',
+    'grupo',
+    'subgrupo',
+    'filtro',
+    'activo'
+  ],
   LOG_OPERACIONES: [
     'id_log',
     'fecha_hora',
@@ -171,6 +208,7 @@ class SheetsRepository {
       this._options = (spreadsheetOrOptions && typeof spreadsheetOrOptions === 'object') ? spreadsheetOrOptions : {};
       this._spreadsheet = this._options.spreadsheet || null;
     }
+    this._catalogoVersion = 0;
   }
 
   /**
@@ -759,6 +797,242 @@ class SheetsRepository {
       list.push(record);
     }
     this.saveMatrizArticuloEnvase(list);
+    return record;
+  }
+
+  // --- MÉTODOS OPERATIVOS T-005: CATÁLOGO Y CLASIFICACIÓN (D-029) ---
+
+  _incrementarVersionCatalogo() {
+    this._catalogoVersion = (this._catalogoVersion || 0) + 1;
+  }
+
+  _normalizarClaveCatalogo(texto) {
+    if (texto === null || texto === undefined) return '';
+    return String(texto)
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+  }
+
+  getAtributos() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('ATRIBUTOS')) return [];
+    return this.readTable('ATRIBUTOS');
+  }
+
+  saveAtributos(records) {
+    const res = this.replaceTable('ATRIBUTOS', records);
+    this._incrementarVersionCatalogo();
+    return res;
+  }
+
+  appendAtributos(records = []) {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    const res = this.appendRecords('ATRIBUTOS', records);
+    this._incrementarVersionCatalogo();
+    return res;
+  }
+
+  upsertAtributo(attr) {
+    if (!attr || !attr.nombre) {
+      throw new Error('upsertAtributo: Se requiere nombre.');
+    }
+    const nombre = String(attr.nombre).trim().toUpperCase();
+    const descripcion = String(attr.descripcion || '').trim();
+    const activo = attr.activo !== false && String(attr.activo).toUpperCase() !== 'FALSE' && String(attr.activo).toUpperCase() !== 'NO';
+
+    const list = this.getAtributos();
+    const idx = list.findIndex(a => String(a.nombre || '').trim().toUpperCase() === nombre);
+    const record = { nombre, descripcion, activo };
+
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.push(record);
+    }
+    this.saveAtributos(list);
+    return record;
+  }
+
+  getReglasClasificacion() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('REGLAS_CLASIFICACION')) return [];
+    return this.readTable('REGLAS_CLASIFICACION');
+  }
+
+  saveReglasClasificacion(records) {
+    const res = this.replaceTable('REGLAS_CLASIFICACION', records);
+    this._incrementarVersionCatalogo();
+    return res;
+  }
+
+  appendReglasClasificacion(records = []) {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    const res = this.appendRecords('REGLAS_CLASIFICACION', records);
+    this._incrementarVersionCatalogo();
+    return res;
+  }
+
+  upsertReglaClasificacion(regla) {
+    if (!regla || !regla.atributo || regla.valor === undefined || regla.valor === null || String(regla.valor).trim() === '') {
+      throw new Error('upsertReglaClasificacion: Se requieren atributo y valor.');
+    }
+    const genIdFn = typeof nuevoId === 'function' ? nuevoId : (global.nuevoId || (p => `${p}-AUTO`));
+    const id = regla.id && String(regla.id).trim() !== '' ? String(regla.id).trim() : genIdFn('REG');
+    const atributo = String(regla.atributo).trim().toUpperCase();
+    const valor = String(regla.valor).trim().toUpperCase();
+    const rawPrio = regla.prioridad !== undefined ? regla.prioridad : regla.orden;
+    const prioridad = rawPrio !== undefined && rawPrio !== null && String(rawPrio).trim() !== ''
+      ? Number(rawPrio)
+      : 50;
+    const articuloContiene = String(
+      regla.articulo_contiene !== undefined ? regla.articulo_contiene : (regla.patron_articulo || '')
+    ).trim();
+    const articuloExcluye = String(regla.articulo_excluye || '').trim();
+    const envaseContiene = String(
+      regla.envase_contiene !== undefined ? regla.envase_contiene : (regla.patron_envase || '')
+    ).trim();
+    const envaseExcluye = String(regla.envase_excluye || '').trim();
+    const rawActivo = regla.activo !== undefined ? regla.activo : regla.activa;
+    const activo = rawActivo !== false && String(rawActivo).toUpperCase() !== 'FALSE' && String(rawActivo).toUpperCase() !== 'NO';
+    const observaciones = String(
+      regla.observaciones !== undefined ? regla.observaciones : (regla.descripcion || '')
+    ).trim();
+
+    const list = this.getReglasClasificacion();
+    const idx = list.findIndex(r => String(r.id || '').trim().toUpperCase() === id.toUpperCase());
+
+    const record = {
+      id,
+      atributo,
+      valor,
+      prioridad,
+      articulo_contiene: articuloContiene,
+      articulo_excluye: articuloExcluye,
+      envase_contiene: envaseContiene,
+      envase_excluye: envaseExcluye,
+      activo,
+      observaciones
+    };
+
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.push(record);
+    }
+    this.saveReglasClasificacion(list);
+    return record;
+  }
+
+  getCatalogo() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('CATALOGO')) return [];
+    return this.readTable('CATALOGO');
+  }
+
+  saveCatalogo(records) {
+    const res = this.replaceTable('CATALOGO', records);
+    this._incrementarVersionCatalogo();
+    return res;
+  }
+
+  appendCatalogo(records = []) {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    const res = this.appendRecords('CATALOGO', records);
+    this._incrementarVersionCatalogo();
+    return res;
+  }
+
+  upsertExcepcionCatalogo(excepcion) {
+    if (!excepcion) {
+      throw new Error('upsertExcepcionCatalogo: Se requiere un objeto de excepción.');
+    }
+    const art = String(excepcion.articulo !== undefined ? excepcion.articulo : (excepcion.codigo_articulo || '')).trim();
+    const env = String(excepcion.envase !== undefined ? excepcion.envase : (excepcion.codigo_envase || '')).trim();
+    const atributo = String(excepcion.atributo || '').trim().toUpperCase();
+    const valor = String(excepcion.valor || '').trim().toUpperCase();
+
+    if (!art || !env || !atributo || !valor) {
+      throw new Error('upsertExcepcionCatalogo: articulo, envase, atributo y valor son obligatorios.');
+    }
+
+    const rawActivo = excepcion.activo !== undefined ? excepcion.activo : excepcion.activa;
+    const activo = rawActivo !== false && String(rawActivo).toUpperCase() !== 'FALSE' && String(rawActivo).toUpperCase() !== 'NO';
+    const observaciones = String(excepcion.observaciones || '').trim();
+
+    const artKey = this._normalizarClaveCatalogo(art);
+    const envKey = this._normalizarClaveCatalogo(env);
+    const attrKey = this._normalizarClaveCatalogo(atributo);
+
+    const list = this.getCatalogo();
+    const idx = list.findIndex(c =>
+      this._normalizarClaveCatalogo(c.articulo) === artKey &&
+      this._normalizarClaveCatalogo(c.envase) === envKey &&
+      this._normalizarClaveCatalogo(c.atributo) === attrKey
+    );
+
+    const record = {
+      articulo: this._normalizarClaveCatalogo(art),
+      envase: this._normalizarClaveCatalogo(env),
+      atributo,
+      valor,
+      activo,
+      observaciones
+    };
+
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.push(record);
+    }
+    this.saveCatalogo(list);
+    return record;
+  }
+
+  getAgrupaciones() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('AGRUPACIONES')) return [];
+    return this.readTable('AGRUPACIONES');
+  }
+
+  saveAgrupaciones(records) {
+    const res = this.replaceTable('AGRUPACIONES', records);
+    this._incrementarVersionCatalogo();
+    return res;
+  }
+
+  appendAgrupaciones(records = []) {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    const res = this.appendRecords('AGRUPACIONES', records);
+    this._incrementarVersionCatalogo();
+    return res;
+  }
+
+  upsertAgrupacion(agrup) {
+    if (!agrup || !agrup.agrupacion || agrup.orden === undefined || agrup.orden === null) {
+      throw new Error('upsertAgrupacion: Se requieren agrupacion y orden.');
+    }
+    const agrupacion = String(agrup.agrupacion).trim().toUpperCase();
+    const orden = Number(agrup.orden);
+    const grupo = String(agrup.grupo || '').trim();
+    const subgrupo = agrup.subgrupo !== undefined && agrup.subgrupo !== null ? String(agrup.subgrupo).trim() : '';
+    const filtro = agrup.filtro !== undefined && agrup.filtro !== null ? String(agrup.filtro).trim() : '';
+    const rawActivo = agrup.activo !== undefined ? agrup.activo : agrup.activa;
+    const activo = rawActivo !== false && String(rawActivo).toUpperCase() !== 'FALSE' && String(rawActivo).toUpperCase() !== 'NO';
+
+    const list = this.getAgrupaciones();
+    const idx = list.findIndex(a =>
+      String(a.agrupacion || '').trim().toUpperCase() === agrupacion &&
+      Number(a.orden) === orden
+    );
+
+    const record = { agrupacion, orden, grupo, subgrupo, filtro, activo };
+    if (idx >= 0) {
+      list[idx] = record;
+    } else {
+      list.push(record);
+    }
+    this.saveAgrupaciones(list);
     return record;
   }
 

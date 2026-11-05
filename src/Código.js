@@ -23,6 +23,10 @@ if (typeof require !== 'undefined') {
   const backupMod = require('./BackupService');
   let masterInitMod = null;
   try { masterInitMod = require('./MasterInitializationService'); } catch (e) {}
+  let catSvcMod = null;
+  try { catSvcMod = require('./CatalogoService'); } catch (e) {}
+  let semillaMod = null;
+  try { semillaMod = require('./SemillaCatalogo'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -32,6 +36,8 @@ if (typeof require !== 'undefined') {
   global.ArticuloEnvaseIngestionService = aeIngestMod.ArticuloEnvaseIngestionService;
   global.OperationalSafetyService = safetyMod.OperationalSafetyService;
   if (masterInitMod) global.MasterInitializationService = masterInitMod.MasterInitializationService;
+  if (catSvcMod) global.CatalogoService = catSvcMod.CatalogoService;
+  if (semillaMod) global.sembrarCatalogoEnRepositorio_ = semillaMod.sembrarCatalogoEnRepositorio_;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -570,7 +576,7 @@ function apiRegistrarReclasificacion(params, usuario) {
 }
 
 /**
- * Obtiene la lista de grupos comerciales configurados en la persistencia (Fase 5).
+ * Obtiene la lista de grupos comerciales configurados en la persistencia (OBSOLETA: se retira en T-012, D-029).
  * @param {Object} [options]
  */
 function apiGetGruposComerciales(options = {}) {
@@ -579,17 +585,14 @@ function apiGetGruposComerciales(options = {}) {
 }
 
 /**
- * Inserta o actualiza un grupo comercial en la persistencia (Fase 5).
- * @param {Object} grupo 
- * @param {Object} [options]
+ * OBSOLETA (se retira en T-012, D-029): lanza error claro sin escribir.
  */
-function apiUpsertGrupoComercial(grupo, options = {}) {
-  const repo = options.repository || new SheetsRepository();
-  return repo.upsertGrupoComercial(grupo);
+function apiUpsertGrupoComercial() {
+  throw new Error('Obsoleto: usar el catálogo (D-029)');
 }
 
 /**
- * Obtiene las asociaciones de la matriz artículo + envase configurables (Fase 5).
+ * Obtiene las asociaciones de la matriz artículo + envase configurables (OBSOLETA: se retira en T-012, D-029).
  * @param {Object} [options]
  */
 function apiGetMatrizArticuloEnvase(options = {}) {
@@ -598,13 +601,175 @@ function apiGetMatrizArticuloEnvase(options = {}) {
 }
 
 /**
- * Inserta o actualiza una asociación en la matriz artículo + envase (Fase 5).
- * @param {Object} asociacion 
- * @param {Object} [options]
+ * OBSOLETA (se retira en T-012, D-029): lanza error claro sin escribir.
  */
-function apiUpsertMatrizArticuloEnvase(asociacion, options = {}) {
+function apiUpsertMatrizArticuloEnvase() {
+  throw new Error('Obsoleto: usar el catálogo (D-029)');
+}
+
+/**
+ * Valida que un atributo exista y esté activo en la tabla ATRIBUTOS y que su valor sea válido (D-029).
+ * @private
+ */
+function validarAtributoYValorCatalogo_(repo, atributoRaw, valorRaw) {
+  const atributo = String(atributoRaw || '').trim().toUpperCase();
+  const valor = String(valorRaw || '').trim().toUpperCase();
+
+  if (!atributo) {
+    throw new Error('El nombre del atributo es obligatorio.');
+  }
+  if (!valor) {
+    throw new Error('El valor del atributo es obligatorio.');
+  }
+
+  const atributosDefinidos = typeof repo.getAtributos === 'function' ? repo.getAtributos() : [];
+  const existeAtributo = atributosDefinidos.some(a => {
+    const activo = a.activo !== false && String(a.activo).toUpperCase() !== 'FALSE' && String(a.activo).toUpperCase() !== 'NO';
+    return activo && String(a.nombre || '').trim().toUpperCase() === atributo;
+  });
+
+  if (!existeAtributo) {
+    throw new Error(`El atributo '${atributo}' no existe en ATRIBUTOS.`);
+  }
+
+  if (atributo === 'SEGUIMIENTO' && valor !== 'SI' && valor !== 'NO') {
+    throw new Error("El atributo SEGUIMIENTO solo admite los valores 'SI' o 'NO'.");
+  }
+
+  return { atributo, valor };
+}
+
+/**
+ * Siembra de forma idempotente la configuración inicial del catálogo (ATRIBUTOS, REGLAS_CLASIFICACION, AGRUPACIONES) (T-005, D-029).
+ * Categoría: ADMIN.
+ * @param {Object} [options]
+ * @returns {Object} Resumen de filas añadidas y conservadas
+ */
+function sembrarCatalogo(options = {}) {
+  exigirPropietario_(options && options.session);
   const repo = options.repository || new SheetsRepository();
-  return repo.upsertMatrizArticuloEnvase(asociacion);
+  const fn = typeof sembrarCatalogoEnRepositorio_ === 'function'
+    ? sembrarCatalogoEnRepositorio_
+    : (typeof require !== 'undefined' ? require('./SemillaCatalogo').sembrarCatalogoEnRepositorio_ : null);
+  if (!fn) {
+    throw new Error('sembrarCatalogoEnRepositorio_ no está disponible.');
+  }
+  return fn(repo);
+}
+
+/**
+ * Obtiene la configuración completa de las cuatro tablas del catálogo (T-005, D-029).
+ * Categoría: LECTURA.
+ * @param {Object} [options]
+ * @returns {{ atributos: Array<Object>, reglas: Array<Object>, catalogo: Array<Object>, agrupaciones: Array<Object> }}
+ */
+function apiGetConfiguracionCatalogo(options = {}) {
+  const repo = options.repository || new SheetsRepository();
+  const SvcClass = typeof CatalogoService !== 'undefined'
+    ? CatalogoService
+    : (typeof require !== 'undefined' ? require('./CatalogoService').CatalogoService : null);
+  const service = new SvcClass({ repository: repo, config: options.config });
+  return service.obtenerConfiguracion();
+}
+
+/**
+ * Clasifica una combinación artículo + envase y devuelve la explicación completa (T-005, D-029).
+ * Categoría: LECTURA.
+ * @param {string} articulo
+ * @param {string} envase
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiClasificarCombinacion(articulo, envase, options = {}) {
+  const repo = options.repository || new SheetsRepository();
+  const SvcClass = typeof CatalogoService !== 'undefined'
+    ? CatalogoService
+    : (typeof require !== 'undefined' ? require('./CatalogoService').CatalogoService : null);
+  const service = new SvcClass({ repository: repo, config: options.config });
+  return service.explicar(articulo, envase);
+}
+
+/**
+ * Añade o actualiza una regla en REGLAS_CLASIFICACION validando el atributo contra ATRIBUTOS (T-005, D-029).
+ * Categoría: ESCRITURA.
+ * @param {Object} regla
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiUpsertReglaClasificacion(regla, options = {}) {
+  if (!regla || typeof regla !== 'object') {
+    throw new Error('apiUpsertReglaClasificacion: Se requiere un objeto regla.');
+  }
+  const repo = options.repository || new SheetsRepository();
+  const user = usuarioActual_(options && options.session);
+  const { atributo, valor } = validarAtributoYValorCatalogo_(repo, regla.atributo, regla.valor);
+
+  const guardada = repo.upsertReglaClasificacion({
+    ...regla,
+    atributo,
+    valor
+  });
+
+  if (typeof repo.appendLogOperacion === 'function') {
+    repo.appendLogOperacion({
+      usuario: user,
+      operacion: 'UPSERT_REGLA_CLASIFICACION',
+      codigo_articulo: guardada.articulo_contiene || '*',
+      codigo_envase: guardada.envase_contiene || '*',
+      destino: `${atributo}=${valor}`,
+      referencia: guardada.id,
+      estado: 'CORRECTA',
+      observaciones: guardada.observaciones || ''
+    });
+  }
+
+  return guardada;
+}
+
+/**
+ * Añade o actualiza una excepción en CATALOGO para (articulo, envase, atributo) (T-005, D-029).
+ * Categoría: ESCRITURA.
+ * @param {Object} excepcion
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiUpsertExcepcionCatalogo(excepcion, options = {}) {
+  if (!excepcion || typeof excepcion !== 'object') {
+    throw new Error('apiUpsertExcepcionCatalogo: Se requiere un objeto excepción.');
+  }
+  const art = String(excepcion.articulo !== undefined ? excepcion.articulo : (excepcion.codigo_articulo || '')).trim();
+  const env = String(excepcion.envase !== undefined ? excepcion.envase : (excepcion.codigo_envase || '')).trim();
+  if (!art || !env) {
+    throw new Error('apiUpsertExcepcionCatalogo: articulo y envase son obligatorios y no pueden estar vacíos.');
+  }
+
+  const repo = options.repository || new SheetsRepository();
+  const user = usuarioActual_(options && options.session);
+  const { atributo, valor } = validarAtributoYValorCatalogo_(repo, excepcion.atributo, excepcion.valor);
+
+  const guardada = repo.upsertExcepcionCatalogo({
+    ...excepcion,
+    articulo: art,
+    envase: env,
+    atributo,
+    valor,
+    usuario: user
+  });
+
+  if (typeof repo.appendLogOperacion === 'function') {
+    repo.appendLogOperacion({
+      usuario: user,
+      operacion: 'UPSERT_EXCEPCION_CATALOGO',
+      codigo_articulo: art,
+      codigo_envase: env,
+      destino: `${atributo}=${valor}`,
+      referencia: 'CATALOGO',
+      estado: 'CORRECTA',
+      observaciones: guardada.observaciones || ''
+    });
+  }
+
+  return guardada;
 }
 
 function _resolveOperationalSafetyService(options = {}) {
@@ -1008,6 +1173,11 @@ if (typeof module !== 'undefined' && module.exports) {
     apiUpsertGrupoComercial,
     apiGetMatrizArticuloEnvase,
     apiUpsertMatrizArticuloEnvase,
+    sembrarCatalogo,
+    apiGetConfiguracionCatalogo,
+    apiClasificarCombinacion,
+    apiUpsertReglaClasificacion,
+    apiUpsertExcepcionCatalogo,
     apiValidarDocumento,
     apiPrevisualizarDocumento,
     apiProcesarEntradaDocumento,

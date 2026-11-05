@@ -71,7 +71,7 @@ class StockQueryService {
     this._stockActualOverride = options.stockActual || null;
     this._capasFifoOverride = options.capasFifo || null;
     this.commercialResolver = options.commercialGroupResolver || 
-      (CommercialGroupResolverClass ? new CommercialGroupResolverClass() : null);
+      (CommercialGroupResolverClass ? new CommercialGroupResolverClass({ repository: this.repo }) : null);
   }
 
   /**

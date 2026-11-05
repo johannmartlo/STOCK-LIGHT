@@ -173,7 +173,7 @@ runTest('3. Enriquecimiento referencial: MAESTRO_BASE.json aporta códigos ofici
 // -------------------------------------------------------------
 // BLOQUE 3: IDEMPOTENCIA Y SEGURIDAD DE LA IMPORTACIÓN
 // -------------------------------------------------------------
-runTest('4. Carga inicial (Paso 1): Inserta maestros y combinaciones homologadas de forma controlada', () => {
+runTest('4. Carga inicial (Paso 1): Inserta maestros y siembra el catálogo de forma controlada', () => {
   const repo = createInMemoryRepository();
   const service = new MasterInitializationService({ repository: repo });
 
@@ -184,16 +184,18 @@ runTest('4. Carga inicial (Paso 1): Inserta maestros y combinaciones homologadas
   const res1 = service.ejecutarCargaInicial(catalogos, { usuario: 'AUDITOR_FASE_8' });
 
   assert.strictEqual(res1.success, true);
-  assert.strictEqual(res1.resumen.gruposComerciales.insertados, 7); // 6 oficiales + 1 contingencia NO_CLASIFICADO
   assert.strictEqual(res1.resumen.articulos.insertados, 162);
   assert.strictEqual(res1.resumen.envases.insertados, 83);
-  assert.strictEqual(res1.resumen.matrizArticuloEnvase.insertados, 300);
+  assert.strictEqual(res1.resumen.catalogo.atributos.insertados, 5);
+  assert.strictEqual(res1.resumen.catalogo.reglas.insertados, 16);
+  assert.strictEqual(res1.resumen.catalogo.agrupaciones.insertados, 11);
 
-  // Verificar contenido persistido
-  assert.strictEqual(repo.getGruposComerciales().length, 7);
+  // Verificar contenido persistido (maestros y hojas de catálogo D-029)
   assert.strictEqual(repo.getMaestroArticulos().length, 162);
   assert.strictEqual(repo.getMaestroEnvases().length, 83);
-  assert.strictEqual(repo.getMatrizArticuloEnvase().length, 300);
+  assert.strictEqual(repo.getAtributos().length, 5);
+  assert.strictEqual(repo.getReglasClasificacion().length, 16);
+  assert.strictEqual(repo.getAgrupaciones().length, 11);
 });
 
 runTest('5. Idempotencia estricta (Paso 2): Segunda ejecución no duplica registros (0 insertados, 0 duplicados)', () => {
@@ -211,20 +213,20 @@ runTest('5. Idempotencia estricta (Paso 2): Segunda ejecución no duplica regist
   const res2 = service.ejecutarCargaInicial(catalogos, { usuario: 'AUDITOR_FASE_8' });
 
   assert.strictEqual(res2.success, true);
-  assert.strictEqual(res2.resumen.gruposComerciales.insertados, 0, 'No debe insertar grupos duplicados');
-  assert.strictEqual(res2.resumen.gruposComerciales.omitidos, 7, 'Debe omitir los 7 grupos existentes idénticos');
   assert.strictEqual(res2.resumen.articulos.insertados, 0, 'No debe insertar artículos duplicados');
   assert.strictEqual(res2.resumen.articulos.omitidos, 162, 'Debe omitir los 162 artículos existentes');
   assert.strictEqual(res2.resumen.envases.insertados, 0, 'No debe insertar envases duplicados');
   assert.strictEqual(res2.resumen.envases.omitidos, 83, 'Debe omitir los 83 envases existentes');
-  assert.strictEqual(res2.resumen.matrizArticuloEnvase.insertados, 0, 'No debe insertar combinaciones duplicadas');
-  assert.strictEqual(res2.resumen.matrizArticuloEnvase.omitidos, 300, 'Debe omitir las 300 combinaciones existentes');
+  assert.strictEqual(res2.resumen.catalogo.atributos.insertados, 0, 'No debe duplicar atributos');
+  assert.strictEqual(res2.resumen.catalogo.reglas.insertados, 0, 'No debe duplicar reglas');
+  assert.strictEqual(res2.resumen.catalogo.agrupaciones.insertados, 0, 'No debe duplicar agrupaciones');
 
   // Recuento final idéntico
-  assert.strictEqual(repo.getGruposComerciales().length, 7);
   assert.strictEqual(repo.getMaestroArticulos().length, 162);
   assert.strictEqual(repo.getMaestroEnvases().length, 83);
-  assert.strictEqual(repo.getMatrizArticuloEnvase().length, 300);
+  assert.strictEqual(repo.getAtributos().length, 5);
+  assert.strictEqual(repo.getReglasClasificacion().length, 16);
+  assert.strictEqual(repo.getAgrupaciones().length, 11);
 });
 
 runTest('6. Inmutabilidad de inventario: La inicialización de maestros produce exactamente CERO stock, movimientos y capas FIFO', () => {
@@ -283,8 +285,8 @@ runTest('8. Integración con CommercialGroupResolver: Carga limpia de grupos y m
   const resolver = new CommercialGroupResolver({ repository: repo });
   const counts = resolver.loadFromRepository(repo);
 
-  assert.strictEqual(counts.grupos, 7);
-  assert.strictEqual(counts.asociaciones, 300);
+  assert.strictEqual(counts.vinculado, true);
+  assert.strictEqual(resolver.getGroups().length, 7);
 
   // Validar clasificación de una combinación homologada: Tomate Rosa I M en EPS 106 9x500
   const clasifRosa = resolver.classify('TOMATE ROSA I M', 'EPS 106 9X500');
@@ -312,7 +314,7 @@ runTest('9. Trazabilidad: La operación se registra en LOG_OPERACIONES con detal
   assert.strictEqual(logs[0].operacion, 'INICIALIZACION_MAESTROS');
   assert.strictEqual(logs[0].usuario, 'JEFE_ALMACEN');
   assert.strictEqual(logs[0].estado, 'COMPLETADO');
-  assert.strictEqual(logs[0].referencia, 'FASE_8.0');
+  assert.strictEqual(logs[0].referencia, 'T-005');
 });
 
 runTest('10. Invariante Innegociable: InventoryEngine.js permanece 100% inalterado respecto a Git HEAD', () => {

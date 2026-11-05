@@ -10,6 +10,7 @@ const { execSync } = require('child_process');
 
 const { SheetsRepository } = require('../src/Repository');
 const { CommercialGroupResolver } = require('../src/CommercialGroupResolver');
+const { sembrarCatalogoEnRepositorio_ } = require('../src/SemillaCatalogo');
 const { MovementService } = require('../src/MovementService');
 const { StockQueryService } = require('../src/StockQueryService');
 const { OperationalSafetyService } = require('../src/OperationalSafetyService');
@@ -108,6 +109,7 @@ function createTestEnvironment() {
   const ss = new MockSpreadsheet();
   const repo = new SheetsRepository({ spreadsheet: ss });
   repo.provisionDatabase();
+  sembrarCatalogoEnRepositorio_(repo);
 
   const resolver = new CommercialGroupResolver({ repository: repo });
   const lockMock = { waitLock: () => true, releaseLock: () => {} };
@@ -609,16 +611,19 @@ runTest('10. Salida duplicada: Idempotencia estricta bloquea segundo intento sin
 // --------------------------------------------------------------------------
 // TEST 11: Corrección de artículo y recálculo comercial (Rosa de Sabor)
 // --------------------------------------------------------------------------
-runTest('11. Corrección de artículo: ROSA -> ROSA DE SABOR recalcula clasificación comercial automáticamente (CARTÓN / ROSA)', () => {
-  const { safetyService, resolver, repo } = createTestEnvironment();
+runTest('11. Corrección de artículo: HUEVO DE TORO -> ROSA DE SABOR en cartón recalcula clasificación comercial (HUEVO_TORO -> CARTÓN / ROSA)', () => {
+  const { safetyService, resolver } = createTestEnvironment();
 
-  // Entrada con EPS 104
+  // Entrada con CARTON 40X30X14 GENERICA y TOMATE HUEVO DE TORO
   safetyService.procesarEntradaDocumento({
     tipo_documento: 'ENTRADA',
     serie: 'ENT',
     numero: '1101',
     fecha_documento: '2026-10-05'
-  }, [{ codigo_articulo: 'TOMATE ROSA', codigo_envase: 'EPS 104', cajas: 100 }]);
+  }, [{ codigo_articulo: 'TOMATE HUEVO DE TORO', codigo_envase: 'CARTON 40X30X14 GENERICA', cajas: 100 }]);
+
+  const classAntes = resolver.resolve('TOMATE HUEVO DE TORO', 'CARTON 40X30X14 GENERICA');
+  assert.strictEqual(classAntes.groupId, 'HUEVO_TORO');
 
   // Corregir artículo a ROSA DE SABOR
   const res = safetyService.ejecutarCorreccionHistorica({
@@ -631,8 +636,8 @@ runTest('11. Corrección de artículo: ROSA -> ROSA DE SABOR recalcula clasifica
 
   assert.strictEqual(res.success, true);
 
-  // Verificar que CommercialGroupResolver asigna Rosa de Sabor a CARTÓN / ROSA aunque sea EPS
-  const classRes = resolver.resolve('TOMATE ROSA DE SABOR', 'EPS 104');
+  // Verificar que CommercialGroupResolver asigna Rosa de Sabor en cartón a CARTÓN / ROSA
+  const classRes = resolver.resolve('TOMATE ROSA DE SABOR', 'CARTON 40X30X14 GENERICA');
   assert.strictEqual(classRes.groupId, 'CARTON');
   assert.strictEqual(classRes.subgroupId, 'ROSA');
 });
