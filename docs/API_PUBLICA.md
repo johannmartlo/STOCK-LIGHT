@@ -122,6 +122,17 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `detectarTipo` | `src/importacion/CsvHispatecParser.js` | INTERNA | Detecta el tipo de documento del CSV. |
 | `leerRegistrosCsv` | `src/importacion/CsvHispatecParser.js` | INTERNA | Lee los registros de un CSV de Hispatec. |
 | `parsear` | `src/importacion/CsvHispatecParser.js` | INTERNA | Parsea el CSV a líneas canónicas. |
+| `clasificadorPrefijosPredeterminados` | `src/importacion/ClasificadorLineas.js` | INTERNA | Prefijos de serie por defecto para la importación. |
+| `clasificadorTieneValor` | `src/importacion/ClasificadorLineas.js` | INTERNA | Indica si un valor no está vacío. |
+| `clasificadorSerieCuenta` | `src/importacion/ClasificadorLineas.js` | INTERNA | Comprueba si una serie encaja con los prefijos. |
+| `clasificadorEstado` | `src/importacion/ClasificadorLineas.js` | INTERNA | Devuelve una copia de la línea con estado y mensaje. |
+| `clasificar` | `src/importacion/ClasificadorLineas.js` | INTERNA | Clasifica las líneas canónicas de importación. |
+| `clasificadorCompararNumerosTexto` | `src/importacion/ClasificadorLineas.js` | INTERNA | Compara números o textos de forma estable. |
+| `clasificadorCompararLineas` | `src/importacion/ClasificadorLineas.js` | INTERNA | Ordena líneas por número de línea. |
+| `clasificadorClaveDocumento` | `src/importacion/ClasificadorLineas.js` | INTERNA | Construye la clave tipo + serie + número de un documento. |
+| `clasificadorCompararDocumentos` | `src/importacion/ClasificadorLineas.js` | INTERNA | Ordena documentos por fecha, tipo, serie y número. |
+| `agruparEnDocumentos` | `src/importacion/ClasificadorLineas.js` | INTERNA | Agrupa líneas clasificadas en documentos. |
+| `resumenImportacion` | `src/importacion/ClasificadorLineas.js` | INTERNA | Resume una importación por estado y documento. |
 | `nuevoId` | `src/Ids.js` | INTERNA | Genera un identificador único con prefijo (D-024). |
 | `extraerConsumosFifoDeObservaciones` | `src/Libro.js` | INTERNA | Extrae el desglose de consumos FIFO de observaciones. |
 | `anexarConsumosFifoAObservaciones` | `src/Libro.js` | INTERNA | Anexa el desglose de consumos FIFO a observaciones. |
