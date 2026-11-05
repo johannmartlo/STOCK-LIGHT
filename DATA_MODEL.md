@@ -73,6 +73,11 @@ erDiagram
         string usuario
         string observaciones
         string estado
+        date fecha_negocio
+        string entidad_nombre
+        int secuencia UK
+        string origen_dato
+        decimal kg_informativo
     }
 
     CAPAS_FIFO {
@@ -87,6 +92,9 @@ erDiagram
         string estado_capa
         string partida
         string documento_ref
+        string proveedor
+        string id_capa_origen
+        string origen_dato
     }
 
     STOCK_ACTUAL {
@@ -162,6 +170,11 @@ Libro diario inmutable de eventos de inventario. Cada fila representa un cambio 
 | `usuario` | `VARCHAR(100)`| NO | Email del usuario que confirma o ejecuta el movimiento. |
 | `observaciones` | `TEXT` | SÍ | Notas complementarias o justificación del ajuste. |
 | `estado` | `ENUM` | NO | `CONFIRMADO`, `PENDIENTE_REVISION`. |
+| `fecha_negocio` | `DATE` | NO | Fecha de negocio del albarán/documento (D-008, formato YYYY-MM-DD en Europe/Madrid). Fija la antigüedad de la capa, no el orden de reproducción. |
+| `entidad_nombre`| `VARCHAR(150)`| SÍ | Nombre del emisor/proveedor o cliente del documento. |
+| `secuencia` | `INTEGER` | NO | Secuencia estrictamente creciente asignada dentro del lock. Define el orden determinista de reproducción en reconstrucción. |
+| `origen_dato` | `ENUM` | NO | Origen documental (`CSV`, `PDF`, `FOTO`, `MANUAL`; D-023). Por defecto `MANUAL`. |
+| `kg_informativo`| `DECIMAL` | SÍ | Kilos netos del documento para estadísticas y previsiones futuras (D-025). No computa en stock (D-004). |
 
 ---
 
@@ -172,7 +185,7 @@ Estructura de capas vivas e históricas para la asignación y consumo cronológi
 | :--- | :--- | :---: | :--- |
 | `id_capa` | `VARCHAR(50)` | NO | Clave primaria secuencial (ej. `CAPA-20260928-0001`). |
 | `id_movimiento_entrada` | `VARCHAR(50)` | NO | Vínculo al movimiento de entrada que creó la capa. |
-| `fecha_capa` | `DATE` | NO | Fecha de origen de la capa para ordenación FIFO. |
+| `fecha_capa` | `DATE` | NO | Fecha de origen de la capa para ordenación FIFO (`YYYY-MM-DD`, coincide con `fecha_negocio`). |
 | `codigo_articulo` | `VARCHAR(50)` | NO | Código de artículo. |
 | `codigo_envase` | `VARCHAR(50)` | NO | Código de envase. |
 | `cajas_iniciales` | `INTEGER` | NO | Saldo original con el que nació la capa. |
@@ -181,6 +194,9 @@ Estructura de capas vivas e históricas para la asignación y consumo cronológi
 | `estado_capa` | `ENUM` | NO | `ACTIVA` (si `cajas_restantes > 0`), `AGOTADA` (si `cajas_restantes = 0`). |
 | `partida` | `VARCHAR(50)` | SÍ | Partida documental asociada. |
 | `documento_ref` | `VARCHAR(50)` | NO | Serie/Número de albarán de compra o recepción. |
+| `proveedor` | `VARCHAR(150)`| SÍ | Nombre del proveedor/emisor de la partida (D-016). |
+| `id_capa_origen`| `VARCHAR(50)` | SÍ | ID de la capa previa si procede de reproceso, reclasificación o ajuste. |
+| `origen_dato` | `ENUM` | NO | Origen documental (`CSV`, `PDF`, `FOTO`, `MANUAL`; D-023). |
 
 ---
 
@@ -230,9 +246,14 @@ Dado que `STOCK_ACTUAL` es una vista materializada para agilizar consultas inmed
 
 $$\text{Saldo Reconstruido}_{(art, env)} = \sum_{\text{capas activas}} \text{cajas\_restantes} \equiv \sum \text{MOVIMIENTOS.cajas} \times \text{signo}$$
 
+### 4.1. Regla Clave sobre el Orden de Reconstrucción y Antigüedad FIFO
+1. **Orden de Reproducción:** La reconstrucción reproduce los movimientos **en el orden exacto en que fueron registrados**, determinado por la columna `secuencia` (entero estrictamente creciente asignado bajo lock, D-022). Esto garantiza reproducir la disponibilidad de partidas que existía al momento de registrar cada venta o ajuste. Las filas históricas sin secuencia se ordenan por `fecha_hora` y `id_movimiento`.
+2. **Fecha de Negocio y Antigüedad FIFO:** La columna `fecha_negocio` asigna la `fecha_capa` de las capas creadas y define la antigüedad de cada lote para el orden de consumo FIFO. **No** altera el orden de reproducción de los movimientos.
+3. **Zona Horaria y Normalización (D-008):** Todas las fechas de negocio se interpretan y normalizan en `Europe/Madrid`. En Google Sheets se almacenan como texto explícito (`YYYY-MM-DD`, formato `@`) y se normalizan al leer para evitar desordenaciones por conversión automática a objetos Date.
+
 Si se detectara alguna discrepancia física o técnica:
 1. Se adquiere el bloqueo exclusivo con `LockService`.
 2. Se limpian los registros de `STOCK_ACTUAL`.
-3. Se recalcula el saldo a partir de la suma de `cajas_restantes` de las capas en estado `ACTIVA` en `CAPAS_FIFO`.
+3. Se recalcula el saldo a partir de la suma de `cajas_restantes` de las capas en estado `ACTIVA` en `CAPAS_FIFO` o reejecutando `rebuildStockFromMovements`.
 4. Se actualizan en lote todas las filas de `STOCK_ACTUAL`.
 5. Se libera el bloqueo.

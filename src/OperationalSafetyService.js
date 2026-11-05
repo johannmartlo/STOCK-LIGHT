@@ -29,6 +29,7 @@ let _CommercialGroupResolver = null;
 let _MovementService = null;
 let _SheetsRepository = null;
 let _StockQueryService = null;
+let _hoyMadrid = null;
 
 if (typeof require !== 'undefined') {
   try {
@@ -36,6 +37,7 @@ if (typeof require !== 'undefined') {
     _MovementService = require('./MovementService').MovementService;
     _SheetsRepository = require('./Repository').SheetsRepository;
     _StockQueryService = require('./StockQueryService').StockQueryService;
+    _hoyMadrid = require('./Fechas').hoyMadrid;
   } catch (e) {
     // Entorno Apps Script o fallback
   }
@@ -88,7 +90,8 @@ class OperationalSafetyService {
     const tipo = String(docPayload.tipo_documento || tipoDocumento || 'ENTRADA').toUpperCase();
     const serie = String(docPayload.serie || '').trim();
     const numero = String(docPayload.numero || '').trim();
-    const fecha = docPayload.fecha_documento || docPayload.fecha || new Date().toISOString().slice(0, 10);
+    const hoyFn = _hoyMadrid || (typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10))));
+    const fecha = docPayload.fecha_documento || docPayload.fecha || hoyFn();
     const hash = docPayload.sha256_hash || '';
     const idDoc = docPayload.id_documento || '';
 
@@ -361,7 +364,7 @@ class OperationalSafetyService {
         tipo: docPayload.tipo_documento || tipoDocumento,
         serie: docPayload.serie || '',
         numero: docPayload.numero || '',
-        fecha: docPayload.fecha_documento || docPayload.fecha || new Date().toISOString().slice(0, 10),
+        fecha: docPayload.fecha_documento || docPayload.fecha || (_hoyMadrid || (typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)))))() ,
         entidadNombre: docPayload.entidad_nombre || ''
       },
       lineas: val.lineasValidadas,

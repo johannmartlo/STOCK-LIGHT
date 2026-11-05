@@ -7,6 +7,15 @@
  * Opera exclusivamente sobre objetos y arreglos JavaScript puros en memoria.
  */
 
+// Importaciones condicionales para entorno Node.js / Testing (aisladas sin 'var' para evitar colisiones en Apps Script V8)
+if (typeof require !== 'undefined') {
+  try {
+    const fechasMod = require('./Fechas');
+    global.hoyMadrid = global.hoyMadrid || fechasMod.hoyMadrid;
+    global.normalizarFechaNegocio = global.normalizarFechaNegocio || fechasMod.normalizarFechaNegocio;
+  } catch (e) {}
+}
+
 /**
  * Genera la clave canónica de existencia: CODIGO_ARTICULO_HISPATEC + "|" + CODIGO_ENVASE.
  * @param {string} codigoArticulo 
@@ -60,9 +69,10 @@ function validateMovementInput(input) {
  * @returns {Array<Object>} Nueva copia ordenada
  */
 function sortFifoLayers(layers) {
+  const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
   return [...layers].sort((a, b) => {
-    const fechaA = String(a.fecha_capa || '');
-    const fechaB = String(b.fecha_capa || '');
+    const fechaA = a.fecha_capa instanceof Date ? normFn(a.fecha_capa) : String(a.fecha_capa || '');
+    const fechaB = b.fecha_capa instanceof Date ? normFn(b.fecha_capa) : String(b.fecha_capa || '');
     if (fechaA !== fechaB) {
       return fechaA.localeCompare(fechaB);
     }
@@ -108,6 +118,28 @@ function calculateAvailableStock(stockKey, layers) {
 function processMovement(movementInput, currentLayers = [], currentStock = {}) {
   validateMovementInput(movementInput);
 
+  const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
+  const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
+
+  const rawFecha = movementInput.fechaNegocio || movementInput.fecha;
+  let fechaNegocio = '';
+  if (rawFecha) {
+    try {
+      fechaNegocio = normFn(rawFecha);
+    } catch (e) {
+      fechaNegocio = hoyFn();
+    }
+  } else {
+    fechaNegocio = hoyFn();
+  }
+
+  const entidadNombre = movementInput.entidad !== undefined && movementInput.entidad !== null ? String(movementInput.entidad).trim() : (movementInput.entidad_nombre ? String(movementInput.entidad_nombre).trim() : '');
+  const origenDato = movementInput.origenDato || movementInput.origen_dato || 'MANUAL';
+  const kgInformativo = (movementInput.kg !== undefined && movementInput.kg !== null && movementInput.kg !== '')
+    ? Number(movementInput.kg)
+    : (movementInput.kg_informativo !== undefined && movementInput.kg_informativo !== null && movementInput.kg_informativo !== '' ? Number(movementInput.kg_informativo) : '');
+  const secuenciaMov = movementInput.secuencia !== undefined && movementInput.secuencia !== null && movementInput.secuencia !== '' ? Number(movementInput.secuencia) : '';
+
   const stockKey = buildStockKey(movementInput.codigoArticulo, movementInput.codigoEnvase);
   const cajasSolicitadas = Number(movementInput.cajas);
   const layersCopy = currentLayers.map(l => ({ ...l }));
@@ -123,7 +155,7 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
   if (movementInput.tipo === 'ENTRADA') {
     const idCapa = movementInput.idCapa || `CAPA-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     const idMovimiento = movementInput.idMovimiento || `MOV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-    const fechaCapa = movementInput.fecha || new Date().toISOString().slice(0, 10);
+    const fechaCapa = fechaNegocio;
 
     const newLayer = {
       id_capa: idCapa,
@@ -136,7 +168,10 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
       cajas_restantes: cajasSolicitadas,
       estado_capa: 'ACTIVA',
       partida: movementInput.partida ? String(movementInput.partida).trim() : '',
-      documento_ref: movementInput.documentoRef ? String(movementInput.documentoRef).trim() : ''
+      documento_ref: movementInput.documentoRef ? String(movementInput.documentoRef).trim() : '',
+      proveedor: entidadNombre,
+      id_capa_origen: movementInput.idCapaOrigen || '',
+      origen_dato: origenDato
     };
 
     layersCopy.push(newLayer);
@@ -155,7 +190,12 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
       motivo_ajuste: '',
       usuario: movementInput.usuario || 'SISTEMA',
       observaciones: movementInput.observaciones || '',
-      estado: 'CONFIRMADO'
+      estado: 'CONFIRMADO',
+      fecha_negocio: fechaNegocio,
+      entidad_nombre: entidadNombre,
+      secuencia: secuenciaMov,
+      origen_dato: origenDato,
+      kg_informativo: kgInformativo
     };
 
     return {
@@ -266,7 +306,12 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
       motivo_ajuste: movementInput.tipo === 'AJUSTE' ? String(movementInput.motivo).trim() : '',
       usuario: movementInput.usuario || 'SISTEMA',
       observaciones: movementInput.observaciones || '',
-      estado: 'CONFIRMADO'
+      estado: 'CONFIRMADO',
+      fecha_negocio: fechaNegocio,
+      entidad_nombre: entidadNombre,
+      secuencia: secuenciaMov,
+      origen_dato: origenDato,
+      kg_informativo: kgInformativo
     };
 
     return {
@@ -289,7 +334,7 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
   if (movementInput.tipo === 'AJUSTE' && Number(movementInput.signo) === 1) {
     const idCapa = movementInput.idCapa || `CAPA-AJUSTE-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     const idMovimiento = movementInput.idMovimiento || `MOV-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-    const fechaCapa = movementInput.fecha || new Date().toISOString().slice(0, 10);
+    const fechaCapa = fechaNegocio;
 
     const newLayer = {
       id_capa: idCapa,
@@ -302,7 +347,10 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
       cajas_restantes: cajasSolicitadas,
       estado_capa: 'ACTIVA',
       partida: movementInput.partida ? String(movementInput.partida).trim() : 'AJUSTE',
-      documento_ref: movementInput.documentoRef ? String(movementInput.documentoRef).trim() : `AJUSTE:${movementInput.motivo}`
+      documento_ref: movementInput.documentoRef ? String(movementInput.documentoRef).trim() : `AJUSTE:${movementInput.motivo}`,
+      proveedor: entidadNombre,
+      id_capa_origen: movementInput.idCapaOrigen || '',
+      origen_dato: origenDato
     };
 
     layersCopy.push(newLayer);
@@ -321,7 +369,12 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
       motivo_ajuste: String(movementInput.motivo).trim(),
       usuario: movementInput.usuario || 'SISTEMA',
       observaciones: movementInput.observaciones || '',
-      estado: 'CONFIRMADO'
+      estado: 'CONFIRMADO',
+      fecha_negocio: fechaNegocio,
+      entidad_nombre: entidadNombre,
+      secuencia: secuenciaMov,
+      origen_dato: origenDato,
+      kg_informativo: kgInformativo
     };
 
     return {
@@ -357,8 +410,22 @@ function processMovement(movementInput, currentLayers = [], currentStock = {}) {
  *   - isConsistent: boolean (conciliación perfecta)
  */
 function rebuildStockFromMovements(movements = [], maestro = []) {
-  // Ordenar movimientos por fecha_hora ASC, id_movimiento ASC
+  const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
+
+  // Ordenar movimientos por secuencia ASC (filas antiguas sin secuencia van antes, ordenadas por fecha_hora, id_movimiento)
   const sortedMovements = [...movements].sort((a, b) => {
+    const hasSecA = a.secuencia !== undefined && a.secuencia !== null && a.secuencia !== '' && !isNaN(Number(a.secuencia));
+    const hasSecB = b.secuencia !== undefined && b.secuencia !== null && b.secuencia !== '' && !isNaN(Number(b.secuencia));
+
+    if (hasSecA && hasSecB) {
+      return Number(a.secuencia) - Number(b.secuencia);
+    }
+    if (!hasSecA && hasSecB) {
+      return -1; // antiguas sin secuencia van antes
+    }
+    if (hasSecA && !hasSecB) {
+      return 1;
+    }
     const fA = String(a.fecha_hora || '');
     const fB = String(b.fecha_hora || '');
     if (fA !== fB) return fA.localeCompare(fB);
@@ -373,20 +440,35 @@ function rebuildStockFromMovements(movements = [], maestro = []) {
       continue; // Ignorar movimientos no confirmados o pendientes
     }
 
+    let fechaMov = '';
+    if (mov.fecha_negocio) {
+      try {
+        fechaMov = normFn(mov.fecha_negocio);
+      } catch (e) {
+        fechaMov = String(mov.fecha_negocio).slice(0, 10);
+      }
+    } else {
+      fechaMov = String(mov.fecha_hora || '').slice(0, 10);
+    }
+
     const input = {
       tipo: mov.tipo_movimiento,
       codigoArticulo: mov.codigo_articulo,
       codigoEnvase: mov.codigo_envase,
       cajas: Math.abs(Number(mov.cajas)),
       signo: Number(mov.signo) || (mov.tipo_movimiento === 'ENTRADA' ? 1 : -1),
-      fecha: String(mov.fecha_hora || '').slice(0, 10),
+      fecha: fechaMov,
       fechaHora: mov.fecha_hora,
       idMovimiento: mov.id_movimiento,
       idDocumentoRef: mov.id_documento_ref,
       partida: mov.partida_origen,
       motivo: mov.motivo_ajuste,
       usuario: mov.usuario || 'SISTEMA',
-      observaciones: mov.observaciones
+      observaciones: mov.observaciones,
+      secuencia: mov.secuencia,
+      entidad: mov.entidad_nombre,
+      origenDato: mov.origen_dato,
+      kg: mov.kg_informativo
     };
 
     const result = processMovement(input, currentLayers, currentStock);

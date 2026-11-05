@@ -9,6 +9,15 @@
  * - LockService (bloqueo exclusivo para evitar condiciones de carrera)
  */
 
+// Importaciones condicionales para entorno Node.js / Testing (aisladas sin 'var' para evitar colisiones en Apps Script V8)
+if (typeof require !== 'undefined') {
+  try {
+    const fechasMod = require('./Fechas');
+    global.hoyMadrid = global.hoyMadrid || fechasMod.hoyMadrid;
+    global.normalizarFechaNegocio = global.normalizarFechaNegocio || fechasMod.normalizarFechaNegocio;
+  } catch (e) {}
+}
+
 class MovementService {
   /**
    * @param {Object} options 
@@ -169,13 +178,20 @@ class MovementService {
         };
       }
 
-      // 3. Cargar estado actual de capas vivas y stock
+      // 3. Cargar estado actual de capas vivas, stock y secuencia
       let currentLayers = this.repo.getCapasFifo();
       const stockList = this.repo.getStockActual();
       const currentStock = {};
       stockList.forEach(s => {
         currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
       });
+
+      const movimientosExistentes = this.repo.getMovimientos();
+      let maxSecuencia = 0;
+      for (const m of movimientosExistentes) {
+        const s = Number(m.secuencia);
+        if (!isNaN(s) && s > maxSecuencia) maxSecuencia = s;
+      }
 
       // 4. Procesar cada línea en el motor de dominio
       const generatedMovements = [];
@@ -184,6 +200,7 @@ class MovementService {
       for (let i = 0; i < lineas.length; i++) {
         const linea = lineas[i];
         const cajas = Number(linea.cajas);
+        maxSecuencia++;
 
         const movInput = {
           tipo: 'ENTRADA',
@@ -195,7 +212,11 @@ class MovementService {
           fechaHora: new Date().toISOString(),
           idDocumentoRef: docId,
           documentoRef: `${docPayload.serie}/${docPayload.numero}`,
-          usuario
+          usuario,
+          entidad: docPayload.entidad_nombre || '',
+          origenDato: linea.origen_dato || linea.origenDato || docPayload.origen_dato || docPayload.origenDato || 'MANUAL',
+          kg: linea.kg !== undefined ? linea.kg : (linea.kg_informativo !== undefined ? linea.kg_informativo : ''),
+          secuencia: maxSecuencia
         };
 
         const res = this.engine.processMovement(movInput, currentLayers, currentStock);
@@ -365,12 +386,20 @@ class MovementService {
       }
 
       // 4. Si hay stock suficiente: procesar deducciones FIFO
+      const movimientosExistentes = this.repo.getMovimientos();
+      let maxSecuencia = 0;
+      for (const m of movimientosExistentes) {
+        const s = Number(m.secuencia);
+        if (!isNaN(s) && s > maxSecuencia) maxSecuencia = s;
+      }
+
       const generatedMovements = [];
       let totalCajas = 0;
 
       for (const linea of lineas) {
         const cajas = Number(linea.cajas);
         totalCajas += cajas;
+        maxSecuencia++;
 
         const movInput = {
           tipo: 'SALIDA',
@@ -381,7 +410,11 @@ class MovementService {
           fechaHora: new Date().toISOString(),
           idDocumentoRef: docId,
           documentoRef: `${docPayload.serie}/${docPayload.numero}`,
-          usuario
+          usuario,
+          entidad: docPayload.entidad_nombre || '',
+          origenDato: linea.origen_dato || linea.origenDato || docPayload.origen_dato || docPayload.origenDato || 'MANUAL',
+          kg: linea.kg !== undefined ? linea.kg : (linea.kg_informativo !== undefined ? linea.kg_informativo : ''),
+          secuencia: maxSecuencia
         };
 
         const res = this.engine.processMovement(movInput, currentLayers, currentStock);
@@ -476,6 +509,15 @@ class MovementService {
         currentStock[s.stock_key] = Number(s.cajas_actuales || 0);
       });
 
+      const movimientosExistentes = this.repo.getMovimientos();
+      let maxSecuencia = 0;
+      for (const m of movimientosExistentes) {
+        const s = Number(m.secuencia);
+        if (!isNaN(s) && s > maxSecuencia) maxSecuencia = s;
+      }
+      maxSecuencia++;
+
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
       const movInput = {
         tipo: 'AJUSTE',
         codigoArticulo: ajusteInput.codigo_articulo,
@@ -486,9 +528,13 @@ class MovementService {
         partida: ajusteInput.partida || '',
         observaciones: ajusteInput.observaciones || '',
         usuario,
-        fecha: ajusteInput.fecha || new Date().toISOString().slice(0, 10),
+        fecha: ajusteInput.fecha || hoyFn(),
         fechaHora: new Date().toISOString(),
-        documentoRef: `AJUSTE:${ajusteInput.motivo}`
+        documentoRef: `AJUSTE:${ajusteInput.motivo}`,
+        entidad: ajusteInput.entidad || ajusteInput.entidad_nombre || '',
+        origenDato: ajusteInput.origenDato || ajusteInput.origen_dato || 'MANUAL',
+        kg: ajusteInput.kg !== undefined ? ajusteInput.kg : ajusteInput.kg_informativo,
+        secuencia: maxSecuencia
       };
 
       const res = this.engine.processMovement(movInput, currentLayers, currentStock);
@@ -633,8 +679,9 @@ class MovementService {
         };
       }
 
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
       const refOperacion = `RECLASIF:${Date.now()}`;
-      const fechaHoy = params.fecha || new Date().toISOString().slice(0, 10);
+      const fechaHoy = params.fecha || hoyFn();
       const nowIso = new Date().toISOString();
 
       // 1. Movimiento de Salida (Ajuste Negativo)
@@ -786,8 +833,9 @@ class MovementService {
         };
       }
 
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
       const refOperacion = `MOV_PARTIDA:${Date.now()}`;
-      const fechaHoy = params.fecha || new Date().toISOString().slice(0, 10);
+      const fechaHoy = params.fecha || hoyFn();
       const nowIso = new Date().toISOString();
 
       let porDescontar = cajas;
@@ -1704,12 +1752,13 @@ class MovementService {
       } else {
         // delta < 0: Salida fue mayor, requiere consumir más cajas
         const aConsumir = Math.abs(delta);
+        const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
         const movInput = {
           tipo: 'SALIDA',
           codigoArticulo: mov.codigo_articulo,
           codigoEnvase: mov.codigo_envase,
           cajas: aConsumir,
-          fecha: new Date().toISOString().slice(0, 10),
+          fecha: hoyFn(),
           fechaHora: nowIso,
           documentoRef: mov.id_documento_ref || '',
           usuario

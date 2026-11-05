@@ -66,6 +66,7 @@ class MockRange {
   setBackground() { return this; }
   setFontColor() { return this; }
   setFontWeight() { return this; }
+  setNumberFormat() { return this; }
 }
 
 class MockSheet {

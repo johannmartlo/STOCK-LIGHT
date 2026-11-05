@@ -13,6 +13,10 @@
 // Importaciones condicionales para entorno Node.js / Testing (aisladas sin 'var' para evitar colisiones en Apps Script V8)
 if (typeof require !== 'undefined') {
   global.resolveDatabaseSpreadsheet = global.resolveDatabaseSpreadsheet || require('./Config').resolveDatabaseSpreadsheet;
+  try {
+    const fechasMod = require('./Fechas');
+    global.normalizarFechaNegocio = global.normalizarFechaNegocio || fechasMod.normalizarFechaNegocio;
+  } catch (e) {}
 }
 
 const SCHEMA_DEFINITIONS = {
@@ -56,7 +60,12 @@ const SCHEMA_DEFINITIONS = {
     'motivo_ajuste',
     'usuario',
     'observaciones',
-    'estado'
+    'estado',
+    'fecha_negocio',
+    'entidad_nombre',
+    'secuencia',
+    'origen_dato',
+    'kg_informativo'
   ],
   CAPAS_FIFO: [
     'id_capa',
@@ -69,7 +78,10 @@ const SCHEMA_DEFINITIONS = {
     'cajas_restantes',
     'estado_capa',
     'partida',
-    'documento_ref'
+    'documento_ref',
+    'proveedor',
+    'id_capa_origen',
+    'origen_dato'
   ],
   STOCK_ACTUAL: [
     'stock_key',
@@ -183,10 +195,10 @@ class SheetsRepository {
         sheet = ss.insertSheet(sheetName);
         sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
         sheet.setFrozenRows(1);
-        sheet.getRange(1, 1, 1, headers.length)
-          .setBackground('#1a365d')
-          .setFontColor('#ffffff')
-          .setFontWeight('bold');
+        const headerRange = sheet.getRange(1, 1, 1, headers.length);
+        if (typeof headerRange.setBackground === 'function') headerRange.setBackground('#1a365d');
+        if (typeof headerRange.setFontColor === 'function') headerRange.setFontColor('#ffffff');
+        if (typeof headerRange.setFontWeight === 'function') headerRange.setFontWeight('bold');
         createdSheets.push(sheetName);
       } else {
         // Verificar si la fila 1 tiene las cabeceras
@@ -194,10 +206,27 @@ class SheetsRepository {
         if (lastCol === 0) {
           sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
           sheet.setFrozenRows(1);
-          sheet.getRange(1, 1, 1, headers.length)
-            .setBackground('#1a365d')
-            .setFontColor('#ffffff')
-            .setFontWeight('bold');
+          const headerRange = sheet.getRange(1, 1, 1, headers.length);
+          if (typeof headerRange.setBackground === 'function') headerRange.setBackground('#1a365d');
+          if (typeof headerRange.setFontColor === 'function') headerRange.setFontColor('#ffffff');
+          if (typeof headerRange.setFontWeight === 'function') headerRange.setFontWeight('bold');
+        } else {
+          // Si la hoja ya existe, comprobar si le faltan columnas del esquema oficial (idempotencia)
+          const range = sheet.getRange(1, 1, 1, lastCol);
+          if (range && typeof range.getValues === 'function') {
+            const rawVals = range.getValues();
+            const existingHeaders = (rawVals && rawVals[0] ? rawVals[0] : []).map(h => String(h).trim());
+            const missingHeaders = headers.filter(h => !existingHeaders.includes(h));
+            if (missingHeaders.length > 0) {
+              const addRange = sheet.getRange(1, lastCol + 1, 1, missingHeaders.length);
+              if (addRange && typeof addRange.setValues === 'function') {
+                addRange.setValues([missingHeaders]);
+              }
+              if (addRange && typeof addRange.setBackground === 'function') addRange.setBackground('#1a365d');
+              if (addRange && typeof addRange.setFontColor === 'function') addRange.setFontColor('#ffffff');
+              if (addRange && typeof addRange.setFontWeight === 'function') addRange.setFontWeight('bold');
+            }
+          }
         }
       }
     }
@@ -233,6 +262,9 @@ class SheetsRepository {
     const headers = matrix[0].map(h => String(h).trim());
     const records = [];
 
+    const DATE_COLUMNS = new Set(['fecha_negocio', 'fecha_capa', 'fecha_documento']);
+    const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
+
     for (let i = 1; i < matrix.length; i++) {
       const row = matrix[i];
       // Ignorar filas totalmente vacías
@@ -240,7 +272,16 @@ class SheetsRepository {
 
       const obj = {};
       for (let j = 0; j < headers.length; j++) {
-        obj[headers[j]] = row[j] !== undefined ? row[j] : '';
+        const colName = headers[j];
+        let val = row[j];
+        if (val instanceof Date && DATE_COLUMNS.has(colName)) {
+          try {
+            val = normFn(val);
+          } catch (e) {
+            // si falla normalizar, mantener valor
+          }
+        }
+        obj[colName] = val !== undefined ? val : '';
       }
       records.push(obj);
     }
@@ -267,13 +308,34 @@ class SheetsRepository {
       throw new Error(`Esquema no definido para '${sheetName}'`);
     }
 
+    const DATE_COLUMNS = new Set(['fecha_negocio', 'fecha_capa', 'fecha_documento']);
+    const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
+
     const matrix = records.map(rec => {
-      return headers.map(h => (rec[h] !== undefined && rec[h] !== null ? rec[h] : ''));
+      return headers.map(h => {
+        let val = rec[h] !== undefined && rec[h] !== null ? rec[h] : '';
+        if (val instanceof Date && DATE_COLUMNS.has(h)) {
+          try {
+            val = normFn(val);
+          } catch (e) {}
+        }
+        return val;
+      });
     });
 
     const startRow = sheet.getLastRow() + 1;
     // 1 única llamada de escritura en bloque
     sheet.getRange(startRow, 1, matrix.length, headers.length).setValues(matrix);
+
+    // Escribir columnas de fecha como texto para que Sheets no las convierta a Date
+    for (let j = 0; j < headers.length; j++) {
+      if (DATE_COLUMNS.has(headers[j])) {
+        const colRange = sheet.getRange(startRow, j + 1, matrix.length, 1);
+        if (typeof colRange.setNumberFormat === 'function') {
+          colRange.setNumberFormat('@');
+        }
+      }
+    }
     return matrix.length;
   }
 
@@ -305,12 +367,33 @@ class SheetsRepository {
       return 0;
     }
 
+    const DATE_COLUMNS = new Set(['fecha_negocio', 'fecha_capa', 'fecha_documento']);
+    const normFn = typeof normalizarFechaNegocio === 'function' ? normalizarFechaNegocio : (global.normalizarFechaNegocio || (d => d));
+
     const matrix = records.map(rec => {
-      return headers.map(h => (rec[h] !== undefined && rec[h] !== null ? rec[h] : ''));
+      return headers.map(h => {
+        let val = rec[h] !== undefined && rec[h] !== null ? rec[h] : '';
+        if (val instanceof Date && DATE_COLUMNS.has(h)) {
+          try {
+            val = normFn(val);
+          } catch (e) {}
+        }
+        return val;
+      });
     });
 
     // Escribir todas las nuevas filas en un único bloque
     sheet.getRange(2, 1, matrix.length, headers.length).setValues(matrix);
+
+    // Escribir columnas de fecha como texto para que Sheets no las convierta a Date
+    for (let j = 0; j < headers.length; j++) {
+      if (DATE_COLUMNS.has(headers[j])) {
+        const colRange = sheet.getRange(2, j + 1, matrix.length, 1);
+        if (typeof colRange.setNumberFormat === 'function') {
+          colRange.setNumberFormat('@');
+        }
+      }
+    }
     return matrix.length;
   }
 
