@@ -122,3 +122,15 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `detectarTipo` | `src/importacion/CsvHispatecParser.js` | INTERNA | Detecta el tipo de documento del CSV. |
 | `leerRegistrosCsv` | `src/importacion/CsvHispatecParser.js` | INTERNA | Lee los registros de un CSV de Hispatec. |
 | `parsear` | `src/importacion/CsvHispatecParser.js` | INTERNA | Parsea el CSV a líneas canónicas. |
+| `nuevoId` | `src/Ids.js` | INTERNA | Genera un identificador único con prefijo (D-024). |
+| `extraerConsumosFifoDeObservaciones` | `src/Libro.js` | INTERNA | Extrae el desglose de consumos FIFO de observaciones. |
+| `anexarConsumosFifoAObservaciones` | `src/Libro.js` | INTERNA | Anexa el desglose de consumos FIFO a observaciones. |
+| `clonarEstadoLibro` | `src/Libro.js` | INTERNA | Clona profundamente el estado del libro. |
+| `_keyLibro` | `src/Libro.js` | INTERNA | Clave de stock canónica para el libro. |
+| `_ordenarCapasFifo` | `src/Libro.js` | INTERNA | Ordena capas FIFO por fecha y clave. |
+| `_resolverFechaNegocioMovimiento` | `src/Libro.js` | INTERNA | Normaliza la fecha de negocio de un movimiento. |
+| `_generarIdLibro` | `src/Libro.js` | INTERNA | Generador interno de IDs con nuevoId. |
+| `_calcularDisponibleCapas` | `src/Libro.js` | INTERNA | Calcula saldo de cajas disponibles en capas activas. |
+| `aplicarMovimiento` | `src/Libro.js` | INTERNA | Aplica un movimiento de forma pura sobre el estado (D-022). |
+| `ordenarMovimientosPorSecuencia` | `src/Libro.js` | INTERNA | Ordena movimientos por secuencia ascendente (D-022). |
+| `reconstruir` | `src/Libro.js` | INTERNA | Reconstruye estado determinista desde MOVIMIENTOS (D-012, D-022). |

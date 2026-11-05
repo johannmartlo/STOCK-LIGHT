@@ -20,6 +20,7 @@ Varios agentes trabajan a la vez, cada uno en su carril. Para que no se pisen:
 - **Lógica pura y persistencia separadas.** Los cálculos (FIFO, parseo, clasificación) van en funciones que no llaman a `SpreadsheetApp`, `DriveApp`, `Session` ni `UrlFetchApp`, para que se puedan probar en Node. La escritura en Sheets va siempre en bloque y dentro de `LockService` (TECHNICAL_RISKS §3).
 - **El libro de movimientos es de solo añadir (D-022).** Nunca modifiques ni borres una fila existente de MOVIMIENTOS.
 - **Identificadores con `nuevoId()`** (D-024), nunca con `Date.now()`.
+- **Funciones globales nuevas** (las que no terminan en `_`): clasifícalas en `docs/API_PUBLICA.md` en el mismo ticket. La prueba de T-023 falla si no.
 - **Nada de reglas de negocio fijas en el código.** Ningún nombre de producto, cliente, serie ni grupo escrito a fuego. Todo eso viene de configuración (D-005, D-002).
 - **Datos reales, nunca.** Las pruebas usan archivos inventados con la estructura exacta del real (D-015).
 - **No cambies las aserciones de las pruebas existentes**, salvo que el ticket lo diga expresamente y diga cuáles.
