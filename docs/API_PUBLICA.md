@@ -145,3 +145,9 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `aplicarMovimiento` | `src/Libro.js` | INTERNA | Aplica un movimiento de forma pura sobre el estado (D-022). |
 | `ordenarMovimientosPorSecuencia` | `src/Libro.js` | INTERNA | Ordena movimientos por secuencia ascendente (D-022). |
 | `reconstruir` | `src/Libro.js` | INTERNA | Reconstruye estado determinista desde MOVIMIENTOS (D-012, D-022). |
+| `adminCrearCopiaManual` | `src/Código.js` | ADMIN | Crea una copia de seguridad MANUAL de la hoja de datos. |
+| `adminInstalarCopiaDiaria` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario de copia a las 23:00. |
+| `adminConfigurarCarpetaCopias` | `src/Código.js` | ADMIN | Persiste la carpeta de Drive de las copias (`BACKUP_FOLDER_ID`). |
+| `copiaDiariaProgramada` | `src/Código.js` | ESCRITURA | Punto de entrada del disparador diario; no la usa la interfaz. |
+| `nombreCopiaSeguridad` | `src/BackupService.js` | INTERNA | Genera el nombre canónico de una copia en Europe/Madrid. |
+| `seleccionarCopiasABorrar` | `src/BackupService.js` | INTERNA | Elige las copias DIARIA más antiguas que sobran; nunca toca MANUAL ni PRE_DESPLIEGUE. |

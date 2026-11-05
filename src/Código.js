@@ -20,6 +20,7 @@ if (typeof require !== 'undefined') {
   const aeIngestMod = require('./ArticuloEnvaseIngestionService');
   const safetyMod = require('./OperationalSafetyService');
   const segMod = require('./Seguridad');
+  const backupMod = require('./BackupService');
   let masterInitMod = null;
   try { masterInitMod = require('./MasterInitializationService'); } catch (e) {}
 
@@ -45,6 +46,10 @@ if (typeof require !== 'undefined') {
   global.StockQueryService = queryMod.StockQueryService;
   global.exigirPropietario_ = segMod.exigirPropietario_;
   global.usuarioActual_ = segMod.usuarioActual_;
+  global.crearCopiaSeguridad_ = backupMod.crearCopiaSeguridad_;
+  global.instalarCopiaDiaria_ = backupMod.instalarCopiaDiaria_;
+  global.configurarCarpetaCopias_ = backupMod.configurarCarpetaCopias_;
+  global.registrarErrorCopia_ = backupMod.registrarErrorCopia_;
 }
 
 /**
@@ -291,6 +296,60 @@ function configurarDriveFolderId(driveFolderId) {
   exigirPropietario_();
   setDriveFolderIdConfig(driveFolderId);
   return `✅ DRIVE_FOLDER_ID configurado correctamente en ScriptProperties: ${driveFolderId}`;
+}
+
+/**
+ * Crea una copia de seguridad MANUAL de la hoja de datos (T-018).
+ * Reservada al propietario del script.
+ *
+ * @returns {{ id: string, nombre: string }}
+ */
+function adminCrearCopiaManual() {
+  exigirPropietario_();
+  return crearCopiaSeguridad_('MANUAL');
+}
+
+/**
+ * Instala o reinstala el disparador diario de copia a las 23:00 (T-018).
+ * Es idempotente: antes borra los disparadores anteriores de copiaDiariaProgramada.
+ * Reservada al propietario del script.
+ *
+ * @returns {{ ok: boolean, handler: string, hora: number }}
+ */
+function adminInstalarCopiaDiaria() {
+  exigirPropietario_();
+  return instalarCopiaDiaria_();
+}
+
+/**
+ * Configura la carpeta de Drive donde se guardan las copias de seguridad (T-018).
+ * Reservada al propietario del script.
+ *
+ * @param {string} folderId
+ * @returns {{ folderId: string }}
+ */
+function adminConfigurarCarpetaCopias(folderId) {
+  exigirPropietario_();
+  return configurarCarpetaCopias_(folderId);
+}
+
+/**
+ * Punto de entrada del disparador diario de copia (T-018).
+ * Si la copia falla, escribe el error en LOG_OPERACIONES y no lanza nada.
+ *
+ * @returns {Object}
+ */
+function copiaDiariaProgramada() {
+  try {
+    return crearCopiaSeguridad_('DIARIA');
+  } catch (err) {
+    try {
+      registrarErrorCopia_(err);
+    } catch (e) {
+      // El disparador nunca debe fallar por el log.
+    }
+    return { ok: false, error: err && err.message ? err.message : String(err) };
+  }
 }
 
 /**
@@ -963,6 +1022,10 @@ if (typeof module !== 'undefined' && module.exports) {
     apiCorregirEntrada,
     apiCorregirSalida,
     apiDividirEntrada,
+    adminCrearCopiaManual,
+    adminInstalarCopiaDiaria,
+    adminConfigurarCarpetaCopias,
+    copiaDiariaProgramada,
     doGet,
     apiGetMaestroArticulos,
     apiGetMaestroEnvases,
