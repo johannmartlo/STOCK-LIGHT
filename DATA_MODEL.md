@@ -24,6 +24,8 @@ erDiagram
     MOVIMIENTOS ||--o{ CONSUMOS_FIFO : "desglosa_consumo"
     CAPAS_FIFO ||--o{ CONSUMOS_FIFO : "soporta_consumo"
     GRUPOS_ENVASE ||--o{ STOCK_ACTUAL : "agrupa_para_consulta"
+    REPROCESOS ||--o{ REPROCESO_LINEAS : "desglosa"
+    REPROCESOS ||--o{ MOVIMIENTOS : "referencia"
     
     GRUPOS_ENVASE {
         string codigo_envase PK
@@ -121,6 +123,33 @@ erDiagram
         int cajas_actuales
         datetime fecha_ultima_actualizacion
         string ultimo_movimiento_id FK
+    }
+
+    REPROCESOS {
+        string id_reproceso PK
+        date fecha
+        datetime fecha_hora
+        string usuario
+        int total_retirado
+        int total_destinos
+        int destrio_cajas
+        decimal destrio_kg
+        string cambio_envase
+        string estado
+        string observaciones
+    }
+
+    REPROCESO_LINEAS {
+        string id_reproceso FK
+        string tipo
+        string id_capa FK
+        string codigo_articulo FK
+        string codigo_envase FK
+        int cajas
+        string proveedor
+        date fecha_capa
+        int destrio_prorrateado
+        string id_movimiento FK
     }
 ```
 
@@ -339,6 +368,39 @@ Define vistas de agrupación (como `COMERCIAL`) que proyectan el mapa de atribut
 | `subgrupo` | `VARCHAR(100)`| SÍ | Identificador normalizado del subgrupo (PK compuesta; vacío si el grupo no se subdivide). |
 | `filtro` | `VARCHAR(250)`| SÍ | Expresión de condiciones separadas por `;` (Y lógico): `ATRIBUTO=V1\|V2`, `ATRIBUTO!=V1\|V2`, `ATRIBUTO=*`, `ATRIBUTO=`, o vacío `""` (comodín). |
 | `activo` | `BOOLEAN` | NO | `TRUE` si la fila de agrupación está activa. |
+
+### 3.10. Tabla: `REPROCESOS` (T-009, D-011, D-030, D-036)
+Cabecera documental de reprocesos físicos registrados en el almacén. No es un derivado (D-022, D-030).
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `id_reproceso` | `VARCHAR(50)` | NO | Identificador único del reproceso (PK; generado con `nuevoId('REP')`). |
+| `fecha` | `DATE` | NO | Fecha canónica de registro del reproceso (`YYYY-MM-DD`, Europe/Madrid). |
+| `fecha_hora` | `DATETIME` | NO | Marca temporal ISO exacta del registro. |
+| `usuario` | `VARCHAR(100)`| NO | Usuario del servidor responsable de la operación (`usuarioActual_()`). |
+| `total_retirado` | `INTEGER` | NO | Suma total de cajas consumidas de las partidas de origen. |
+| `total_destinos` | `INTEGER` | NO | Suma total de cajas generadas en las capas de destino. |
+| `destrio_cajas` | `INTEGER` | NO | Cantidad de cajas de destrío (en cajas de origen; D-036). |
+| `destrio_kg` | `DECIMAL` | SÍ | Kilos de destrío informativos (D-025, D-036). |
+| `cambio_envase` | `VARCHAR(2)` | NO | `'SI'` si algún envase de origen o destino difiere; `'NO'` si todos coinciden. |
+| `estado` | `VARCHAR(20)` | NO | `'ACTIVO'` o `'ANULADO'`. |
+| `observaciones` | `VARCHAR(250)`| SÍ | Justificación o texto libre explicativo. |
+
+### 3.11. Tabla: `REPROCESO_LINEAS` (T-009, D-011, D-030, D-036)
+Detalle de partidas consumidas (ORIGEN) y capas creadas (DESTINO) en cada reproceso.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `id_reproceso` | `VARCHAR(50)` | NO | Enlace a la cabecera del reproceso (`REPROCESOS.id_reproceso`, FK). |
+| `tipo` | `VARCHAR(10)` | NO | `'ORIGEN'` (partida consumida) o `'DESTINO'` (partida creada). |
+| `id_capa` | `VARCHAR(50)` | NO | Identificador de la capa objetivo consumida (ORIGEN) o creada (DESTINO). |
+| `codigo_articulo`| `VARCHAR(150)`| NO | Nombre normalizado de artículo. |
+| `codigo_envase` | `VARCHAR(100)`| NO | Nombre normalizado de envase. |
+| `cajas` | `INTEGER` | NO | Cajas consumidas (ORIGEN) o producidas (DESTINO). Entero > 0. |
+| `proveedor` | `VARCHAR(150)`| NO | Proveedor de la capa de origen o asignado al destino (común o `'VARIOS'`). |
+| `fecha_capa` | `DATE` | NO | Fecha de la capa consumida o heredada por el destino (`YYYY-MM-DD`). |
+| `destrio_prorrateado`| `INTEGER` | NO | Cajas de destrío imputadas proporcionalmente a cada origen (D-030). |
+| `id_movimiento` | `VARCHAR(50)` | NO | Enlace al movimiento de ajuste aplicado en `MOVIMIENTOS`. |
 
 ---
 

@@ -931,6 +931,79 @@ function apiDividirEntrada(params, usuario, options = {}) {
   return service.dividirEntrada(params, user);
 }
 
+function _resolveMovementService_(options = {}) {
+  if (options && options.movementService) return options.movementService;
+  const ServiceClass = (typeof MovementService !== 'undefined')
+    ? MovementService
+    : (typeof require !== 'undefined' ? require('./MovementService').MovementService : null);
+  if (!ServiceClass) {
+    throw new Error('MovementService no está disponible en este entorno de ejecución.');
+  }
+  const repo = (options && options.repository) || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
+  const lock = (options && options.lockService) || null;
+  return new ServiceClass({ repository: repo, lockService: lock });
+}
+
+/**
+ * Registra un reproceso de varias partidas a varios destinos (T-009, D-011, D-030).
+ * ESCRITURA: La auditoría usa siempre el usuario del servidor (usuarioActual_()).
+ *
+ * @param {Object} params
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiRegistrarReproceso(params, options = {}) {
+  const user = usuarioActual_(options && options.session);
+  const service = _resolveMovementService_(options);
+  return service.registrarReproceso(params, user);
+}
+
+/**
+ * Anula un reproceso previamente registrado si sus destinos no tienen consumos (T-009, D-011, D-012).
+ * ESCRITURA: La auditoría usa siempre el usuario del servidor (usuarioActual_()).
+ *
+ * @param {string} id
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiAnularReproceso(id, options = {}) {
+  const user = usuarioActual_(options && options.session);
+  const service = _resolveMovementService_(options);
+  return service.anularReproceso(id, user);
+}
+
+/**
+ * Lista los reprocesos registrados con filtros opcionales (T-009).
+ * LECTURA: Solo lectura de REPROCESOS.
+ *
+ * @param {Object} [filtros={}]
+ * @param {Object} [options={}]
+ * @returns {Array<Object>}
+ */
+function apiListarReprocesos(filtros = {}, options = {}) {
+  const service = _resolveMovementService_(options);
+  return service.listarReprocesos(filtros);
+}
+
+/**
+ * Sugerencias de combinaciones de destinos usadas antes desde una combinación de origen (T-009, D-030).
+ * LECTURA: Solo lectura.
+ *
+ * @param {string|Object} articulo
+ * @param {string|number} [envase]
+ * @param {Object} [options={}]
+ * @returns {Array<Array<{ articulo: string, envase: string, cajas: number }>>}
+ */
+function apiSugerenciasReproceso(articulo, envase, options = {}) {
+  let opt = options;
+  if (typeof envase === 'object' && envase !== null) {
+    opt = envase;
+    envase = undefined;
+  }
+  const service = _resolveMovementService_(opt);
+  return service.sugerenciasReproceso(articulo, envase);
+}
+
 /**
  * Punto de entrada HTTP oficial para Google Apps Script HtmlService (Fase 7.0).
  * Sirve la interfaz web responsive de STOCK-LIGHT.
@@ -1192,6 +1265,10 @@ if (typeof module !== 'undefined' && module.exports) {
     apiCorregirEntrada,
     apiCorregirSalida,
     apiDividirEntrada,
+    apiRegistrarReproceso,
+    apiAnularReproceso,
+    apiListarReprocesos,
+    apiSugerenciasReproceso,
     adminCrearCopiaManual,
     adminInstalarCopiaDiaria,
     adminConfigurarCarpetaCopias,

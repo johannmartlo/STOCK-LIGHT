@@ -70,6 +70,11 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `apiCorregirEntrada` | `src/Código.js` | ESCRITURA | Corrige una entrada; usuario del servidor. |
 | `apiCorregirSalida` | `src/Código.js` | ESCRITURA | Corrige una salida; usuario del servidor. |
 | `apiDividirEntrada` | `src/Código.js` | ESCRITURA | Divide una entrada; usuario del servidor. |
+| `apiRegistrarReproceso` | `src/Código.js` | ESCRITURA | Registra un reproceso de varias partidas a varios destinos; usuario del servidor (T-009). |
+| `apiAnularReproceso` | `src/Código.js` | ESCRITURA | Anula un reproceso si sus destinos no tienen consumos; usuario del servidor (T-009). |
+| `apiListarReprocesos` | `src/Código.js` | LECTURA | Lista los reprocesos registrados (T-009). |
+| `apiSugerenciasReproceso` | `src/Código.js` | LECTURA | Sugerencias de combinaciones de destinos usadas antes desde una combinación de origen (T-009). |
+| `planificarReproceso` | `src/Reproceso.js` | INTERNA | Valida y planifica movimientos de un reproceso (función pura, T-009). |
 | `doGet` | `src/Código.js` | LECTURA | Punto de entrada HTTP que sirve la interfaz. |
 | `apiConfirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento revisado; usuario del servidor. |
 | `apiGetMaestroArticulos` | `src/Código.js` | LECTURA | Catálogo maestro de artículos. |

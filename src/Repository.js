@@ -99,6 +99,31 @@ const SCHEMA_DEFINITIONS = {
     'cajas',
     'fecha_negocio'
   ],
+  REPROCESOS: [
+    'id_reproceso',
+    'fecha',
+    'fecha_hora',
+    'usuario',
+    'total_retirado',
+    'total_destinos',
+    'destrio_cajas',
+    'destrio_kg',
+    'cambio_envase',
+    'estado',
+    'observaciones'
+  ],
+  REPROCESO_LINEAS: [
+    'id_reproceso',
+    'tipo',
+    'id_capa',
+    'codigo_articulo',
+    'codigo_envase',
+    'cajas',
+    'proveedor',
+    'fecha_capa',
+    'destrio_prorrateado',
+    'id_movimiento'
+  ],
   STOCK_ACTUAL: [
     'stock_key',
     'codigo_articulo',
@@ -507,6 +532,36 @@ class SheetsRepository {
 
   saveConsumosFifo(consumos) {
     return this.replaceTable('CONSUMOS_FIFO', consumos);
+  }
+
+  getReprocesos() {
+    return this.readTable('REPROCESOS');
+  }
+
+  appendReproceso(reproceso) {
+    const list = Array.isArray(reproceso) ? reproceso : [reproceso];
+    return this.appendRecords('REPROCESOS', list);
+  }
+
+  getReprocesoLineas(idReproceso = null) {
+    const all = this.readTable('REPROCESO_LINEAS');
+    if (!idReproceso) return all;
+    return all.filter(l => String(l.id_reproceso || '').trim() === String(idReproceso).trim());
+  }
+
+  appendReprocesoLineas(lineas) {
+    const list = Array.isArray(lineas) ? lineas : [lineas];
+    return this.appendRecords('REPROCESO_LINEAS', list);
+  }
+
+  updateReprocesoEstado(idReproceso, nuevoEstado) {
+    const reprocesos = this.getReprocesos();
+    const item = reprocesos.find(r => String(r.id_reproceso || '').trim() === String(idReproceso).trim());
+    if (item) {
+      item.estado = nuevoEstado;
+      return this.replaceTable('REPROCESOS', reprocesos);
+    }
+    return false;
   }
 
   getStockActual() {

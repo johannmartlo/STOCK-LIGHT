@@ -30,6 +30,10 @@ if (typeof require !== 'undefined') {
     global.reconstruir = global.reconstruir || libroMod.reconstruir;
     global.ordenarMovimientosPorSecuencia = global.ordenarMovimientosPorSecuencia || libroMod.ordenarMovimientosPorSecuencia;
   } catch (e) {}
+  try {
+    const reprocesoMod = require('./Reproceso');
+    global.planificarReproceso = global.planificarReproceso || reprocesoMod.planificarReproceso;
+  } catch (e) {}
 }
 
 function _normNombre_(texto) {
@@ -272,10 +276,21 @@ class MovementService {
    * @param {Object} [payload.documentos]
    * @param {string} [payload.ultimoMovimientoId]
    */
-  _persistir({ movimientos = [], estado = null, documentos = null, ultimoMovimientoId = '' } = {}) {
+  _persistir({ movimientos = [], estado = null, documentos = null, ultimoMovimientoId = '', reproceso = null, reprocesoLineas = null, reprocesoUpdate = null } = {}) {
     // 1. Añadir movimientos (con su secuencia en SheetsRepository.appendMovimientos)
     if (Array.isArray(movimientos) && movimientos.length > 0) {
       this.repo.appendMovimientos(movimientos);
+    }
+
+    // 1b. Registrar REPROCESOS y REPROCESO_LINEAS (documentos, antes que los derivados, regla 4 T-009)
+    if (reproceso && typeof this.repo.appendReproceso === 'function') {
+      this.repo.appendReproceso(reproceso);
+    }
+    if (Array.isArray(reprocesoLineas) && reprocesoLineas.length > 0 && typeof this.repo.appendReprocesoLineas === 'function') {
+      this.repo.appendReprocesoLineas(reprocesoLineas);
+    }
+    if (reprocesoUpdate && reprocesoUpdate.idReproceso && typeof this.repo.updateReprocesoEstado === 'function') {
+      this.repo.updateReprocesoEstado(reprocesoUpdate.idReproceso, reprocesoUpdate.estado);
     }
 
     // 2. Reescribir CAPAS_FIFO
@@ -2783,6 +2798,378 @@ class MovementService {
     } finally {
       this._releaseLock();
     }
+  }
+
+  /**
+   * Registra un reproceso de varias partidas de origen a varios destinos (T-009, D-011, D-030, D-036).
+   * Operación atómica bajo un solo lock y un solo _persistir.
+   *
+   * @param {Object} params
+   * @param {string} [usuario='SISTEMA']
+   * @returns {Object}
+   */
+  registrarReproceso(params = {}, usuario = 'SISTEMA') {
+    this._acquireLock(30000);
+    try {
+      let { estado } = this._cargarEstado();
+
+      const planFn = typeof planificarReproceso === 'function'
+        ? planificarReproceso
+        : (typeof global !== 'undefined' && typeof global.planificarReproceso === 'function' ? global.planificarReproceso : null);
+
+      if (typeof planFn !== 'function') {
+        throw new Error('Función planificarReproceso no disponible.');
+      }
+
+      const plan = planFn(Object.assign({}, params, { usuario }), estado.capas);
+      if (!plan.ok) {
+        return {
+          success: false,
+          status: 'REVISION_NECESARIA',
+          errorCode: plan.errorCode || 'VALIDATION_ERROR',
+          message: plan.error,
+          error: plan.error
+        };
+      }
+
+      const generatedMovs = [];
+
+      // 1. Aplicar orígenes (AJUSTE − con id_capa_objetivo)
+      for (const movOrig of plan.movsOrigen) {
+        const resOrig = this._aplicar(estado, movOrig);
+        if (!resOrig.ok) {
+          return {
+            success: false,
+            status: 'REVISION_NECESARIA',
+            errorCode: resOrig.errorCode || 'ERROR_APLICAR_ORIGEN',
+            message: resOrig.error,
+            error: resOrig.error
+          };
+        }
+        estado = resOrig.estado;
+        generatedMovs.push(movOrig);
+      }
+
+      // 2. Aplicar destinos (AJUSTE + creando capas)
+      const capasCreadas = [];
+      for (const movDest of plan.movsDestino) {
+        const resDest = this._aplicar(estado, movDest);
+        if (!resDest.ok) {
+          return {
+            success: false,
+            status: 'REVISION_NECESARIA',
+            errorCode: resDest.errorCode || 'ERROR_APLICAR_DESTINO',
+            message: resDest.error,
+            error: resDest.error
+          };
+        }
+        estado = resDest.estado;
+        generatedMovs.push(movDest);
+        if (resDest.capaCreada) {
+          capasCreadas.push(resDest.capaCreada);
+        }
+      }
+
+      // 3. Persistir atómicamente antes de los derivados
+      this._persistir({
+        movimientos: generatedMovs,
+        estado,
+        reproceso: plan.reproceso,
+        reprocesoLineas: plan.reprocesoLineas
+      });
+
+      return {
+        success: true,
+        status: 'CONFIRMADO',
+        id_reproceso: plan.id_reproceso,
+        idReproceso: plan.id_reproceso,
+        totalRetirado: plan.total_retirado,
+        totalDestinos: plan.total_destinos,
+        destrioCajas: plan.destrio_cajas,
+        destrioKg: plan.destrio_kg,
+        cambioEnvase: plan.cambio_envase,
+        movimientos: generatedMovs,
+        capasCreadas,
+        stock: estado.stock
+      };
+    } finally {
+      this._releaseLock();
+    }
+  }
+
+  /**
+   * Anula un reproceso previamente registrado (T-009, D-011, D-012).
+   * Si alguna capa destino tiene consumos, devuelve REVISION_NECESARIA y no toca nada.
+   *
+   * @param {string|Object} idOrParams
+   * @param {string} [usuario='SISTEMA']
+   * @returns {Object}
+   */
+  anularReproceso(idOrParams, usuario = 'SISTEMA') {
+    let idReproceso = '';
+    if (typeof idOrParams === 'object' && idOrParams !== null) {
+      idReproceso = idOrParams.id_reproceso || idOrParams.idReproceso || idOrParams.id;
+      if (idOrParams.usuario) usuario = idOrParams.usuario;
+    } else {
+      idReproceso = String(idOrParams || '').trim();
+    }
+
+    if (!idReproceso) {
+      return {
+        success: false,
+        status: 'REVISION_NECESARIA',
+        errorCode: 'ID_REPROCESO_REQUERIDO',
+        message: 'Se requiere id_reproceso para anular.',
+        error: 'Se requiere id_reproceso para anular.'
+      };
+    }
+
+    this._acquireLock(30000);
+    try {
+      const reprocesos = this.repo && typeof this.repo.getReprocesos === 'function' ? this.repo.getReprocesos() : [];
+      const rep = reprocesos.find(r => String(r.id_reproceso || '').trim() === String(idReproceso).trim());
+      if (!rep) {
+        return {
+          success: false,
+          status: 'REVISION_NECESARIA',
+          errorCode: 'REPROCESO_NO_ENCONTRADO',
+          message: `No se encontró el reproceso '${idReproceso}'.`,
+          error: `No se encontró el reproceso '${idReproceso}'.`
+        };
+      }
+
+      if (String(rep.estado || '').toUpperCase() === 'ANULADO') {
+        return {
+          success: false,
+          status: 'REVISION_NECESARIA',
+          errorCode: 'REPROCESO_YA_ANULADO',
+          message: `El reproceso '${idReproceso}' ya ha sido anulado.`,
+          error: `El reproceso '${idReproceso}' ya ha sido anulado.`
+        };
+      }
+
+      const allLineas = this.repo && typeof this.repo.getReprocesoLineas === 'function' ? this.repo.getReprocesoLineas(idReproceso) : [];
+      const lineasDestino = allLineas.filter(l => l.tipo === 'DESTINO');
+      const lineasOrigen = allLineas.filter(l => l.tipo === 'ORIGEN');
+
+      let { estado } = this._cargarEstado();
+
+      // Regla 5: si alguna capa destino tiene consumos (cajas_consumidas > 0), devuelve REVISION_NECESARIA y no toca nada
+      for (const d of lineasDestino) {
+        const destCapa = estado.capas.find(c => c.id_capa === d.id_capa);
+        if (destCapa && Number(destCapa.cajas_consumidas || 0) > 0) {
+          return {
+            success: false,
+            status: 'REVISION_NECESARIA',
+            errorCode: 'DESTINO_CON_CONSUMOS',
+            message: `No se puede anular el reproceso: la capa destino '${d.id_capa}' tiene ${destCapa.cajas_consumidas} cajas consumidas. REVISIÓN NECESARIA`,
+            error: `No se puede anular el reproceso: la capa destino '${d.id_capa}' tiene ${destCapa.cajas_consumidas} cajas consumidas. REVISIÓN NECESARIA`,
+            cajasConsumidas: Number(destCapa.cajas_consumidas || 0)
+          };
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      const hoyFn = typeof hoyMadrid === 'function' ? hoyMadrid : (global.hoyMadrid || (() => new Date().toISOString().slice(0, 10)));
+      const movsAnulacion = [];
+
+      // 1. ANULACION de cada destino (signo -1 sobre la capa creada)
+      for (const d of lineasDestino) {
+        const idMovAnul = this._nuevoId('MOV-ANUL');
+        const movAnulDest = {
+          id_movimiento: idMovAnul,
+          fecha_hora: nowIso,
+          tipo_movimiento: 'ANULACION',
+          id_documento_ref: `REPROCESO:${idReproceso}`,
+          codigo_articulo: d.codigo_articulo,
+          codigo_envase: d.codigo_envase,
+          cajas: Number(d.cajas),
+          signo: -1,
+          partida_origen: '',
+          motivo_ajuste: 'ANULAR_REPROCESO',
+          usuario,
+          observaciones: `Anulación de reproceso destino ${idReproceso}`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: d.fecha_capa || hoyFn(),
+          entidad_nombre: d.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: d.id_movimiento || '',
+          id_capa_objetivo: d.id_capa,
+          id_capa_creada: ''
+        };
+
+        const res = this._aplicar(estado, movAnulDest);
+        if (!res.ok) {
+          return {
+            success: false,
+            status: 'REVISION_NECESARIA',
+            errorCode: res.errorCode || 'ERROR_ANULAR_DESTINO',
+            message: res.error,
+            error: res.error
+          };
+        }
+        estado = res.estado;
+        movsAnulacion.push(movAnulDest);
+      }
+
+      // 2. ANULACION de cada origen (signo +1 para restituir consumo FIFO en la capa de origen)
+      for (const o of lineasOrigen) {
+        const idMovAnul = this._nuevoId('MOV-ANUL');
+        const movAnulOrig = {
+          id_movimiento: idMovAnul,
+          fecha_hora: nowIso,
+          tipo_movimiento: 'ANULACION',
+          id_documento_ref: `REPROCESO:${idReproceso}`,
+          codigo_articulo: o.codigo_articulo,
+          codigo_envase: o.codigo_envase,
+          cajas: Number(o.cajas),
+          signo: 1,
+          partida_origen: '',
+          motivo_ajuste: 'ANULAR_REPROCESO',
+          usuario,
+          observaciones: `Anulación de reproceso origen ${idReproceso}`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: o.fecha_capa || hoyFn(),
+          entidad_nombre: o.proveedor || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: o.id_movimiento || '',
+          id_capa_objetivo: '',
+          id_capa_creada: ''
+        };
+
+        const res = this._aplicar(estado, movAnulOrig);
+        if (!res.ok) {
+          return {
+            success: false,
+            status: 'REVISION_NECESARIA',
+            errorCode: res.errorCode || 'ERROR_ANULAR_ORIGEN',
+            message: res.error,
+            error: res.error
+          };
+        }
+        estado = res.estado;
+        movsAnulacion.push(movAnulOrig);
+      }
+
+      // 3. Persistir dentro del lock
+      this._persistir({
+        movimientos: movsAnulacion,
+        estado,
+        reprocesoUpdate: { idReproceso, estado: 'ANULADO' }
+      });
+
+      return {
+        success: true,
+        status: 'CONFIRMADO',
+        estado: 'ANULADO',
+        id_reproceso: idReproceso,
+        movimientos: movsAnulacion,
+        stock: estado.stock
+      };
+    } finally {
+      this._releaseLock();
+    }
+  }
+
+  /**
+   * Sugerencias de combinaciones de destinos usadas previamente desde una combinación de origen (T-009, D-030).
+   * Solo lectura.
+   *
+   * @param {string|Object} articulo
+   * @param {string|number} [envase]
+   * @param {number} [limite=5]
+   * @returns {Array<Array<{ articulo: string, envase: string, cajas: number }>>}
+   */
+  sugerenciasReproceso(articulo, envase, limite = 5) {
+    if (!articulo) return [];
+    let art = articulo;
+    let env = envase;
+
+    if (typeof art === 'object' && art !== null) {
+      env = art.envase || art.codigo_envase;
+      art = art.articulo || art.codigo_articulo;
+    } else if ((!env || typeof env === 'number') && String(art).includes('|')) {
+      if (typeof env === 'number') limite = env;
+      const parts = String(art).split('|');
+      art = parts[0];
+      env = parts[1];
+    }
+
+    art = _normNombre_(art);
+    env = _normNombre_(env);
+
+    const reprocesos = this.repo && typeof this.repo.getReprocesos === 'function' ? this.repo.getReprocesos() : [];
+    const lineas = this.repo && typeof this.repo.getReprocesoLineas === 'function' ? this.repo.getReprocesoLineas() : [];
+
+    const lineasPorRep = {};
+    for (const l of lineas) {
+      const idRep = String(l.id_reproceso || '').trim();
+      if (!lineasPorRep[idRep]) lineasPorRep[idRep] = [];
+      lineasPorRep[idRep].push(l);
+    }
+
+    const reprocesosOrdenados = [...reprocesos].reverse();
+    const sugerencias = [];
+    const firmasVistas = new Set();
+
+    for (const rep of reprocesosOrdenados) {
+      if (String(rep.estado || '').toUpperCase() === 'ANULADO') continue;
+      const idRep = String(rep.id_reproceso || '').trim();
+      const repLineas = lineasPorRep[idRep] || [];
+      const origenes = repLineas.filter(l => l.tipo === 'ORIGEN');
+      const destinos = repLineas.filter(l => l.tipo === 'DESTINO');
+
+      const coincide = origenes.some(o =>
+        _normNombre_(o.codigo_articulo) === art && _normNombre_(o.codigo_envase) === env
+      );
+      if (!coincide || destinos.length === 0) continue;
+
+      const conjunto = destinos.map(d => ({
+        articulo: _normNombre_(d.codigo_articulo),
+        envase: _normNombre_(d.codigo_envase),
+        cajas: Number(d.cajas || 0)
+      }));
+
+      const firma = conjunto.map(d => `${d.articulo}|${d.envase}`).sort().join(';;');
+      if (firmasVistas.has(firma)) continue;
+      firmasVistas.add(firma);
+
+      conjunto.destinos = conjunto;
+      sugerencias.push(conjunto);
+
+      if (sugerencias.length >= limite) break;
+    }
+
+    return sugerencias;
+  }
+
+  /**
+   * Lista los reprocesos registrados con filtros opcionales (T-009).
+   * Solo lectura.
+   *
+   * @param {Object} [filtros={}]
+   * @returns {Array<Object>}
+   */
+  listarReprocesos(filtros = {}) {
+    const todos = this.repo && typeof this.repo.getReprocesos === 'function' ? this.repo.getReprocesos() : [];
+    let filtrados = [...todos];
+    if (filtros.estado) {
+      filtrados = filtrados.filter(r => String(r.estado || '').toUpperCase() === String(filtros.estado).toUpperCase());
+    }
+    if (filtros.id_reproceso) {
+      filtrados = filtrados.filter(r => String(r.id_reproceso || '') === String(filtros.id_reproceso));
+    }
+    if (filtros.fechaDesde) {
+      filtrados = filtrados.filter(r => String(r.fecha || '') >= String(filtros.fechaDesde));
+    }
+    if (filtros.fechaHasta) {
+      filtrados = filtrados.filter(r => String(r.fecha || '') <= String(filtros.fechaHasta));
+    }
+    return filtrados;
   }
 }
 
