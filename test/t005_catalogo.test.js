@@ -14,6 +14,7 @@ const { clasificarCombinacion, explicarCombinacion, cumpleFiltro } = require('..
 const { CatalogoService } = require('../src/CatalogoService');
 const { CommercialGroupResolver } = require('../src/CommercialGroupResolver');
 const { clasificar } = require('../src/importacion/ClasificadorLineas');
+const { conContextoDePrueba_ } = require('../src/Seguridad');
 const codigo = require('../src/Código');
 
 const SESION_PROPIETARIO = {
@@ -264,13 +265,15 @@ runTest('3. Excepción exacta en CATALOGO gana a las reglas solo para su atribut
 
   // Añadir excepción exacta para TOMATE ROSA I M con EPS 104 en atributo PROGRAMA = CARREFOUR
   conSesion(SESION_OPERADOR, () => {
-    codigo.apiUpsertExcepcionCatalogo({
-      articulo: 'TOMATE ROSA I M',
-      envase: 'EPS 104',
-      atributo: 'PROGRAMA',
-      valor: 'CARREFOUR',
-      observaciones: 'Excepción puntual campaña'
-    }, { repository: env.repo });
+    conContextoDePrueba_('Prueba', 'ADMIN', () => {
+      codigo.apiUpsertExcepcionCatalogo({
+        articulo: 'TOMATE ROSA I M',
+        envase: 'EPS 104',
+        atributo: 'PROGRAMA',
+        valor: 'CARREFOUR',
+        observaciones: 'Excepción puntual campaña'
+      }, { repository: env.repo });
+    });
   });
 
   const catalogoService = new CatalogoService({ repository: env.repo });
@@ -406,22 +409,26 @@ runTest('5. Agrupaciones (Carrefour en EPS cae solo en CARREFOUR; nueva agrupaci
   // 3) Validación de atributos y SEGUIMIENTO en API + auditoría con usuarioActual_()
   assert.throws(() => {
     conSesion(SESION_OPERADOR, () => {
-      codigo.apiUpsertReglaClasificacion({
-        atributo: 'ATRIBUTO_FANTASMA',
-        valor: 'X',
-        prioridad: 10
-      }, { repository: env.repo });
+      conContextoDePrueba_('Prueba', 'ADMIN', () => {
+        codigo.apiUpsertReglaClasificacion({
+          atributo: 'ATRIBUTO_FANTASMA',
+          valor: 'X',
+          prioridad: 10
+        }, { repository: env.repo });
+      });
     });
   }, /no existe en ATRIBUTOS/);
 
   assert.throws(() => {
     conSesion(SESION_OPERADOR, () => {
-      codigo.apiUpsertExcepcionCatalogo({
-        articulo: 'TOMATE ROSA I M',
-        envase: 'EPS 104',
-        atributo: 'SEGUIMIENTO',
-        valor: 'QUIZAS'
-      }, { repository: env.repo });
+      conContextoDePrueba_('Prueba', 'ADMIN', () => {
+        codigo.apiUpsertExcepcionCatalogo({
+          articulo: 'TOMATE ROSA I M',
+          envase: 'EPS 104',
+          atributo: 'SEGUIMIENTO',
+          valor: 'QUIZAS'
+        }, { repository: env.repo });
+      });
     });
   }, /SEGUIMIENTO solo admite los valores 'SI' o 'NO'/);
 });
@@ -587,8 +594,8 @@ runTest('8. Siembra idempotente (dos veces deja las mismas filas y conserva camb
   assert.throws(() => resolver.registerRule({}), /Obsoleto: usar el catálogo \(D-029\)/);
   assert.throws(() => resolver.registerGroup({}), /Obsoleto: usar el catálogo \(D-029\)/);
   assert.throws(() => resolver.loadMatrix([]), /Obsoleto: usar el catálogo \(D-029\)/);
-  assert.throws(() => codigo.apiUpsertGrupoComercial({}), /Obsoleto: usar el catálogo \(D-029\)/);
-  assert.throws(() => codigo.apiUpsertMatrizArticuloEnvase({}), /Obsoleto: usar el catálogo \(D-029\)/);
+  assert.throws(() => conContextoDePrueba_('Prueba', 'ADMIN', () => codigo.apiUpsertGrupoComercial({})), /Obsoleto: usar el catálogo \(D-029\)/);
+  assert.throws(() => conContextoDePrueba_('Prueba', 'ADMIN', () => codigo.apiUpsertMatrizArticuloEnvase({})), /Obsoleto: usar el catálogo \(D-029\)/);
 });
 
 console.log('\n================================================================');

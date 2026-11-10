@@ -40,6 +40,7 @@ global.HtmlService = {
 };
 
 const codigo = require('../src/Código');
+const { conContextoDePrueba_ } = require('../src/Seguridad');
 
 let passed = 0;
 let failed = 0;
@@ -201,14 +202,14 @@ runTest('10. Index.html implementa diseño responsive (Sidebar de escritorio y B
 const mockRepo = new InMemoryRepository();
 
 runTest('11. apiGetMaestroArticulos devuelve el catálogo maestro para selectores del UI', () => {
-  const articulos = codigo.apiGetMaestroArticulos({ repository: mockRepo });
+  const articulos = conContextoDePrueba_('Prueba', 'CONSULTA', () => codigo.apiGetMaestroArticulos({ repository: mockRepo }));
   assert.ok(Array.isArray(articulos), 'Debe ser un array');
   assert.strictEqual(articulos.length, 2);
   assert.strictEqual(articulos[0].codigo_articulo, '2112000');
 });
 
 runTest('12. apiGetMaestroEnvases devuelve catálogo de envases con taras y pesos unitarios', () => {
-  const envases = codigo.apiGetMaestroEnvases({ repository: mockRepo });
+  const envases = conContextoDePrueba_('Prueba', 'CONSULTA', () => codigo.apiGetMaestroEnvases({ repository: mockRepo }));
   assert.ok(Array.isArray(envases), 'Debe ser un array');
   assert.strictEqual(envases.length, 2);
   assert.strictEqual(envases[0].codigo_envase, 'EPS104');
@@ -217,7 +218,7 @@ runTest('12. apiGetMaestroEnvases devuelve catálogo de envases con taras y peso
 });
 
 runTest('13. apiObtenerStockVisualResumen devuelve estructura requerida por las tarjetas', () => {
-  const resumen = codigo.apiObtenerStockVisualResumen({ repository: mockRepo });
+  const resumen = conContextoDePrueba_('Prueba', 'CONSULTA', () => codigo.apiObtenerStockVisualResumen({ repository: mockRepo }));
   assert.ok(resumen, 'Debe devolver resumen');
   assert.ok(Array.isArray(resumen.grupos), 'Debe contener array de grupos');
   assert.ok(typeof resumen.granTotalCajas === 'number', 'Debe contener granTotalCajas');
@@ -225,7 +226,7 @@ runTest('13. apiObtenerStockVisualResumen devuelve estructura requerida por las 
 });
 
 runTest('14. apiObtenerDetallePartidas devuelve capas FIFO vivas para drill-down', () => {
-  const detalle = codigo.apiObtenerDetallePartidas('2112000', 'CRT01', { repository: mockRepo });
+  const detalle = conContextoDePrueba_('Prueba', 'CONSULTA', () => codigo.apiObtenerDetallePartidas('2112000', 'CRT01', { repository: mockRepo }));
   assert.ok(detalle, 'Debe devolver detalle');
   assert.ok(Array.isArray(detalle.partidas), 'Debe devolver array de partidas');
   assert.strictEqual(detalle.partidas.length, 1);
@@ -245,7 +246,7 @@ runTest('15. apiSubirYAnalizarPdf calcula SHA-256 en servidor y valida integrida
     base64: dummyBase64
   };
 
-  const resultado = codigo.apiSubirYAnalizarPdf(payload, { repository: mockRepo });
+  const resultado = conContextoDePrueba_('Prueba', 'CONSULTA', () => codigo.apiSubirYAnalizarPdf(payload, { repository: mockRepo }));
   assert.ok(resultado, 'Debe devolver resultado estructurado');
   assert.strictEqual(resultado.fileName, 'AVT26_9999.pdf');
   assert.ok(resultado.sha256Hash && resultado.sha256Hash.length === 64, 'Debe calcular hash SHA-256 canónico de 64 caracteres');
@@ -256,11 +257,11 @@ runTest('15. apiSubirYAnalizarPdf calcula SHA-256 en servidor y valida integrida
 
 runTest('16. apiSubirYAnalizarPdf rechaza payloads inválidos o sin datos binarios', () => {
   assert.throws(() => {
-    codigo.apiSubirYAnalizarPdf(null);
+    conContextoDePrueba_('Prueba', 'CONSULTA', () => codigo.apiSubirYAnalizarPdf(null));
   }, /apiSubirYAnalizarPdf/);
 
   assert.throws(() => {
-    codigo.apiSubirYAnalizarPdf({ fileName: 'test.pdf' });
+    conContextoDePrueba_('Prueba', 'CONSULTA', () => codigo.apiSubirYAnalizarPdf({ fileName: 'test.pdf' }));
   }, /apiSubirYAnalizarPdf/);
 });
 

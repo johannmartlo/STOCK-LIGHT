@@ -12,10 +12,19 @@ qué nivel de acceso tiene.
 | **LECTURA** | La app puede llamarla. No modifica stock, configuración ni hojas. |
 | **ESCRITURA** | La app puede llamarla. Escribe datos; la auditoría usa siempre `usuarioActual_()` y **nunca** el usuario que envía el navegador. |
 | **ADMIN** | Reservada al propietario del script. Empieza con `exigirPropietario_()`, que lanza `Operación reservada al administrador` si el usuario activo no coincide con el efectivo o no se identifica. Se ejecuta desde el editor de Apps Script, no desde la web app. |
+| **ENTRADA** | Punto de entrada del cliente (T-020). `apiLlamar` es el despachador único de las llamadas autenticadas; `apiEntrar` y `apiEstablecerPin` son las únicas funciones públicas sin sesión; `apiSalir` solo borra la sesión indicada. |
 | **INTERNA** | Función auxiliar pura o de infraestructura. Queda expuesta por la plataforma, pero no toca stock ni configuración y no la usa la interfaz. |
 
-Las funciones de `src/Seguridad.js` (`exigirPropietario_`, `usuarioActual_`, `_emailSesion_`) y
-cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Script no las expone.
+Desde T-020 (D-032), las funciones `api*` de LECTURA y ESCRITURA empiezan con
+`exigirSesionApi_();` y solo funcionan dentro del contexto que fija `apiLlamar`. El rol mínimo
+de cada una vive en `PERMISOS_API` (`src/Seguridad.js`): CONSULTA para LECTURA, ENCARGADO para
+ESCRITURA, y ADMIN para usuarios y configuración (aunque su clasificación sea LECTURA o
+ESCRITURA). Un nombre que no esté en `PERMISOS_API` se rechaza aunque exista como función global.
+
+Las funciones de `src/Seguridad.js` (`exigirPropietario_`, `usuarioActual_`, `_emailSesion_`,
+`exigirSesionApi_`, `ejecutarConContexto_`, `conContextoDePrueba_`, `crearServicioAcceso_`,
+`rolAlcanza_`) y cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Script
+no las expone.
 
 ## Funciones globales
 
@@ -26,7 +35,7 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `registrarAjusteManual` | `src/Código.js` | ADMIN | Ajuste manual ejecutado desde el editor. |
 | `testNucleoAppsScript` | `src/Código.js` | ADMIN | Autodiagnóstico del núcleo. |
 | `revisarDocumentoHispatec` | `src/Código.js` | LECTURA | Analiza un documento sin mutar inventario. |
-| `confirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento canónico; usuario del servidor. |
+| `confirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento canónico; usuario del servidor. Exige sesión (T-020). |
 | `configurarSpreadsheetId` | `src/Código.js` | ADMIN | Cambia la hoja de trabajo del sistema. |
 | `configurarDriveFolderId` | `src/Código.js` | ADMIN | Cambia la carpeta de Drive del sistema. |
 | `apiObtenerStockActual` | `src/Código.js` | LECTURA | Stock actual completo. |
@@ -34,7 +43,7 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `apiObtenerStockPorGrupo` | `src/Código.js` | LECTURA | Existencias filtradas por grupo. |
 | `apiObtenerDetalleGrupo` | `src/Código.js` | LECTURA | Detalle desglosado de un grupo. |
 | `apiObtenerDetalleStock` | `src/Código.js` | LECTURA | Saldo de un par artículo + envase. |
-| `confirmarCompraPendiente` | `src/Código.js` | ESCRITURA | Confirma una compra pendiente; usuario del servidor. |
+| `confirmarCompraPendiente` | `src/Código.js` | ESCRITURA | Confirma una compra pendiente; usuario del servidor. Exige sesión (T-020). |
 | `apiIngestarMatrizArticuloEnvase` | `src/Código.js` | ADMIN | Ingesta la matriz artículo-envase en MAESTRO. |
 | `apiCambiarEnvasePredeterminado` | `src/Código.js` | ADMIN | Cambia el envase predeterminado de un artículo. |
 | `apiObtenerStockVisualResumen` | `src/Código.js` | LECTURA | Resumen visual para las tarjetas del panel. |
@@ -46,15 +55,15 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `apiRegistrarAjustePositivo` | `src/Código.js` | ESCRITURA | Ajuste positivo; usuario del servidor. |
 | `apiRegistrarAjusteNegativo` | `src/Código.js` | ESCRITURA | Ajuste negativo; usuario del servidor. |
 | `apiRegistrarReclasificacion` | `src/Código.js` | ESCRITURA | Reclasificación entre formatos; usuario del servidor. |
-| `apiGetGruposComerciales` | `src/Código.js` | OBSOLETA | Grupos comerciales configurados (se retira en T-012, D-029). |
-| `apiUpsertGrupoComercial` | `src/Código.js` | OBSOLETA | Lanza error claro sin escribir (se retira en T-012, D-029). |
-| `apiGetMatrizArticuloEnvase` | `src/Código.js` | OBSOLETA | Asociaciones de la matriz artículo + envase (se retira en T-012, D-029). |
-| `apiUpsertMatrizArticuloEnvase` | `src/Código.js` | OBSOLETA | Lanza error claro sin escribir (se retira en T-012, D-029). |
+| `apiGetGruposComerciales` | `src/Código.js` | LECTURA | Obsoleta: se retira en T-012 (D-029). Exige sesión (T-020). |
+| `apiUpsertGrupoComercial` | `src/Código.js` | ESCRITURA | Obsoleta: lanza error claro sin escribir (se retira en T-012, D-029). Exige sesión (T-020). |
+| `apiGetMatrizArticuloEnvase` | `src/Código.js` | LECTURA | Obsoleta: se retira en T-012 (D-029). Exige sesión (T-020). |
+| `apiUpsertMatrizArticuloEnvase` | `src/Código.js` | ESCRITURA | Obsoleta: lanza error claro sin escribir (se retira en T-012, D-029). Exige sesión (T-020). |
 | `sembrarCatalogo` | `src/Código.js` | ADMIN | Siembra la configuración inicial del catálogo de forma idempotente (D-029). |
 | `apiGetConfiguracionCatalogo` | `src/Código.js` | LECTURA | Devuelve las cuatro tablas de configuración del catálogo (D-029). |
 | `apiClasificarCombinacion` | `src/Código.js` | LECTURA | Devuelve la explicación de la clasificación de una combinación (D-029). |
-| `apiUpsertReglaClasificacion` | `src/Código.js` | ESCRITURA | Añade o actualiza una regla en REGLAS_CLASIFICACION; usuario del servidor (D-029). |
-| `apiUpsertExcepcionCatalogo` | `src/Código.js` | ESCRITURA | Añade o actualiza una excepción en CATALOGO; usuario del servidor (D-029). |
+| `apiUpsertReglaClasificacion` | `src/Código.js` | ESCRITURA | Añade o actualiza una regla en REGLAS_CLASIFICACION; usuario del servidor; rol ADMIN (D-029, T-020). |
+| `apiUpsertExcepcionCatalogo` | `src/Código.js` | ESCRITURA | Añade o actualiza una excepción en CATALOGO; usuario del servidor; rol ADMIN (D-029, T-020). |
 | `_resolveOperationalSafetyService` | `src/Código.js` | INTERNA | Resuelve el servicio de seguridad operativa. |
 | `apiValidarDocumento` | `src/Código.js` | LECTURA | Valida un documento sin mutar datos. |
 | `apiPrevisualizarDocumento` | `src/Código.js` | LECTURA | Previsualización con semáforo. |
@@ -75,6 +84,18 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `apiGetMaestroArticulos` | `src/Código.js` | LECTURA | Catálogo maestro de artículos. |
 | `apiGetMaestroEnvases` | `src/Código.js` | LECTURA | Catálogo maestro de envases. |
 | `apiSubirYAnalizarPdf` | `src/Código.js` | LECTURA | Analiza un PDF sin mutar stock. |
+| `apiLlamar` | `src/Código.js` | ENTRADA | Despachador único: valida la sesión, comprueba `PERMISOS_API`, fija el contexto de usuario y lo limpia en `finally`. |
+| `apiEntrar` | `src/Código.js` | ENTRADA | Abre sesión con token + PIN. Única función pública sin sesión junto con `apiEstablecerPin`. |
+| `apiEstablecerPin` | `src/Código.js` | ENTRADA | Fija el PIN inicial o tras regenerar el enlace y abre sesión. |
+| `apiSalir` | `src/Código.js` | ENTRADA | Borra la sesión indicada. |
+| `crearUsuario` | `src/Código.js` | ADMIN | Crea un usuario desde el editor y devuelve su enlace personal una sola vez. |
+| `regenerarEnlace` | `src/Código.js` | ADMIN | Regenera el enlace de un usuario e invalida sus sesiones. |
+| `desactivarUsuario` | `src/Código.js` | ADMIN | Desactiva a un usuario e invalida su enlace y sus sesiones. |
+| `listarUsuarios` | `src/Código.js` | ADMIN | Lista los usuarios sin tokens, hashes ni sales. |
+| `apiListarUsuarios` | `src/Código.js` | LECTURA | Versión para la app de `listarUsuarios`; rol ADMIN. |
+| `apiCrearUsuario` | `src/Código.js` | ESCRITURA | Versión para la app de `crearUsuario`; rol ADMIN. |
+| `apiRegenerarEnlace` | `src/Código.js` | ESCRITURA | Versión para la app de `regenerarEnlace`; rol ADMIN. |
+| `apiDesactivarUsuario` | `src/Código.js` | ESCRITURA | Versión para la app de `desactivarUsuario`; rol ADMIN. |
 | `apiEjecutarPruebaAisladaInicializacion` | `src/Código.js` | ADMIN | Prueba aislada de inicialización en la hoja autorizada. |
 | `getSpreadsheetIdConfig` | `src/Config.js` | INTERNA | Lee el SPREADSHEET_ID configurado. |
 | `setSpreadsheetIdConfig` | `src/Config.js` | ADMIN | Persiste el SPREADSHEET_ID. |

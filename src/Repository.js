@@ -193,6 +193,20 @@ const SCHEMA_DEFINITIONS = {
     'referencia',
     'estado',
     'observaciones'
+  ],
+  USUARIOS: [
+    'id_usuario',
+    'nombre',
+    'rol',
+    'activo',
+    'token_hash',
+    'pin_hash',
+    'pin_salt',
+    'intentos_fallidos',
+    'bloqueado_hasta',
+    'version_credenciales',
+    'fecha_alta',
+    'ultimo_acceso'
   ]
 };
 
@@ -1080,6 +1094,29 @@ class SheetsRepository {
     };
     this.appendLogOperaciones([record]);
     return record;
+  }
+
+  /**
+   * Lee la tabla de usuarios de acceso (T-020, D-032).
+   * Si la hoja aún no existe (bases anteriores a T-020), devuelve [].
+   *
+   * @returns {Array<Object>}
+   */
+  getUsuarios() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('USUARIOS')) return [];
+    return this.readTable('USUARIOS');
+  }
+
+  /**
+   * Reemplaza en bloque el contenido de la tabla de usuarios.
+   * Solo la usa la capa de seguridad; nunca se escribe token ni PIN en claro.
+   *
+   * @param {Array<Object>} usuarios
+   * @returns {number}
+   */
+  saveUsuarios(usuarios = []) {
+    return this.replaceTable('USUARIOS', usuarios);
   }
 }
 

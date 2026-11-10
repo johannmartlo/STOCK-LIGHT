@@ -351,6 +351,138 @@
       color: #fff;
     }
 
+    /* ==========================================================================
+       PANTALLA DE ENTRADA (T-020): enlace personal + PIN
+       ========================================================================== */
+    .usuario-tag {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #1e3a8a;
+      background-color: #eef2ff;
+      border: 1px solid #c7d2fe;
+      padding: 6px 10px;
+      border-radius: var(--radius-full);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: inline-block;
+    }
+
+    #btnSalir {
+      min-height: 44px;
+    }
+
+    .pantalla-entrada {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: radial-gradient(circle at 50% 0%, #1e3a8a 0%, #0f172a 55%, #020617 100%);
+    }
+
+    .entrada-card {
+      width: 100%;
+      max-width: 380px;
+      background: #ffffff;
+      border-radius: 18px;
+      padding: 26px 20px 18px;
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45);
+      text-align: center;
+    }
+
+    .entrada-icono {
+      font-size: 38px;
+      line-height: 1;
+    }
+
+    .entrada-marca {
+      font-size: 20px;
+      letter-spacing: 0.06em;
+      margin-top: 8px;
+      color: var(--text-main);
+    }
+
+    .entrada-texto {
+      margin-top: 8px;
+      color: var(--text-muted);
+      font-size: 13.5px;
+      line-height: 1.45;
+      min-height: 38px;
+    }
+
+    .entrada-pin {
+      min-height: 40px;
+      margin-top: 14px;
+      font-size: 28px;
+      letter-spacing: 10px;
+      color: var(--text-main);
+      font-weight: 700;
+    }
+
+    .entrada-teclado {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .entrada-tecla {
+      min-height: 56px;
+      min-width: 44px;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      background-color: #f8fafc;
+      color: var(--text-main);
+      font-size: 22px;
+      font-weight: 600;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .entrada-tecla:active {
+      background-color: #e2e8f0;
+    }
+
+    .entrada-tecla:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    .entrada-tecla.accion {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--color-primary);
+    }
+
+    .entrada-error {
+      min-height: 20px;
+      margin-top: 8px;
+      color: var(--color-danger);
+      font-size: 12.5px;
+    }
+
+    .entrada-enlace {
+      display: inline-block;
+      min-height: 44px;
+      margin-top: 4px;
+      padding: 10px;
+      background: none;
+      border: none;
+      color: var(--color-primary);
+      font-size: 13px;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    .entrada-oculta {
+      display: none !important;
+    }
+
     /* Contenedor de Vistas */
     .view-container {
       flex: 1;
@@ -927,11 +1059,55 @@
       .form-row {
         grid-template-columns: 1fr;
       }
+
+      .topbar {
+        padding: 0 12px;
+      }
+
+      .topbar-right {
+        gap: 8px;
+      }
+
+      #lblUltimaActualizacion {
+        display: none;
+      }
+
+      .usuario-tag {
+        max-width: 96px;
+        font-size: 11.5px;
+        padding: 5px 8px;
+      }
     }
   </style>
 </head>
 <body>
-  <div id="app">
+  <!-- PANTALLA DE ENTRADA (T-020): enlace personal + PIN -->
+  <div id="pantallaEntrada" class="pantalla-entrada" data-token="<?= k ?>" data-tiene-pin="<?= tienePin ? '1' : '0' ?>">
+    <div class="entrada-card">
+      <div class="entrada-icono">📦</div>
+      <h1 class="entrada-marca">STOCK-LIGHT</h1>
+      <p id="entradaTexto" class="entrada-texto">Abre tu enlace personal</p>
+      <div id="entradaPin" class="entrada-pin" aria-live="polite"></div>
+      <div id="entradaTeclado" class="entrada-teclado entrada-oculta">
+        <button type="button" class="entrada-tecla" data-digito="1">1</button>
+        <button type="button" class="entrada-tecla" data-digito="2">2</button>
+        <button type="button" class="entrada-tecla" data-digito="3">3</button>
+        <button type="button" class="entrada-tecla" data-digito="4">4</button>
+        <button type="button" class="entrada-tecla" data-digito="5">5</button>
+        <button type="button" class="entrada-tecla" data-digito="6">6</button>
+        <button type="button" class="entrada-tecla" data-digito="7">7</button>
+        <button type="button" class="entrada-tecla" data-digito="8">8</button>
+        <button type="button" class="entrada-tecla" data-digito="9">9</button>
+        <button type="button" class="entrada-tecla accion" data-accion="borrar" aria-label="Borrar última cifra">⌫</button>
+        <button type="button" class="entrada-tecla" data-digito="0">0</button>
+        <button type="button" class="entrada-tecla accion" id="btnEntradaConfirmar" data-accion="confirmar">OK</button>
+      </div>
+      <p id="entradaError" class="entrada-error"></p>
+      <button type="button" id="btnCambiarModo" class="entrada-enlace entrada-oculta">Ya tengo PIN</button>
+    </div>
+  </div>
+
+  <div id="app" style="display: none;">
     <!-- BARRA LATERAL (SIDEBAR ESCRITORIO) -->
     <aside id="sidebar" class="sidebar">
       <div class="sidebar-brand">
@@ -998,6 +1174,8 @@
 
         <div class="topbar-right">
           <span id="lblUltimaActualizacion" class="timestamp-tag">Actualizando...</span>
+          <span id="lblUsuario" class="usuario-tag" style="display: none;"></span>
+          <button id="btnSalir" class="btn-action" style="display: none;" title="Cerrar sesión">Salir</button>
           <button id="btnRefresh" class="btn-action" title="Recargar existencias">
             <span>↻</span>
             <span class="hide-mobile">Actualizar</span>
@@ -1593,6 +1771,13 @@
        ========================================================================== -->
   <script>
     (function () {
+      // --- ACCESO (T-020): token del enlace y estado del PIN, renderizados por doGet ---
+      const elementoEntrada = document.getElementById('pantallaEntrada');
+      const TOKEN_INICIAL = elementoEntrada ? String(elementoEntrada.getAttribute('data-token') || '') : '';
+      const PIN_YA_CONFIGURADO = !!elementoEntrada && elementoEntrada.getAttribute('data-tiene-pin') === '1';
+      const LS_TOKEN = 'sl_token';
+      const LS_PIN_PREFIX = 'sl_pin_';
+
       // --- MODO DEMOSTRACIÓN LOCAL OFFLINE (SOLO LECTURA, FICTICIO, CERO PERSISTENCIA) ---
       if (typeof window !== 'undefined' && !window.localApiBridge && (typeof google === 'undefined' || !google.script || !google.script.run)) {
         window.localApiBridge = function (fnName, args, resolve, reject) {
@@ -1746,6 +1931,30 @@
           return new Promise(function (resolve, reject) {
             if (typeof google !== 'undefined' && google.script && google.script.run) {
               google.script.run
+                .withSuccessHandler(function (res) {
+                  if (res && res.success === false && res.errorCode === 'SESION_INVALIDA') {
+                    cerrarSesionLocal('Tu sesión ha caducado. Vuelve a entrar.');
+                    reject(new Error('SESION_INVALIDA'));
+                    return;
+                  }
+                  resolve(res);
+                })
+                .withFailureHandler(function (err) {
+                  reject(new Error(err && err.message ? err.message : String(err)));
+                })
+                .apiLlamar(state.sesion, fnName, args);
+            } else if (window.localApiBridge) {
+              window.localApiBridge(fnName, args, resolve, reject);
+            } else {
+              reject(new Error('Backend no conectado (entorno estático).'));
+            }
+          });
+        },
+        // Las funciones de ENTRADA (sin sesión) se llaman directamente; no pasan por apiLlamar.
+        entrada: function (fnName, ...args) {
+          return new Promise(function (resolve, reject) {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+              google.script.run
                 .withSuccessHandler(resolve)
                 .withFailureHandler(function (err) {
                   reject(new Error(err && err.message ? err.message : String(err)));
@@ -1763,6 +1972,9 @@
       // --- ESTADO GLOBAL DE LA APLICACIÓN ---
       const state = {
         currentView: 'dashboard',
+        sesion: null,
+        usuario: null,
+        demo: false,
         selectedGroupId: null,
         selectedSubgroupId: null,
         selectedArticle: null,
@@ -1799,6 +2011,236 @@
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#039;');
+      }
+
+      // --- ACCESO: ENLACE PERSONAL + PIN (T-020) ---
+      let tokenAcceso = '';
+      let modoEntrada = 'sin-token';
+      let pinBuffer = '';
+
+      function leerAlmacen(clave) {
+        try { return window.localStorage.getItem(clave) || ''; } catch (e) { return ''; }
+      }
+
+      function guardarAlmacen(clave, valor) {
+        try { window.localStorage.setItem(clave, valor); } catch (e) {}
+      }
+
+      function borrarAlmacen(clave) {
+        try { window.localStorage.removeItem(clave); } catch (e) {}
+      }
+
+      function quitarTokenDeUrl() {
+        // El token no debe quedarse en la barra de direcciones (T-020, regla 8).
+        try {
+          if (typeof google !== 'undefined' && google.script && google.script.history && google.script.history.replace) {
+            google.script.history.replace(null, {}, '');
+            return;
+          }
+        } catch (e) {}
+        // Respaldo para la demo local abierta como archivo estático.
+        try {
+          if (window.history && window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('k');
+            window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+          }
+        } catch (e) {}
+      }
+
+      function pinYaConfigurado(token) {
+        if (!token) return false;
+        if (PIN_YA_CONFIGURADO && token === TOKEN_INICIAL) return true;
+        return leerAlmacen(LS_PIN_PREFIX + token) === '1';
+      }
+
+      function marcarPinConfigurado(token) {
+        if (token) guardarAlmacen(LS_PIN_PREFIX + token, '1');
+      }
+
+      function actualizarPinDisplay() {
+        const pinEl = document.getElementById('entradaPin');
+        const boton = document.getElementById('btnEntradaConfirmar');
+        if (pinEl) pinEl.textContent = pinBuffer ? '•'.repeat(pinBuffer.length) : '';
+        if (boton) boton.disabled = pinBuffer.length < 4;
+      }
+
+      function mostrarErrorEntrada(mensaje) {
+        const errorEl = document.getElementById('entradaError');
+        if (errorEl) errorEl.textContent = mensaje || '';
+      }
+
+      function aplicarModoEntrada() {
+        const texto = document.getElementById('entradaTexto');
+        const pinEl = document.getElementById('entradaPin');
+        const teclado = document.getElementById('entradaTeclado');
+        const boton = document.getElementById('btnEntradaConfirmar');
+        const cambiar = document.getElementById('btnCambiarModo');
+
+        pinBuffer = '';
+        mostrarErrorEntrada('');
+        actualizarPinDisplay();
+
+        if (modoEntrada === 'sin-token') {
+          if (texto) texto.textContent = 'Abre tu enlace personal. Pide a quien administra STOCK-LIGHT que te envíe tu enlace.';
+          if (pinEl) pinEl.classList.add('entrada-oculta');
+          if (teclado) teclado.classList.add('entrada-oculta');
+          if (cambiar) cambiar.classList.add('entrada-oculta');
+          return;
+        }
+
+        if (pinEl) pinEl.classList.remove('entrada-oculta');
+        if (teclado) teclado.classList.remove('entrada-oculta');
+        if (boton) boton.textContent = modoEntrada === 'crear' ? 'Crear PIN' : 'Entrar';
+
+        if (modoEntrada === 'crear') {
+          if (texto) texto.textContent = 'Elige un PIN de 4 a 6 cifras. Lo usarás cada vez que abras la app desde este enlace.';
+          if (cambiar) {
+            cambiar.textContent = 'Ya tengo PIN';
+            cambiar.classList.remove('entrada-oculta');
+          }
+        } else {
+          if (texto) texto.textContent = 'Introduce tu PIN para entrar.';
+          if (cambiar) cambiar.classList.add('entrada-oculta');
+        }
+      }
+
+      function configurarModoEntrada() {
+        tokenAcceso = TOKEN_INICIAL || leerAlmacen(LS_TOKEN);
+        modoEntrada = !tokenAcceso ? 'sin-token' : (pinYaConfigurado(tokenAcceso) ? 'entrar' : 'crear');
+        aplicarModoEntrada();
+      }
+
+      function obtenerSesionDeRespuesta(res) {
+        if (!res || !res.sesion) return null;
+        return {
+          sesion: String(res.sesion),
+          nombre: String(res.nombre || ''),
+          rol: String(res.rol || '')
+        };
+      }
+
+      function entrarEnApp(datos) {
+        state.sesion = datos.sesion;
+        state.usuario = { nombre: datos.nombre, rol: datos.rol };
+
+        const pantalla = document.getElementById('pantallaEntrada');
+        const appEl = document.getElementById('app');
+        const lblUsuario = document.getElementById('lblUsuario');
+        const btnSalir = document.getElementById('btnSalir');
+
+        if (pantalla) pantalla.style.display = 'none';
+        if (appEl) appEl.style.display = 'flex';
+        if (lblUsuario) {
+          lblUsuario.textContent = datos.nombre || 'Usuario';
+          lblUsuario.title = datos.nombre ? (datos.nombre + ' · ' + datos.rol) : '';
+          lblUsuario.style.display = 'inline-block';
+        }
+        if (btnSalir) btnSalir.style.display = 'inline-flex';
+
+        pinBuffer = '';
+        mostrarErrorEntrada('');
+        switchView('dashboard');
+      }
+
+      function cerrarSesionLocal(mensaje) {
+        state.sesion = null;
+        state.usuario = null;
+
+        const pantalla = document.getElementById('pantallaEntrada');
+        const appEl = document.getElementById('app');
+        const lblUsuario = document.getElementById('lblUsuario');
+        const btnSalir = document.getElementById('btnSalir');
+
+        if (appEl) appEl.style.display = 'none';
+        if (pantalla) pantalla.style.display = 'flex';
+        if (lblUsuario) lblUsuario.style.display = 'none';
+        if (btnSalir) btnSalir.style.display = 'none';
+
+        configurarModoEntrada();
+        if (mensaje) mostrarErrorEntrada(mensaje);
+      }
+
+      function pulsarDigito(digito) {
+        if (modoEntrada !== 'crear' && modoEntrada !== 'entrar') return;
+        const limpio = String(digito || '').replace(/\D/g, '');
+        if (!limpio || pinBuffer.length >= 6) return;
+        pinBuffer += limpio;
+        mostrarErrorEntrada('');
+        actualizarPinDisplay();
+      }
+
+      function borrarDigito() {
+        pinBuffer = pinBuffer.slice(0, -1);
+        actualizarPinDisplay();
+      }
+
+      function confirmarPin() {
+        if (modoEntrada !== 'crear' && modoEntrada !== 'entrar') return;
+        if (pinBuffer.length < 4 || pinBuffer.length > 6) return;
+
+        const pin = pinBuffer;
+        const boton = document.getElementById('btnEntradaConfirmar');
+        if (boton) boton.disabled = true;
+        mostrarErrorEntrada('');
+
+        const fnEntrada = modoEntrada === 'crear' ? 'apiEstablecerPin' : 'apiEntrar';
+
+        api.entrada(fnEntrada, tokenAcceso, pin)
+          .then(function (res) {
+            const datos = obtenerSesionDeRespuesta(res);
+            if (datos) {
+              marcarPinConfigurado(tokenAcceso);
+              entrarEnApp(datos);
+              return;
+            }
+
+            pinBuffer = '';
+            actualizarPinDisplay();
+            mostrarErrorEntrada('No se pudo entrar. Comprueba el enlace y el PIN.');
+          })
+          .catch(function () {
+            pinBuffer = '';
+            actualizarPinDisplay();
+            mostrarErrorEntrada('No se pudo conectar. Inténtalo de nuevo.');
+          })
+          .finally(function () {
+            if (boton) boton.disabled = false;
+            actualizarPinDisplay();
+          });
+      }
+
+      function salir() {
+        if (!state.sesion) {
+          cerrarSesionLocal('');
+          return;
+        }
+        const sesion = state.sesion;
+        api.call('apiSalir', sesion).then(
+          function () {
+            cerrarSesionLocal('Has salido. Vuelve a entrar con tu PIN.');
+          },
+          function () {
+            cerrarSesionLocal('Has salido de este dispositivo. Vuelve a entrar con tu PIN.');
+          }
+        );
+      }
+
+      function iniciarEntrada() {
+        if (TOKEN_INICIAL) {
+          guardarAlmacen(LS_TOKEN, TOKEN_INICIAL);
+          if (PIN_YA_CONFIGURADO) {
+            marcarPinConfigurado(TOKEN_INICIAL);
+          } else {
+            borrarAlmacen(LS_PIN_PREFIX + TOKEN_INICIAL);
+          }
+          quitarTokenDeUrl();
+        }
+        configurarModoEntrada();
+        const pantalla = document.getElementById('pantallaEntrada');
+        const appEl = document.getElementById('app');
+        if (pantalla) pantalla.style.display = 'flex';
+        if (appEl) appEl.style.display = 'none';
       }
 
       // --- CONTROLADOR DE VISTAS Y NAVEGACIÓN ---
@@ -2717,11 +3159,44 @@
           }
         });
 
+        // Acceso por enlace + PIN (T-020)
+        document.querySelectorAll('#entradaTeclado [data-digito]').forEach(btn => {
+          btn.addEventListener('click', () => pulsarDigito(btn.dataset.digito));
+        });
+        const btnBorrarPin = document.querySelector('#entradaTeclado [data-accion="borrar"]');
+        if (btnBorrarPin) btnBorrarPin.addEventListener('click', borrarDigito);
+        const btnConfirmarPin = document.getElementById('btnEntradaConfirmar');
+        if (btnConfirmarPin) btnConfirmarPin.addEventListener('click', confirmarPin);
+        const btnCambiarModo = document.getElementById('btnCambiarModo');
+        if (btnCambiarModo) {
+          btnCambiarModo.addEventListener('click', () => {
+            if (modoEntrada === 'crear') {
+              modoEntrada = 'entrar';
+              aplicarModoEntrada();
+            }
+          });
+        }
+        const btnSalir = document.getElementById('btnSalir');
+        if (btnSalir) btnSalir.addEventListener('click', salir);
+
         setupMovimientosListeners();
         setupDocumentosListeners();
 
-        // Cargar vista inicial
-        switchView('dashboard');
+        const esDemoLocal = !!window.localApiBridge && (typeof google === 'undefined' || !google.script || !google.script.run);
+        if (esDemoLocal) {
+          state.demo = true;
+          document.getElementById('pantallaEntrada').style.display = 'none';
+          document.getElementById('app').style.display = 'flex';
+          const lblUsuario = document.getElementById('lblUsuario');
+          if (lblUsuario) {
+            lblUsuario.textContent = 'DEMO';
+            lblUsuario.style.display = 'inline-block';
+          }
+          switchView('dashboard');
+          return;
+        }
+
+        iniciarEntrada();
       }
 
       // Ejecutar cuando el DOM esté listo

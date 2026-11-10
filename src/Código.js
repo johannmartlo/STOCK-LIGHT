@@ -52,6 +52,13 @@ if (typeof require !== 'undefined') {
   global.StockQueryService = queryMod.StockQueryService;
   global.exigirPropietario_ = segMod.exigirPropietario_;
   global.usuarioActual_ = segMod.usuarioActual_;
+  global.exigirSesionApi_ = segMod.exigirSesionApi_;
+  global.ejecutarConContexto_ = segMod.ejecutarConContexto_;
+  global.conContextoDePrueba_ = segMod.conContextoDePrueba_;
+  global.crearServicioAcceso_ = segMod.crearServicioAcceso_;
+  global.rolAlcanza_ = segMod.rolAlcanza_;
+  global.PERMISOS_API = segMod.PERMISOS_API;
+  global.ROLES_USUARIO = segMod.ROLES_USUARIO;
   global.crearCopiaSeguridad_ = backupMod.crearCopiaSeguridad_;
   global.instalarCopiaDiaria_ = backupMod.instalarCopiaDiaria_;
   global.configurarCarpetaCopias_ = backupMod.configurarCarpetaCopias_;
@@ -183,6 +190,7 @@ function revisarDocumentoHispatec(rawText, fileMeta, options = {}) {
  * @returns {Object} Resultado de la confirmación en MovementService
  */
 function confirmarDocumentoRevisado(canonicalInput, fileMetaOrUser, usuarioOrOptions, optionsParam) {
+  exigirSesionApi_();
   let rawText = '';
   let fileMeta = {};
   let options = {};
@@ -363,6 +371,7 @@ function copiaDiariaProgramada() {
  * @param {Object} [options]
  */
 function apiObtenerStockActual(options) {
+  exigirSesionApi_();
   const service = new StockQueryService(options);
   return service.obtenerStockActual();
 }
@@ -372,6 +381,7 @@ function apiObtenerStockActual(options) {
  * @param {Object} [options]
  */
 function apiObtenerResumenPorGrupos(options) {
+  exigirSesionApi_();
   const service = new StockQueryService(options);
   return service.obtenerResumenPorGrupos();
 }
@@ -382,6 +392,7 @@ function apiObtenerResumenPorGrupos(options) {
  * @param {Object} [options]
  */
 function apiObtenerStockPorGrupo(grupo, options) {
+  exigirSesionApi_();
   const service = new StockQueryService(options);
   return service.obtenerStockPorGrupo(grupo);
 }
@@ -392,6 +403,7 @@ function apiObtenerStockPorGrupo(grupo, options) {
  * @param {Object} [options]
  */
 function apiObtenerDetalleGrupo(grupo, options) {
+  exigirSesionApi_();
   const service = new StockQueryService(options);
   return service.obtenerDetalleGrupo(grupo);
 }
@@ -403,6 +415,7 @@ function apiObtenerDetalleGrupo(grupo, options) {
  * @param {Object} [options]
  */
 function apiObtenerDetalleStock(codigoArticulo, codigoEnvase, options) {
+  exigirSesionApi_();
   const service = new StockQueryService(options);
   return service.obtenerDetalleStock(codigoArticulo, codigoEnvase);
 }
@@ -420,6 +433,7 @@ function apiObtenerDetalleStock(codigoArticulo, codigoEnvase, options) {
  * @returns {Object} Resultado de la confirmación
  */
 function confirmarCompraPendiente(clientPayload, usuario, options = {}) {
+  exigirSesionApi_();
   const repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : null);
   const maestro = repo ? repo.getMaestro() : [];
   const resolver = options.maestroResolver || (typeof MaestroResolver !== 'undefined' ? new MaestroResolver(maestro) : null);
@@ -474,6 +488,7 @@ function apiCambiarEnvasePredeterminado(codigoArticulo, nuevoEnvasePredeterminad
  * @param {Object} [options]
  */
 function apiObtenerStockVisualResumen(options = {}) {
+  exigirSesionApi_();
   const service = new StockQueryService(options);
   return service.obtenerStockVisualResumen();
 }
@@ -486,6 +501,7 @@ function apiObtenerStockVisualResumen(options = {}) {
  * @param {Object} [options] 
  */
 function apiObtenerStockVisualDetalle(groupId, subgroupId, options = {}) {
+  exigirSesionApi_();
   const service = new StockQueryService(options);
   return service.obtenerStockVisualDetalle(groupId, subgroupId);
 }
@@ -497,6 +513,7 @@ function apiObtenerStockVisualDetalle(groupId, subgroupId, options = {}) {
  * @param {Object} [options] 
  */
 function apiClasificarArticuloEnvase(articulo, envase, options = {}) {
+  exigirSesionApi_();
   const resolver = (typeof CommercialGroupResolver !== 'undefined')
     ? new CommercialGroupResolver(options)
     : (typeof require !== 'undefined' ? new (require('./CommercialGroupResolver').CommercialGroupResolver)(options) : null);
@@ -524,6 +541,7 @@ function apiCargarCatalogoHistorico(catalogData, options = {}) {
  * @param {Object} [options]
  */
 function apiObtenerCombinacionesPendientesAsociacion(options = {}) {
+  exigirSesionApi_();
   const resolver = (typeof CommercialGroupResolver !== 'undefined')
     ? new CommercialGroupResolver(options)
     : (typeof require !== 'undefined' ? new (require('./CommercialGroupResolver').CommercialGroupResolver)(options) : null);
@@ -538,6 +556,7 @@ function apiObtenerCombinacionesPendientesAsociacion(options = {}) {
  * @param {Object} [options] 
  */
 function apiObtenerDetallePartidas(codigoArticulo, codigoEnvase, options = {}) {
+  exigirSesionApi_();
   const service = new StockQueryService(options);
   return service.obtenerDetallePartidas(codigoArticulo, codigoEnvase, options);
 }
@@ -548,6 +567,7 @@ function apiObtenerDetallePartidas(codigoArticulo, codigoEnvase, options = {}) {
  * @param {string} [usuario] 
  */
 function apiRegistrarAjustePositivo(params, usuario) {
+  exigirSesionApi_();
   const service = new MovementService();
   const user = usuarioActual_();
   return service.registrarAjustePositivo(params, user);
@@ -559,6 +579,7 @@ function apiRegistrarAjustePositivo(params, usuario) {
  * @param {string} [usuario] 
  */
 function apiRegistrarAjusteNegativo(params, usuario) {
+  exigirSesionApi_();
   const service = new MovementService();
   const user = usuarioActual_();
   return service.registrarAjusteNegativo(params, user);
@@ -570,6 +591,7 @@ function apiRegistrarAjusteNegativo(params, usuario) {
  * @param {string} [usuario] 
  */
 function apiRegistrarReclasificacion(params, usuario) {
+  exigirSesionApi_();
   const service = new MovementService();
   const user = usuarioActual_();
   return service.registrarReclasificacion(params, user);
@@ -580,6 +602,7 @@ function apiRegistrarReclasificacion(params, usuario) {
  * @param {Object} [options]
  */
 function apiGetGruposComerciales(options = {}) {
+  exigirSesionApi_();
   const repo = options.repository || new SheetsRepository();
   return repo.getGruposComerciales();
 }
@@ -588,6 +611,7 @@ function apiGetGruposComerciales(options = {}) {
  * OBSOLETA (se retira en T-012, D-029): lanza error claro sin escribir.
  */
 function apiUpsertGrupoComercial() {
+  exigirSesionApi_();
   throw new Error('Obsoleto: usar el catálogo (D-029)');
 }
 
@@ -596,6 +620,7 @@ function apiUpsertGrupoComercial() {
  * @param {Object} [options]
  */
 function apiGetMatrizArticuloEnvase(options = {}) {
+  exigirSesionApi_();
   const repo = options.repository || new SheetsRepository();
   return repo.getMatrizArticuloEnvase();
 }
@@ -604,6 +629,7 @@ function apiGetMatrizArticuloEnvase(options = {}) {
  * OBSOLETA (se retira en T-012, D-029): lanza error claro sin escribir.
  */
 function apiUpsertMatrizArticuloEnvase() {
+  exigirSesionApi_();
   throw new Error('Obsoleto: usar el catálogo (D-029)');
 }
 
@@ -664,6 +690,7 @@ function sembrarCatalogo(options = {}) {
  * @returns {{ atributos: Array<Object>, reglas: Array<Object>, catalogo: Array<Object>, agrupaciones: Array<Object> }}
  */
 function apiGetConfiguracionCatalogo(options = {}) {
+  exigirSesionApi_();
   const repo = options.repository || new SheetsRepository();
   const SvcClass = typeof CatalogoService !== 'undefined'
     ? CatalogoService
@@ -681,6 +708,7 @@ function apiGetConfiguracionCatalogo(options = {}) {
  * @returns {Object}
  */
 function apiClasificarCombinacion(articulo, envase, options = {}) {
+  exigirSesionApi_();
   const repo = options.repository || new SheetsRepository();
   const SvcClass = typeof CatalogoService !== 'undefined'
     ? CatalogoService
@@ -697,6 +725,7 @@ function apiClasificarCombinacion(articulo, envase, options = {}) {
  * @returns {Object}
  */
 function apiUpsertReglaClasificacion(regla, options = {}) {
+  exigirSesionApi_();
   if (!regla || typeof regla !== 'object') {
     throw new Error('apiUpsertReglaClasificacion: Se requiere un objeto regla.');
   }
@@ -734,6 +763,7 @@ function apiUpsertReglaClasificacion(regla, options = {}) {
  * @returns {Object}
  */
 function apiUpsertExcepcionCatalogo(excepcion, options = {}) {
+  exigirSesionApi_();
   if (!excepcion || typeof excepcion !== 'object') {
     throw new Error('apiUpsertExcepcionCatalogo: Se requiere un objeto excepción.');
   }
@@ -790,6 +820,7 @@ function _resolveOperationalSafetyService(options = {}) {
  * @param {Object} [options]
  */
 function apiValidarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA', options = {}) {
+  exigirSesionApi_();
   const service = _resolveOperationalSafetyService(options);
   return service.validarDocumento(docPayload, lineas, tipoDocumento);
 }
@@ -802,6 +833,7 @@ function apiValidarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA', opti
  * @param {Object} [options]
  */
 function apiPrevisualizarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA', options = {}) {
+  exigirSesionApi_();
   const service = _resolveOperationalSafetyService(options);
   return service.previsualizarDocumento(docPayload, lineas, tipoDocumento);
 }
@@ -814,6 +846,7 @@ function apiPrevisualizarDocumento(docPayload, lineas, tipoDocumento = 'ENTRADA'
  * @param {Object} [options]
  */
 function apiProcesarEntradaDocumento(docPayload, lineas, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.procesarEntradaDocumento(docPayload, lineas, user);
@@ -827,6 +860,7 @@ function apiProcesarEntradaDocumento(docPayload, lineas, usuario, options = {}) 
  * @param {Object} [options]
  */
 function apiProcesarSalidaDocumento(docPayload, lineas, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.procesarSalidaDocumento(docPayload, lineas, user);
@@ -850,6 +884,7 @@ function apiConciliarStock(stockExterno, options = {}) {
  * @param {Object} [options]
  */
 function apiEjecutarAjusteOperativo(ajustePayload, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.ejecutarAjusteOperativo(ajustePayload, user);
@@ -860,6 +895,7 @@ function apiEjecutarAjusteOperativo(ajustePayload, usuario, options = {}) {
  * @param {Object} [options]
  */
 function apiObtenerLogOperaciones(options = {}) {
+  exigirSesionApi_();
   const service = _resolveOperationalSafetyService(options);
   return service.obtenerLogOperaciones();
 }
@@ -870,6 +906,7 @@ function apiObtenerLogOperaciones(options = {}) {
  * @param {Object} [options]
  */
 function apiPrevisualizarCorreccionHistorica(correccionPayload, options = {}) {
+  exigirSesionApi_();
   const service = _resolveOperationalSafetyService(options);
   return service.previsualizarCorreccionHistorica(correccionPayload);
 }
@@ -881,6 +918,7 @@ function apiPrevisualizarCorreccionHistorica(correccionPayload, options = {}) {
  * @param {Object} [options]
  */
 function apiEjecutarCorreccionHistorica(correccionPayload, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.ejecutarCorreccionHistorica(correccionPayload, user);
@@ -890,6 +928,7 @@ function apiEjecutarCorreccionHistorica(correccionPayload, usuario, options = {}
  * Anula una entrada sin consumos posteriores (Fase 6.1).
  */
 function apiAnularEntrada(params, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.anularEntrada(params, user);
@@ -899,6 +938,7 @@ function apiAnularEntrada(params, usuario, options = {}) {
  * Anula una salida restituyendo capas FIFO (Fase 6.1).
  */
 function apiAnularSalida(params, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.anularSalida(params, user);
@@ -908,6 +948,7 @@ function apiAnularSalida(params, usuario, options = {}) {
  * Corrige una entrada parcialmente consumida o modifica artículo/envase (Fase 6.1).
  */
 function apiCorregirEntrada(params, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.corregirEntrada(params, user);
@@ -917,6 +958,7 @@ function apiCorregirEntrada(params, usuario, options = {}) {
  * Corrige la cantidad de una salida histórica (Fase 6.1).
  */
 function apiCorregirSalida(params, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.corregirSalida(params, user);
@@ -926,20 +968,265 @@ function apiCorregirSalida(params, usuario, options = {}) {
  * Divide una entrada histórica en múltiples combinaciones (Fase 6.1).
  */
 function apiDividirEntrada(params, usuario, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveOperationalSafetyService(options);
   return service.dividirEntrada(params, user);
 }
 
 /**
+ * Resuelve una función global por nombre para el despachador.
+ * En Apps Script las funciones declaradas son propiedades de globalThis; en
+ * Node se resuelven desde las exportaciones de este módulo.
+ *
+ * @param {string} nombre
+ * @returns {Function|null}
+ */
+function _resolverFuncionApi_(nombre) {
+  try {
+    if (typeof globalThis !== 'undefined' && typeof globalThis[nombre] === 'function') {
+      return globalThis[nombre];
+    }
+  } catch (e) {}
+  if (typeof module !== 'undefined' && module.exports && typeof module.exports[nombre] === 'function') {
+    return module.exports[nombre];
+  }
+  return null;
+}
+
+/**
+ * Despachador único de la interfaz (T-020, D-032).
+ * Valida la sesión, comprueba el rol mínimo de PERMISOS_API, fija el contexto
+ * de usuario, llama a la función y limpia el contexto en un finally.
+ *
+ * @param {string} sesion - Identificador de sesión devuelto por apiEntrar.
+ * @param {string} nombreApi - Nombre de la función a ejecutar.
+ * @param {Array} args - Argumentos de la función.
+ * @returns {*} Resultado de la función o { success: false, errorCode }.
+ */
+function apiLlamar(sesion, nombreApi, args) {
+  const nombre = String(nombreApi || '').trim();
+
+  let servicio;
+  try {
+    servicio = crearServicioAcceso_();
+  } catch (e) {
+    return { success: false, errorCode: 'SESION_INVALIDA' };
+  }
+
+  let usuario = null;
+  try {
+    usuario = servicio.validarSesion(sesion);
+  } catch (e) {
+    usuario = null;
+  }
+  if (!usuario) {
+    return { success: false, errorCode: 'SESION_INVALIDA' };
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(PERMISOS_API, nombre)) {
+    return { success: false, errorCode: 'API_NO_PERMITIDA' };
+  }
+  const rolMinimo = PERMISOS_API[nombre];
+  if (!rolAlcanza_(usuario.rol, rolMinimo)) {
+    return { success: false, errorCode: 'PERMISO_DENEGADO' };
+  }
+
+  const fn = _resolverFuncionApi_(nombre);
+  if (typeof fn !== 'function') {
+    return { success: false, errorCode: 'API_NO_ENCONTRADA' };
+  }
+
+  const argumentos = Array.isArray(args) ? args : [];
+  return ejecutarConContexto_(usuario.nombre, usuario.rol, function () {
+    return fn.apply(null, argumentos);
+  });
+}
+
+/**
+ * Abre sesión con token + PIN (T-020). Es una de las dos únicas funciones
+ * públicas sin sesión. Devuelve { sesion, nombre, rol } o un error genérico.
+ *
+ * @param {string} token
+ * @param {string} pin
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiEntrar(token, pin, options = {}) {
+  try {
+    const servicio = crearServicioAcceso_(options);
+    return servicio.entrar(token, pin);
+  } catch (e) {
+    return { success: false, errorCode: 'CREDENCIALES_INVALIDAS' };
+  }
+}
+
+/**
+ * Fija el PIN de un usuario que aún no lo tiene o tras regenerar el enlace (T-020).
+ * Si tiene éxito, abre sesión y devuelve { sesion, nombre, rol }.
+ *
+ * @param {string} token
+ * @param {string} pin
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiEstablecerPin(token, pin, options = {}) {
+  try {
+    const servicio = crearServicioAcceso_(options);
+    return servicio.establecerPin(token, pin);
+  } catch (e) {
+    // Error genérico: no se revela si falló el token, el PIN o si ya estaba establecido.
+    return { success: false, errorCode: 'CREDENCIALES_INVALIDAS' };
+  }
+}
+
+/**
+ * Cierra la sesión indicada (T-020). Es una función de ENTRADA: no exige
+ * contexto, solo borra la sesión del almacenamiento.
+ *
+ * @param {string} sesion
+ * @param {Object} [options]
+ * @returns {{ success: boolean }}
+ */
+function apiSalir(sesion, options = {}) {
+  try {
+    const servicio = crearServicioAcceso_(options);
+    return { success: servicio.salir(sesion) };
+  } catch (e) {
+    return { success: false };
+  }
+}
+
+/**
+ * Crea un usuario desde el editor y devuelve su enlace personal (T-020, ADMIN).
+ * El token solo se muestra en este resultado; en la hoja queda su hash.
+ *
+ * @param {string} nombre
+ * @param {string} rol - CONSULTA | ENCARGADO | ADMIN
+ * @param {Object} [options]
+ * @returns {{ id_usuario: string, nombre: string, rol: string, enlace: string }}
+ */
+function crearUsuario(nombre, rol, options = {}) {
+  exigirPropietario_(options && options.session);
+  const servicio = crearServicioAcceso_(options);
+  return servicio.crearUsuario(nombre, rol);
+}
+
+/**
+ * Regenera el enlace personal de un usuario desde el editor (T-020, ADMIN).
+ *
+ * @param {string} idUsuario
+ * @param {Object} [options]
+ * @returns {{ id_usuario: string, enlace: string }}
+ */
+function regenerarEnlace(idUsuario, options = {}) {
+  exigirPropietario_(options && options.session);
+  const servicio = crearServicioAcceso_(options);
+  return servicio.regenerarEnlace(idUsuario);
+}
+
+/**
+ * Desactiva a un usuario desde el editor (T-020, ADMIN).
+ *
+ * @param {string} idUsuario
+ * @param {Object} [options]
+ * @returns {{ id_usuario: string, activo: boolean }}
+ */
+function desactivarUsuario(idUsuario, options = {}) {
+  exigirPropietario_(options && options.session);
+  const servicio = crearServicioAcceso_(options);
+  return servicio.desactivarUsuario(idUsuario);
+}
+
+/**
+ * Lista los usuarios sin hashes desde el editor (T-020, ADMIN).
+ *
+ * @param {Object} [options]
+ * @returns {Array<Object>}
+ */
+function listarUsuarios(options = {}) {
+  exigirPropietario_(options && options.session);
+  const servicio = crearServicioAcceso_(options);
+  return servicio.listarUsuarios();
+}
+
+/**
+ * Versión para la app de listarUsuarios (T-020). Rol mínimo ADMIN.
+ *
+ * @param {Object} [options]
+ * @returns {Array<Object>}
+ */
+function apiListarUsuarios(options = {}) {
+  exigirSesionApi_();
+  const servicio = crearServicioAcceso_(options);
+  return servicio.listarUsuarios();
+}
+
+/**
+ * Versión para la app de crearUsuario (T-020). Rol mínimo ADMIN.
+ *
+ * @param {string} nombre
+ * @param {string} rol
+ * @param {Object} [options]
+ * @returns {{ id_usuario: string, nombre: string, rol: string, enlace: string }}
+ */
+function apiCrearUsuario(nombre, rol, options = {}) {
+  exigirSesionApi_();
+  const servicio = crearServicioAcceso_(options);
+  return servicio.crearUsuario(nombre, rol);
+}
+
+/**
+ * Versión para la app de regenerarEnlace (T-020). Rol mínimo ADMIN.
+ *
+ * @param {string} idUsuario
+ * @param {Object} [options]
+ * @returns {{ id_usuario: string, enlace: string }}
+ */
+function apiRegenerarEnlace(idUsuario, options = {}) {
+  exigirSesionApi_();
+  const servicio = crearServicioAcceso_(options);
+  return servicio.regenerarEnlace(idUsuario);
+}
+
+/**
+ * Versión para la app de desactivarUsuario (T-020). Rol mínimo ADMIN.
+ *
+ * @param {string} idUsuario
+ * @param {Object} [options]
+ * @returns {{ id_usuario: string, activo: boolean }}
+ */
+function apiDesactivarUsuario(idUsuario, options = {}) {
+  exigirSesionApi_();
+  const servicio = crearServicioAcceso_(options);
+  return servicio.desactivarUsuario(idUsuario);
+}
+
+/**
  * Punto de entrada HTTP oficial para Google Apps Script HtmlService (Fase 7.0).
- * Sirve la interfaz web responsive de STOCK-LIGHT.
+ * Sirve la interfaz web responsive de STOCK-LIGHT y pasa el token del enlace
+ * personal (e.parameter.k) a la plantilla (T-020).
  * 
  * @param {Object} [e] Parámetros de petición HTTP
  * @returns {HtmlOutput}
  */
 function doGet(e) {
+  const parametros = (e && e.parameter) || {};
+  const token = parametros.k !== undefined && parametros.k !== null ? String(parametros.k) : '';
+
   const template = HtmlService.createTemplateFromFile('Index');
+  template.k = token;
+
+  let tienePin = false;
+  if (token) {
+    try {
+      tienePin = crearServicioAcceso_().tienePinEstablecido(token);
+    } catch (err) {
+      tienePin = false;
+    }
+  }
+  template.tienePin = tienePin;
+
   return template.evaluate()
     .setTitle('STOCK-LIGHT — Control de Existencias Hortofrutícola')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no')
@@ -956,6 +1243,7 @@ function doGet(e) {
  * @returns {Object}
  */
 function apiConfirmarDocumentoRevisado(canonicalInput, usuario = 'OPERADOR', options = {}) {
+  exigirSesionApi_();
   return confirmarDocumentoRevisado(canonicalInput, usuario, options);
 }
 
@@ -965,6 +1253,7 @@ function apiConfirmarDocumentoRevisado(canonicalInput, usuario = 'OPERADOR', opt
  * @returns {Array<Object>}
  */
 function apiGetMaestroArticulos(options = {}) {
+  exigirSesionApi_();
   const repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
   if (!repo || typeof repo.getMaestroArticulos !== 'function') return [];
   return repo.getMaestroArticulos();
@@ -976,6 +1265,7 @@ function apiGetMaestroArticulos(options = {}) {
  * @returns {Array<Object>}
  */
 function apiGetMaestroEnvases(options = {}) {
+  exigirSesionApi_();
   const repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
   if (!repo || typeof repo.getMaestroEnvases !== 'function') return [];
   return repo.getMaestroEnvases();
@@ -991,6 +1281,7 @@ function apiGetMaestroEnvases(options = {}) {
  * @returns {Object} ReviewPayload con datos extraídos y advertencias
  */
 function apiSubirYAnalizarPdf(filePayload, options = {}) {
+  exigirSesionApi_();
   if (!filePayload || !filePayload.fileName || !filePayload.base64) {
     throw new Error('apiSubirYAnalizarPdf: Se requiere fileName y base64.');
   }
@@ -1192,6 +1483,18 @@ if (typeof module !== 'undefined' && module.exports) {
     apiCorregirEntrada,
     apiCorregirSalida,
     apiDividirEntrada,
+    apiLlamar,
+    apiEntrar,
+    apiEstablecerPin,
+    apiSalir,
+    crearUsuario,
+    regenerarEnlace,
+    desactivarUsuario,
+    listarUsuarios,
+    apiListarUsuarios,
+    apiCrearUsuario,
+    apiRegenerarEnlace,
+    apiDesactivarUsuario,
     adminCrearCopiaManual,
     adminInstalarCopiaDiaria,
     adminConfigurarCarpetaCopias,

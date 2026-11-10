@@ -16,7 +16,7 @@ const path = require('path');
 
 const codigo = require('../src/Código');
 const Config = require('../src/Config');
-const { exigirPropietario_, usuarioActual_ } = require('../src/Seguridad');
+const { exigirPropietario_, usuarioActual_, conContextoDePrueba_ } = require('../src/Seguridad');
 const { crearEntorno } = require('./helpers/mockSheets');
 
 const MENSAJE_ADMIN = 'Operación reservada al administrador';
@@ -298,12 +298,12 @@ runTest('5. apiRegistrarAjusteNegativo ignora "HACKER" y firma con el email del 
     }, 'SEMILLA');
 
     const res = conSesion(SESIONES.otroUsuario, () => conRepositorioFalso(ctx.entorno.repo, () => (
-      codigo.apiRegistrarAjusteNegativo({
+      conContextoDePrueba_(null, 'ENCARGADO', () => codigo.apiRegistrarAjusteNegativo({
         codigo_articulo: 'ARTICULO USUARIO',
         codigo_envase: 'ENVASE USUARIO',
         cajas: 2,
         motivo: 'T023'
-      }, 'HACKER')
+      }, 'HACKER'))
     )));
     assert.strictEqual(res.success, true);
 
@@ -325,12 +325,12 @@ runTest('6. Sin email, apiRegistrarAjusteNegativo firma con SIN_IDENTIFICAR', ()
     }, 'SEMILLA');
 
     const res = conSesion(SESIONES.visitante, () => conRepositorioFalso(ctx.entorno.repo, () => (
-      codigo.apiRegistrarAjusteNegativo({
+      conContextoDePrueba_(null, 'ENCARGADO', () => codigo.apiRegistrarAjusteNegativo({
         codigo_articulo: 'ARTICULO USUARIO',
         codigo_envase: 'ENVASE USUARIO',
         cajas: 2,
         motivo: 'T023'
-      }, 'HACKER')
+      }, 'HACKER'))
     )));
     assert.strictEqual(res.success, true);
 
