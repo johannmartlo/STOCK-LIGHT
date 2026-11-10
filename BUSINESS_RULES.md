@@ -205,6 +205,25 @@ Cuando se producen situaciones físicas reales que difieren del flujo documental
 | `DETERIORO` | `-` | Producto no apto comercialmente |
 | `DIFERENCIA_INVENTARIO` | `+` / `-` | Ajuste tras recuento físico periódico en almacén |
 | `CORRECCION` | `+` / `-` | Enmienda por error humano previo en digitación o lectura |
+| `DESTRIO` | `-` | Destrío directo de una partida sin reproceso (D-011) |
+| `REPROCESO_ORIGEN` | `-` | Retirada o consumo de partidas de origen en un reproceso (T-009, D-011) |
+| `REPROCESO_DESTINO` | `+` | Creación de nuevas partidas resultantes de un reproceso (T-009, D-011) |
+
+### 6.1. Reprocesos y Destrío (T-009, D-011, D-030, D-036)
+Los reprocesos y cambios de envase ocurren a diario y no son registrados por ERP Hispatec (D-030). Se gestionan de forma atómica sobre el libro de movimientos:
+
+1. **Estructura:**
+   * **Orígenes (1..N):** Partidas seleccionadas explícitamente o combinación repartida por FIFO. Cada una genera un `AJUSTE −` con motivo `REPROCESO_ORIGEN` y consumo dirigido (`id_capa_objetivo`).
+   * **Destinos (1..N):** Cada uno genera un `AJUSTE +` con motivo `REPROCESO_DESTINO`. Hereda como `fecha_negocio` la `fecha_capa` más antigua de las partidas de origen, y como proveedor el común de los orígenes o `VARIOS` si proceden de distintos proveedores (D-030). Si el origen es único, guarda `id_capa_origen`.
+2. **Destrío (D-036):**
+   * Es un **dato del reproceso** en cajas de origen, **no un movimiento de stock** (las cajas ya salieron con el ajuste negativo de origen).
+   * **Mismo envase:** Si todos los orígenes y destinos tienen el mismo envase normalizado, `destrio_cajas` es opcional; si no se indica, vale $\max(0, \text{retirado} - \text{destinos})$.
+   * **Cambio de envase:** Si algún envase difiere, `destrio_cajas` es **obligatorio** (puede ser 0); no se puede deducir.
+   * **Prorrateo:** El destrío se reparte entre las partidas de origen en proporción a las cajas retiradas (enteros, y el resto a la capa con más cajas, sumando exactamente el total de destrío) para estadísticas de rendimiento por proveedor.
+   * **Destrío directo:** El descarte de género sin reproceso se registra como `AJUSTE −` con motivo `DESTRIO`.
+3. **Anulación:**
+   * Un reproceso solo se puede anular si ninguna capa destino tiene consumos posteriores (`cajas_consumidas = 0`). Si tiene consumos, devuelve `REVISION_NECESARIA`.
+   * Al anular, se registran movimientos `ANULACION`: las capas destino desaparecen y las cajas vuelven íntegras a las capas de origen según `CONSUMOS_FIFO` (D-012).
 
 ### Requisitos Obligatorios de un Ajuste:
 Todo ajuste manual debe almacenar obligatoriamente:

@@ -73,6 +73,7 @@ runTest(`1. 200 operaciones aleatorias (semilla=${SEED}): comprobarConsistencia(
   let docCounter = 1;
   const entradasRegistradas = []; // [{ serie, numero, id_documento }]
   const salidasRegistradas = [];  // [{ serie, numero, id_documento, anulada }]
+  const reprocesosRegistrados = []; // [{ id_reproceso, destinos: [...], anulado: false }]
 
   const contadoresTipo = {
     ENTRADA: 0,
@@ -86,7 +87,9 @@ runTest(`1. 200 operaciones aleatorias (semilla=${SEED}): comprobarConsistencia(
     CORR_ENTRADA_BAJA: 0,
     CORR_ENTRADA_ALZA: 0,
     DIVIDIR_CAPA: 0,
-    RECLASIFICACION: 0
+    RECLASIFICACION: 0,
+    REPROCESO: 0,
+    ANULAR_REPROCESO: 0
   };
 
   for (let opIdx = 1; opIdx <= TOTAL_OPERACIONES; opIdx++) {
@@ -122,7 +125,17 @@ runTest(`1. 200 operaciones aleatorias (semilla=${SEED}): comprobarConsistencia(
           candidatos.push('ANULAR_SALIDA', 'CORR_SALIDA_BAJA', 'CORR_SALIDA_ALZA');
         }
         if (capasActivasConSaldo.length > 0) {
-          candidatos.push('CORR_ENTRADA_BAJA', 'CORR_ENTRADA_ALZA', 'DIVIDIR_CAPA');
+          candidatos.push('CORR_ENTRADA_BAJA', 'CORR_ENTRADA_ALZA', 'DIVIDIR_CAPA', 'REPROCESO');
+        }
+        const reprocesosAnulables = reprocesosRegistrados.filter(r => {
+          if (r.anulado) return false;
+          return r.destinos.every(d => {
+            const c = capasActuales.find(x => x.id_capa === d.id_capa);
+            return c && Number(c.cajas_consumidas || 0) === 0;
+          });
+        });
+        if (reprocesosAnulables.length > 0) {
+          candidatos.push('ANULAR_REPROCESO');
         }
         tipoOp = rng.pick(candidatos);
       }
@@ -354,6 +367,77 @@ runTest(`1. 200 operaciones aleatorias (semilla=${SEED}): comprobarConsistencia(
         }, 'prop@test');
         assert.strictEqual(res.success, true);
         contadoresTipo.RECLASIFICACION++;
+      } else if (tipoOp === 'REPROCESO') {
+        const numOrigenes = Math.min(capasActivasConSaldo.length, rng.int(1, 2));
+        const origenesCapa = [];
+        const pool = [...capasActivasConSaldo];
+        for (let i = 0; i < numOrigenes; i++) {
+          const idx = rng.int(0, pool.length - 1);
+          origenesCapa.push(pool.splice(idx, 1)[0]);
+        }
+
+        const origenes = origenesCapa.map(layer => {
+          const disp = Number(layer.cajas_restantes || 0);
+          const cajas = rng.int(1, Math.min(10, disp - 1));
+          return { id_capa: layer.id_capa, cajas };
+        });
+
+        const numDestinos = rng.int(1, 3);
+        const destinos = [];
+        for (let j = 0; j < numDestinos; j++) {
+          destinos.push({
+            articulo: rng.pick(ARTICULOS),
+            envase: rng.pick(ENVASES),
+            cajas: rng.int(1, 10)
+          });
+        }
+
+        const envsOrig = new Set(origenesCapa.map(o => o.codigo_envase));
+        const envsDest = new Set(destinos.map(d => d.envase));
+        const mismoEnv = envsOrig.size === 1 && envsDest.size === 1 && [...envsOrig][0] === [...envsDest][0];
+
+        const payload = {
+          origenes,
+          destinos,
+          fecha: fechaOp
+        };
+        if (!mismoEnv) {
+          payload.destrio_cajas = rng.int(0, 3);
+        }
+
+        descripcionOp = `REPROCESO (${origenes.map(o => `${o.id_capa}:${o.cajas}`).join('+')} -> ${destinos.map(d => `${d.articulo}|${d.envase}:${d.cajas}`).join('+')}, fecha=${fechaOp})`;
+
+        const res = env.movService.registrarReproceso(payload, 'prop@test');
+        assert.strictEqual(res.success, true);
+        reprocesosRegistrados.push({
+          id_reproceso: res.id_reproceso,
+          destinos: res.capasCreadas || [],
+          anulado: false
+        });
+        contadoresTipo.REPROCESO++;
+      } else if (tipoOp === 'ANULAR_REPROCESO') {
+        const reprocesosAnulables = reprocesosRegistrados.filter(r => {
+          if (r.anulado) return false;
+          return r.destinos.every(d => {
+            const c = capasActuales.find(x => x.id_capa === d.id_capa);
+            return c && Number(c.cajas_consumidas || 0) === 0;
+          });
+        });
+
+        if (reprocesosAnulables.length > 0) {
+          const rep = rng.pick(reprocesosAnulables);
+          descripcionOp = `ANULAR_REPROCESO (${rep.id_reproceso})`;
+
+          const res = env.movService.anularReproceso(rep.id_reproceso, 'prop@test');
+          assert.strictEqual(res.success, true);
+          rep.anulado = true;
+          contadoresTipo.ANULAR_REPROCESO++;
+        } else {
+          const art = rng.pick(ARTICULOS);
+          const envase = rng.pick(ENVASES);
+          env.movService.registrarAjustePositivo({ codigo_articulo: art, codigo_envase: envase, cajas: 15, fecha: fechaOp }, 'prop@test');
+          contadoresTipo.AJUSTE_POS++;
+        }
       }
 
       // INVARIANTE TRAS CADA OPERACIÓN: comprobarConsistencia() === 0 diferencias

@@ -589,6 +589,8 @@ class StockQueryService {
         idCapa: c.id_capa || c.capa_id,
         partida: c.partida || c.partida_id || 'SIN_PARTIDA',
         fechaEntrada: c.fecha_capa || c.fecha_entrada || '',
+        fecha_capa: c.fecha_capa || c.fecha_entrada || '',
+        proveedor: c.proveedor || c.entidad_nombre || '',
         cajasIniciales: iniciales,
         cajasConsumidas: consumidas,
         cajasRestantes: restantes,
