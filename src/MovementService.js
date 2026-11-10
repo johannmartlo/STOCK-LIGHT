@@ -268,14 +268,17 @@ class MovementService {
    *
    * @param {Object} payload
    * @param {Array<Object>} [payload.movimientos]
+   * @param {Array<Object>} [payload.movimientosExistentes] - Movimientos ya cargados para asignar `secuencia` sin releer la hoja.
    * @param {Object} [payload.estado]
    * @param {Object} [payload.documentos]
+   * @param {Array<Object>} [payload.pendientes]
+   * @param {Object} [payload.importaciones] - `{ records: Array<Object> }` para reescribir IMPORTACIONES.
    * @param {string} [payload.ultimoMovimientoId]
    */
-  _persistir({ movimientos = [], estado = null, documentos = null, ultimoMovimientoId = '' } = {}) {
+  _persistir({ movimientos = [], movimientosExistentes = null, estado = null, documentos = null, pendientes = null, importaciones = null, ultimoMovimientoId = '' } = {}) {
     // 1. Añadir movimientos (con su secuencia en SheetsRepository.appendMovimientos)
     if (Array.isArray(movimientos) && movimientos.length > 0) {
-      this.repo.appendMovimientos(movimientos);
+      this.repo.appendMovimientos(movimientos, movimientosExistentes);
     }
 
     // 2. Reescribir CAPAS_FIFO
@@ -365,8 +368,14 @@ class MovementService {
     // 4. Actualizar DOCUMENTOS
     if (documentos) {
       if (documentos.append && Array.isArray(documentos.append)) {
-        for (const doc of documentos.append) {
-          this.repo.appendDocumento(doc);
+        if (documentos.append.length > 0) {
+          if (typeof this.repo.appendRecords === 'function') {
+            this.repo.appendRecords('DOCUMENTOS', documentos.append);
+          } else {
+            for (const doc of documentos.append) {
+              this.repo.appendDocumento(doc);
+            }
+          }
         }
       } else if (documentos.append && typeof documentos.append === 'object') {
         this.repo.appendDocumento(documentos.append);
@@ -383,6 +392,24 @@ class MovementService {
 
       if (documentos.replace && Array.isArray(documentos.replace) && typeof this.repo.replaceTable === 'function') {
         this.repo.replaceTable('DOCUMENTOS', documentos.replace);
+      }
+    }
+
+    // 5. Añadir PENDIENTES
+    if (Array.isArray(pendientes) && pendientes.length > 0) {
+      if (typeof this.repo.appendPendientes === 'function') {
+        this.repo.appendPendientes(pendientes);
+      } else if (typeof this.repo.appendRecords === 'function') {
+        this.repo.appendRecords('PENDIENTES', pendientes);
+      }
+    }
+
+    // 6. Reescribir IMPORTACIONES
+    if (importaciones && Array.isArray(importaciones.records)) {
+      if (typeof this.repo.saveImportaciones === 'function') {
+        this.repo.saveImportaciones(importaciones.records);
+      } else if (typeof this.repo.replaceTable === 'function') {
+        this.repo.replaceTable('IMPORTACIONES', importaciones.records);
       }
     }
   }
@@ -913,6 +940,322 @@ class MovementService {
         totalCajas,
         lineasProcesadas: lineas.length,
         movimientosGenerados: generatedMovements.map(m => m.id_movimiento)
+      };
+    } finally {
+      this._releaseLock();
+    }
+  }
+
+  /**
+   * Aplica en lote documentos de importación ya clasificados (T-007, D-007, D-009, D-022).
+   *
+   * Un solo lock, un solo `_cargarEstado` y un solo `_persistir` por llamada (tramo).
+   * Cada documento es todo o nada: si una línea de salida no tiene stock, se descarta
+   * todo lo aplicado de ese documento con `clonarEstadoLibro` y sus líneas OK van a PENDIENTES.
+   *
+   * @param {Array<Object>} documentos - Documentos de `agruparEnDocumentos` con `firma`, `lineasOk` y `lineasPendiente`.
+   * @param {string} [usuario='SISTEMA']
+   * @param {Object} [opciones]
+   * @param {string} [opciones.hash] - Hash SHA-256 del CSV, para `DOCUMENTOS.sha256_hash`.
+   * @param {string} [opciones.idImportacion] - Identificador de la importación para PENDIENTES.
+   * @param {Array<Object>} [opciones.documentosExistentes] - DOCUMENTOS ya cargados (evita releer).
+   * @param {Array<Object>} [opciones.importaciones] - Filas de IMPORTACIONES a reescribir dentro del lock.
+   * @param {Object} [opciones.importacion] - Fila viva de IMPORTACIONES que recibe los contadores.
+   * @returns {Object}
+   */
+  aplicarDocumentosEnLote(documentos = [], usuario = 'SISTEMA', opciones = {}) {
+    const opcionesSeguras = opciones || {};
+    const listaDocumentos = Array.isArray(documentos) ? documentos : [];
+    const importaciones = Array.isArray(opcionesSeguras.importaciones) ? opcionesSeguras.importaciones : null;
+    const importacion = opcionesSeguras.importacion || null;
+    const idImportacion = String(opcionesSeguras.idImportacion || (importacion && importacion.id_importacion) || '').trim();
+    const ahora = () => new Date().toISOString();
+
+    const clonarFn = (this.libro && typeof this.libro.clonarEstadoLibro === 'function')
+      ? this.libro.clonarEstadoLibro
+      : (typeof clonarEstadoLibro === 'function'
+        ? clonarEstadoLibro
+        : (typeof global !== 'undefined' && typeof global.clonarEstadoLibro === 'function' ? global.clonarEstadoLibro : null));
+    if (typeof clonarFn !== 'function') {
+      throw new Error('clonarEstadoLibro no está disponible en MovementService');
+    }
+
+    const claveDoc = (tipoDoc, serie, numero) => {
+      const tipo = String(tipoDoc || '').trim().toUpperCase();
+      const grupo = (tipo === 'ENTRADA' || tipo === 'COMPRA') ? 'E' : 'S';
+      return JSON.stringify([grupo, String(serie || '').trim(), String(numero || '').trim()]);
+    };
+    const totalCajasLineas = (lineas) => (Array.isArray(lineas) ? lineas : [])
+      .reduce((total, linea) => total + Math.abs(Number(linea.cajas) || 0), 0);
+
+    if (listaDocumentos.length === 0) {
+      this._acquireLock(opcionesSeguras.timeoutMs || 30000);
+      try {
+        if (importaciones) {
+          this._persistir({ importaciones: { records: importaciones } });
+        }
+        return {
+          success: true,
+          status: 'SIN_DOCUMENTOS',
+          documentos: [],
+          movimientosGenerados: [],
+          pendientesGenerados: 0,
+          conteos: { nuevos: 0, saltados: 0, modificados: 0, pendientes: 0 }
+        };
+      } finally {
+        this._releaseLock();
+      }
+    }
+
+    this._acquireLock(opcionesSeguras.timeoutMs || 30000);
+    try {
+      let { estado, movimientos } = this._cargarEstado();
+      const documentosExistentes = Array.isArray(opcionesSeguras.documentosExistentes)
+        ? opcionesSeguras.documentosExistentes
+        : this.repo.getDocumentos();
+
+      const generatedMovements = [];
+      const generatedDocs = [];
+      const generatedPendientes = [];
+      const resultados = [];
+      let nuevos = 0;
+      let saltados = 0;
+      let modificados = 0;
+      let pendientesDocs = 0;
+
+      const crearPendiente = (linea, documento, tipoDoc, motivo) => ({
+        id_pendiente: this._nuevoId('PEND'),
+        id_importacion: idImportacion,
+        tipo_doc: tipoDoc,
+        serie: String(documento.serie || '').trim(),
+        numero: String(documento.numero || '').trim(),
+        linea: linea.linea === null || linea.linea === undefined ? '' : linea.linea,
+        fecha_negocio: linea.fecha || documento.fecha || '',
+        entidad: String(linea.entidad || documento.entidad || '').trim(),
+        articulo: linea.articulo || '',
+        envase: linea.envase || '',
+        cajas: linea.cajas === null || linea.cajas === undefined ? '' : Number(linea.cajas),
+        kg: linea.kg === null || linea.kg === undefined ? '' : Number(linea.kg),
+        motivo,
+        estado: 'PENDIENTE',
+        fecha_alta: ahora(),
+        fecha_resolucion: ''
+      });
+
+      for (const documento of listaDocumentos) {
+        const tipoDoc = documento.tipoDoc === 'ENTRADA' ? 'ENTRADA' : 'SALIDA';
+        const serie = String(documento.serie || '').trim();
+        const numero = String(documento.numero || '').trim();
+        const clave = claveDoc(tipoDoc, serie, numero);
+        const lineasOk = Array.isArray(documento.lineasOk) ? documento.lineasOk : [];
+        const lineasPendiente = Array.isArray(documento.lineasPendiente) ? documento.lineasPendiente : [];
+        const totalLineas = (documento.resumen && documento.resumen.totalLineas !== undefined)
+          ? Number(documento.resumen.totalLineas)
+          : (lineasOk.length + lineasPendiente.length);
+
+        const existente = documentosExistentes.find(d => claveDoc(d.tipo_documento, d.serie, d.numero) === clave);
+        if (existente) {
+          const firmaExistente = String(existente.firma_lineas || '').trim();
+          const firmaNueva = String(documento.firma || '').trim();
+          if (!firmaExistente || firmaExistente === firmaNueva) {
+            saltados++;
+            resultados.push({
+              clave,
+              tipoDoc,
+              serie,
+              numero,
+              fecha: documento.fecha || null,
+              estado: 'YA_IMPORTADO',
+              idDocumento: existente.id_documento || ''
+            });
+          } else {
+            modificados++;
+            resultados.push({
+              clave,
+              tipoDoc,
+              serie,
+              numero,
+              fecha: documento.fecha || null,
+              estado: 'MODIFICADO_EN_ERP',
+              idDocumento: existente.id_documento || ''
+            });
+          }
+          continue;
+        }
+
+        if (lineasOk.length === 0 && lineasPendiente.length === 0) {
+          resultados.push({
+            clave,
+            tipoDoc,
+            serie,
+            numero,
+            fecha: documento.fecha || null,
+            estado: 'SIN_LINEAS_APLICABLES',
+            idDocumento: ''
+          });
+          continue;
+        }
+
+        const estadoAntesDocumento = clonarFn(estado);
+        const docId = this._nuevoId('DOC');
+        const movimientosDocumento = [];
+        let faltaStock = false;
+
+        for (const linea of lineasOk) {
+          const esEntrada = tipoDoc === 'ENTRADA';
+          const kgLinea = (linea.kg !== undefined && linea.kg !== null && linea.kg !== '')
+            ? Number(linea.kg)
+            : '';
+          const mov = {
+            id_movimiento: this._nuevoId('MOV'),
+            fecha_hora: ahora(),
+            tipo_movimiento: tipoDoc,
+            id_documento_ref: docId,
+            documento_ref: `${serie}/${numero}`,
+            codigo_articulo: linea.articulo,
+            codigo_envase: linea.envase,
+            cajas: Number(linea.cajas),
+            signo: esEntrada ? 1 : -1,
+            partida_origen: linea.partida || '',
+            motivo_ajuste: '',
+            usuario: usuario || 'SISTEMA',
+            observaciones: '',
+            estado: 'CONFIRMADO',
+            fecha_negocio: linea.fecha,
+            entidad_nombre: String(linea.entidad || '').trim(),
+            secuencia: '',
+            origen_dato: 'CSV',
+            kg_informativo: kgLinea,
+            id_movimiento_ref: '',
+            id_capa_objetivo: '',
+            id_capa_creada: esEntrada ? this._nuevoId('CAPA') : ''
+          };
+
+          const res = this._aplicar(estado, mov);
+          if (!res.ok) {
+            if (res.errorCode === 'STOCK_INSUFICIENTE') {
+              faltaStock = true;
+              break;
+            }
+            throw new Error(`Error inesperado al aplicar la línea ${linea.linea} de ${serie}/${numero}: ${res.error}`);
+          }
+          estado = res.estado;
+          movimientosDocumento.push(mov);
+        }
+
+        if (faltaStock) {
+          estado = estadoAntesDocumento;
+          for (const linea of lineasOk) {
+            generatedPendientes.push(crearPendiente(linea, documento, tipoDoc, 'STOCK_INSUFICIENTE'));
+          }
+          for (const linea of lineasPendiente) {
+            generatedPendientes.push(crearPendiente(linea, documento, tipoDoc, 'SEGUIMIENTO_DESCONOCIDO'));
+          }
+
+          const docPendiente = {
+            id_documento: docId,
+            sha256_hash: opcionesSeguras.hash || '',
+            tipo_documento: tipoDoc === 'ENTRADA' ? 'COMPRA' : 'SALIDA',
+            serie,
+            numero,
+            fecha_documento: documento.fecha || '',
+            entidad_nombre: String(documento.entidad || '').trim(),
+            total_lineas: totalLineas,
+            total_cajas: totalCajasLineas(lineasOk),
+            drive_file_id: '',
+            drive_url: '',
+            estado_proceso: 'PENDIENTE_REVISION',
+            fecha_subida: ahora(),
+            usuario_subida: usuario || 'SISTEMA',
+            firma_lineas: documento.firma || ''
+          };
+          generatedDocs.push(docPendiente);
+          documentosExistentes.push(docPendiente);
+          nuevos++;
+          pendientesDocs++;
+          resultados.push({
+            clave,
+            tipoDoc,
+            serie,
+            numero,
+            fecha: documento.fecha || null,
+            estado: 'STOCK_INSUFICIENTE',
+            estadoProceso: 'PENDIENTE_REVISION',
+            idDocumento: docId
+          });
+          continue;
+        }
+
+        for (const mov of movimientosDocumento) {
+          generatedMovements.push(mov);
+        }
+        for (const linea of lineasPendiente) {
+          generatedPendientes.push(crearPendiente(linea, documento, tipoDoc, 'SEGUIMIENTO_DESCONOCIDO'));
+        }
+
+        const estadoProceso = lineasOk.length > 0
+          ? (lineasPendiente.length > 0 ? 'CONFIRMADO_PARCIAL' : 'CONFIRMADO')
+          : 'PENDIENTE_REVISION';
+        const docConfirmado = {
+          id_documento: docId,
+          sha256_hash: opcionesSeguras.hash || '',
+          tipo_documento: tipoDoc === 'ENTRADA' ? 'COMPRA' : 'SALIDA',
+          serie,
+          numero,
+          fecha_documento: documento.fecha || '',
+          entidad_nombre: String(documento.entidad || '').trim(),
+          total_lineas: totalLineas,
+          total_cajas: totalCajasLineas(lineasOk),
+          drive_file_id: '',
+          drive_url: '',
+          estado_proceso: estadoProceso,
+          fecha_subida: ahora(),
+          usuario_subida: usuario || 'SISTEMA',
+          firma_lineas: documento.firma || ''
+        };
+        generatedDocs.push(docConfirmado);
+        documentosExistentes.push(docConfirmado);
+        nuevos++;
+        resultados.push({
+          clave,
+          tipoDoc,
+          serie,
+          numero,
+          fecha: documento.fecha || null,
+          estado: 'NUEVO',
+          estadoProceso,
+          idDocumento: docId
+        });
+      }
+
+      if (importacion) {
+        importacion.documentos_nuevos = Number(importacion.documentos_nuevos || 0) + nuevos;
+        importacion.documentos_saltados = Number(importacion.documentos_saltados || 0) + saltados;
+        importacion.documentos_modificados = Number(importacion.documentos_modificados || 0) + modificados;
+        importacion.documentos_pendientes = Number(importacion.documentos_pendientes || 0) + pendientesDocs;
+      }
+
+      this._persistir({
+        movimientos: generatedMovements,
+        movimientosExistentes: movimientos,
+        estado: generatedMovements.length > 0 ? estado : null,
+        documentos: generatedDocs.length > 0 ? { append: generatedDocs } : null,
+        pendientes: generatedPendientes,
+        importaciones: importaciones ? { records: importaciones } : null
+      });
+
+      return {
+        success: true,
+        status: generatedMovements.length > 0 ? 'CONFIRMADO' : 'SIN_MOVIMIENTOS',
+        documentos: resultados,
+        movimientosGenerados: generatedMovements.map(m => m.id_movimiento),
+        pendientesGenerados: generatedPendientes.length,
+        conteos: {
+          nuevos,
+          saltados,
+          modificados,
+          pendientes: pendientesDocs
+        }
       };
     } finally {
       this._releaseLock();

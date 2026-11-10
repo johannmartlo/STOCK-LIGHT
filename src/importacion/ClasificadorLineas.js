@@ -68,6 +68,11 @@ function clasificar(lineas, config, esCombinacionSeguida) {
     const seguimiento = esCombinacionSeguida(linea.articulo, linea.envase);
     if (seguimiento === 'NO_SEGUIDA') return clasificadorEstado(linea, 'NO_SEGUIDA');
 
+    // D-031: las cajas numéricas menores o iguales que cero son un abono sin mercancía.
+    if (!cajasVacias && Number.isFinite(cajasNumero) && cajasNumero <= 0) {
+      return clasificadorEstado(linea, 'ABONO');
+    }
+
     const cajas = Number(linea.cajas);
     if (!Number.isFinite(cajas) || !Number.isInteger(cajas) || cajas <= 0) {
       return clasificadorEstado(linea, 'ERROR_DATOS', 'Las cajas deben ser un entero mayor que cero');
@@ -119,7 +124,7 @@ function clasificadorCompararDocumentos(a, b) {
 function agruparEnDocumentos(lineasClasificadas) {
   if (!Array.isArray(lineasClasificadas)) throw new TypeError('lineasClasificadas debe ser un array');
   const grupos = new Map();
-  const estados = ['VACIA', 'SERIE_IGNORADA', 'ERROR_DATOS', 'NO_SEGUIDA', 'PENDIENTE', 'OK'];
+  const estados = ['VACIA', 'SERIE_IGNORADA', 'ERROR_DATOS', 'NO_SEGUIDA', 'ABONO', 'PENDIENTE', 'OK'];
 
   lineasClasificadas.forEach(linea => {
     const clave = clasificadorClaveDocumento(linea);

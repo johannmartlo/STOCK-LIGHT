@@ -164,6 +164,52 @@ Bitácora y trazabilidad de todos los archivos importados al sistema.
 | `estado_proceso` | `ENUM` | NO | `SUBIDO`, `PARSEADO`, `CONFIRMADO`, `DUPLICADO`, `ERROR`. |
 | `fecha_subida` | `DATETIME` | NO | Marca temporal de la ingesta en el sistema. |
 | `usuario_subida` | `VARCHAR(100)`| NO | Email del usuario que realizó la carga. |
+| `firma_lineas` | `VARCHAR(64)` | SÍ | Hash SHA-256 de las líneas del documento tal como vienen en el CSV (línea, artículo y envase normalizados, cajas), ordenadas. No depende de la clasificación (T-007, D-010). |
+
+#### 3.2.1. Tabla: `PENDIENTES`
+Líneas que no se pueden aplicar todavía y quedan en cuarentena, sin crear movimientos (D-006, D-009, T-007).
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `id_pendiente` | `VARCHAR(50)` | NO | Clave primaria generada con `nuevoId('PEND')`. |
+| `id_importacion` | `VARCHAR(50)` | SÍ | Vínculo a `IMPORTACIONES.id_importacion`. |
+| `tipo_doc` | `ENUM` | NO | `ENTRADA` o `SALIDA`. |
+| `serie` | `VARCHAR(20)` | NO | Serie del albarán. |
+| `numero` | `VARCHAR(30)` | NO | Número del albarán. |
+| `linea` | `INTEGER` | SÍ | Número de línea del CSV. |
+| `fecha_negocio` | `DATE` | NO | Fecha del albarán (`YYYY-MM-DD`). |
+| `entidad` | `VARCHAR(200)` | SÍ | Proveedor o cliente del documento. |
+| `articulo` | `VARCHAR(150)` | NO | Artículo normalizado. |
+| `envase` | `VARCHAR(150)` | NO | Envase normalizado. |
+| `cajas` | `DECIMAL` | SÍ | Cajas de la línea. |
+| `kg` | `DECIMAL` | SÍ | Kilos informativos (D-025). |
+| `motivo` | `ENUM` | NO | `SEGUIMIENTO_DESCONOCIDO` o `STOCK_INSUFICIENTE`. |
+| `estado` | `ENUM` | NO | `PENDIENTE`, `APLICADA` o `IGNORADA`. |
+| `fecha_alta` | `DATETIME` | NO | Fecha y hora de entrada en cuarentena. |
+| `fecha_resolucion` | `DATETIME` | SÍ | Fecha y hora de resolución. |
+
+#### 3.2.2. Tabla: `IMPORTACIONES`
+Registro de cada importación de CSV, para comprobar el hash, reanudar tramos y auditar contadores (T-007).
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `id_importacion` | `VARCHAR(50)` | NO | Clave primaria generada con `nuevoId('IMP')`. |
+| `fecha_hora` | `DATETIME` | NO | Marca temporal de la importación. |
+| `usuario` | `VARCHAR(100)` | NO | Email del usuario que confirma. |
+| `tipo_csv` | `ENUM` | NO | `COMPRAS` o `VENTAS`. |
+| `hash` | `VARCHAR(64)` | NO | SHA-256 hexadecimal del texto del CSV. |
+| `documentos_nuevos` | `INTEGER` | NO | Documentos aplicados o dejados en pendiente. |
+| `documentos_saltados` | `INTEGER` | NO | Documentos ya importados con la misma firma. |
+| `documentos_modificados` | `INTEGER` | NO | Documentos con firma distinta (MODIFICADO_EN_ERP). |
+| `documentos_pendientes` | `INTEGER` | NO | Documentos dejados en PENDIENTE_REVISION por falta de stock. |
+| `lineas_ok` | `INTEGER` | NO | Líneas clasificadas como OK. |
+| `lineas_no_seguidas` | `INTEGER` | NO | Líneas NO_SEGUIDA. |
+| `lineas_abono` | `INTEGER` | NO | Líneas ABONO (D-031). |
+| `lineas_series_ignoradas` | `INTEGER` | NO | Líneas SERIE_IGNORADA. |
+| `lineas_pendientes` | `INTEGER` | NO | Líneas PENDIENTE (seguimiento desconocido). |
+| `lineas_error` | `INTEGER` | NO | Líneas ERROR_DATOS. |
+| `estado` | `ENUM` | NO | `EN_CURSO` o `CONFIRMADA`. |
+| `ultimo_tramo` | `INTEGER` | NO | Último tramo aplicado; permite reanudar sin repetir documentos. |
 
 ---
 

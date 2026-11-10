@@ -18,6 +18,9 @@ const PREFIJOS_SERIES_IMPORTACION = Object.freeze({
   prefijosSalida: Object.freeze(['AVT'])
 });
 
+// Número máximo de documentos aplicables por tramo en una importación en lote (T-007).
+const UMBRAL_DOCUMENTOS_POR_TRAMO = 150;
+
 /**
  * Obtiene el SPREADSHEET_ID desde las propiedades del script (PropertiesService)
  * o desde las opciones inyectadas.
@@ -199,6 +202,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CONFIG_KEYS,
     PREFIJOS_SERIES_IMPORTACION,
+    UMBRAL_DOCUMENTOS_POR_TRAMO,
     getSpreadsheetIdConfig,
     setSpreadsheetIdConfig,
     getDriveFolderIdConfig,

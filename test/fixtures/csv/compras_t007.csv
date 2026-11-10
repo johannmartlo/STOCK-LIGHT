@@ -1,0 +1,6 @@
+FechaAlbaran;NombreEmisor;NumeroAlbaran;SerieAlbaran;OrdenLinea;NumeracionProveedor;ReferenciaAC;NombreArticulo;DescripcionArticulo;UnidadesEnvase;CantidadLineaAlbaran;CantidadTotal;ReferenciaLineaAlbaran;ObservacionesLineaAlbaran;CantidadPrecioPor;Factor;PorCada;PesoBrutoLACCA;PesoNetoLACCA;NroPaletsAC;PaletAC;NombrePaletAC;CodigoEnvaseAC;NombreEnvaseAC;CantidadEnvasesAC
+02/11/2026;Proveedor Ficticio A;100;ACT27;1;NP-100;REF-100;TOMATE FICTICIO;Descripcion ficticia;10;10,000;10;REF-L1;;1;1;1;60,000;50,000;0;;;ENV-F;CAJA FICTICIA;10,000
+03/11/2026;Proveedor Ficticio B;101;NT27;1;NP-101;REF-101;TOMATE FICTICIO;Descripcion ficticia;8;8,000;8;REF-L2;;1;1;1;48,000;40,000;0;;;ENV-F;CAJA FICTICIA;8,000
+04/11/2026;Proveedor Ficticio C;102;ACT27;1;NP-102;REF-102;TOMATE FICTICIO;Descripcion ficticia;5;5,000;5;REF-L3;;1;1;1;30,000;25,000;0;;;ENV-F;CAJA FICTICIA;5,000
+04/11/2026;Proveedor Ficticio D;103;ACA27;1;NP-103;REF-103;TOMATE FICTICIO;Descripcion ficticia;99;99,000;99;REF-L4;;1;1;1;0;0;0;;;ENV-F;CAJA FICTICIA;99,000
+04/11/2026;Proveedor Ficticio E;104;ACT27;1;NP-104;REF-104;PRODUCTO NO SEGUIDO;Descripcion ficticia;7;7,000;7;REF-L5;;1;1;1;0;0;0;;;ENV-F;CAJA FICTICIA;7,000

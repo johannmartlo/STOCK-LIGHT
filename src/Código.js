@@ -25,6 +25,8 @@ if (typeof require !== 'undefined') {
   try { masterInitMod = require('./MasterInitializationService'); } catch (e) {}
   let catSvcMod = null;
   try { catSvcMod = require('./CatalogoService'); } catch (e) {}
+  let importacionMod = null;
+  try { importacionMod = require('./importacion/ImportacionService'); } catch (e) {}
   let semillaMod = null;
   try { semillaMod = require('./SemillaCatalogo'); } catch (e) {}
 
@@ -37,6 +39,7 @@ if (typeof require !== 'undefined') {
   global.OperationalSafetyService = safetyMod.OperationalSafetyService;
   if (masterInitMod) global.MasterInitializationService = masterInitMod.MasterInitializationService;
   if (catSvcMod) global.CatalogoService = catSvcMod.CatalogoService;
+  if (importacionMod) global.ImportacionService = importacionMod.ImportacionService;
   if (semillaMod) global.sembrarCatalogoEnRepositorio_ = semillaMod.sembrarCatalogoEnRepositorio_;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
@@ -833,6 +836,56 @@ function apiProcesarSalidaDocumento(docPayload, lineas, usuario, options = {}) {
 }
 
 /**
+ * Previsualiza un CSV de Hispatec sin escribir en ninguna hoja (T-007, D-029, D-031).
+ * Categoría: LECTURA.
+ * @param {string} textoCsv
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiPrevisualizarImportacionCsv(textoCsv, options = {}) {
+  const SvcClass = (typeof ImportacionService !== 'undefined')
+    ? ImportacionService
+    : (typeof require !== 'undefined' ? require('./importacion/ImportacionService').ImportacionService : null);
+  if (!SvcClass) throw new Error('ImportacionService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || new SheetsRepository();
+  const service = new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    configCatalogo: options.configCatalogo,
+    umbralTramos: options.umbralTramos,
+    lockService: options.lockService
+  });
+  return service.previsualizar(textoCsv);
+}
+
+/**
+ * Confirma la importación de un CSV de Hispatec en lote (T-007).
+ * Categoría: ESCRITURA; el usuario de auditoría lo decide el servidor.
+ * @param {string} textoCsv
+ * @param {string} hash
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiConfirmarImportacionCsv(textoCsv, hash, options = {}) {
+  const user = usuarioActual_(options && options.session);
+  const SvcClass = (typeof ImportacionService !== 'undefined')
+    ? ImportacionService
+    : (typeof require !== 'undefined' ? require('./importacion/ImportacionService').ImportacionService : null);
+  if (!SvcClass) throw new Error('ImportacionService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || new SheetsRepository();
+  const service = new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    configCatalogo: options.configCatalogo,
+    umbralTramos: options.umbralTramos,
+    lockService: options.lockService
+  });
+  return service.confirmar(textoCsv, hash, user);
+}
+
+/**
  * Concilia existencias de STOCK-LIGHT contra un inventario externo de forma no destructiva (Fase 6.0).
  * @param {Array<Object>} stockExterno 
  * @param {Object} [options]
@@ -1182,6 +1235,8 @@ if (typeof module !== 'undefined' && module.exports) {
     apiPrevisualizarDocumento,
     apiProcesarEntradaDocumento,
     apiProcesarSalidaDocumento,
+    apiPrevisualizarImportacionCsv,
+    apiConfirmarImportacionCsv,
     apiConciliarStock,
     apiEjecutarAjusteOperativo,
     apiObtenerLogOperaciones,

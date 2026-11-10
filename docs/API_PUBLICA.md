@@ -60,6 +60,8 @@ cualquier otra función terminada en `_` **no** aparecen aquí porque Apps Scrip
 | `apiPrevisualizarDocumento` | `src/Código.js` | LECTURA | Previsualización con semáforo. |
 | `apiProcesarEntradaDocumento` | `src/Código.js` | ESCRITURA | Procesa una entrada; usuario del servidor. |
 | `apiProcesarSalidaDocumento` | `src/Código.js` | ESCRITURA | Procesa una salida; usuario del servidor. |
+| `apiPrevisualizarImportacionCsv` | `src/Código.js` | LECTURA | Previsualiza un CSV de Hispatec sin escribir en ninguna hoja (T-007). |
+| `apiConfirmarImportacionCsv` | `src/Código.js` | ESCRITURA | Confirma un CSV de Hispatec en lote; usuario del servidor (T-007). |
 | `apiConciliarStock` | `src/Código.js` | ADMIN | Compara contra un inventario externo sin alterar existencias. |
 | `apiEjecutarAjusteOperativo` | `src/Código.js` | ESCRITURA | Ajuste o reclasificación unificada; usuario del servidor. |
 | `apiObtenerLogOperaciones` | `src/Código.js` | LECTURA | Log de trazabilidad operativa. |

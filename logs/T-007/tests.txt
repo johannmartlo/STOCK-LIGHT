@@ -1,0 +1,75 @@
+﻿================================================================
+ EJECUTOR ├ÜNICO DE PRUEBAS ÔÇö STOCK-LIGHT
+================================================================
+
+Suites detectadas (27):
+  1. articulo_envase_persistence.test.js
+  2. commercial_group_resolver.test.js
+  3. compra_packaging_resolution.test.js
+  4. fase5_configuracion_persistencia.test.js
+  5. fase6_1_correcciones_historicas.test.js
+  6. fase6_seguridad_operativa.test.js
+  7. fase7_frontend_ux_integration.test.js
+  8. fase8_1_prueba_real_aislada.test.js
+  9. fase8_2_apps_script_v8_loading.test.js
+  10. fase8_auditoria_maestros_inicializacion.test.js
+  11. helpers_mock.test.js
+  12. inventory_engine.test.js
+  13. maestro_envases_import.test.js
+  14. movement_service.test.js
+  15. persistence_runtime.test.js
+  16. stock_query.test.js
+  17. t002_fecha_negocio.test.js
+  18. t003_consumos_fifo.test.js
+  19. t004_clave_nombre.test.js
+  20. t005_catalogo.test.js
+  21. t006_parser_csv.test.js
+  22. t006b_clasificador.test.js
+  23. t007_importacion_lote.test.js
+  24. t018_copias.test.js
+  25. t022_libro.test.js
+  26. t022_propiedades.test.js
+  27. t023_superficie.test.js
+
+----------------------------------------------------------------
+
+[1/27] Ejecutando articulo_envase_persistence.test.js... Ô£à OK (20 pruebas, 0.11s)
+[2/27] Ejecutando commercial_group_resolver.test.js... Ô£à OK (23 pruebas, 0.11s)
+[3/27] Ejecutando compra_packaging_resolution.test.js... Ô£à OK (9 pruebas, 0.07s)
+[4/27] Ejecutando fase5_configuracion_persistencia.test.js... Ô£à OK (18 pruebas, 0.12s)
+[5/27] Ejecutando fase6_1_correcciones_historicas.test.js... Ô£à OK (21 pruebas, 0.13s)
+[6/27] Ejecutando fase6_seguridad_operativa.test.js... Ô£à OK (20 pruebas, 0.13s)
+[7/27] Ejecutando fase7_frontend_ux_integration.test.js... Ô£à OK (19 pruebas, 0.12s)
+[8/27] Ejecutando fase8_1_prueba_real_aislada.test.js... Ô£à OK (8 pruebas, 0.10s)
+[9/27] Ejecutando fase8_2_apps_script_v8_loading.test.js... Ô£à OK (7 pruebas, 0.15s)
+[10/27] Ejecutando fase8_auditoria_maestros_inicializacion.test.js... Ô£à OK (10 pruebas, 0.12s)
+[11/27] Ejecutando helpers_mock.test.js... Ô£à OK (2 pruebas, 0.05s)
+[12/27] Ejecutando inventory_engine.test.js... Ô£à OK (11 pruebas, 0.06s)
+[13/27] Ejecutando maestro_envases_import.test.js... Ô£à OK (22 pruebas, 0.05s)
+[14/27] Ejecutando movement_service.test.js... Ô£à OK (4 pruebas, 0.06s)
+[15/27] Ejecutando persistence_runtime.test.js... Ô£à OK (9 pruebas, 0.06s)
+[16/27] Ejecutando stock_query.test.js... Ô£à OK (10 pruebas, 0.07s)
+[17/27] Ejecutando t002_fecha_negocio.test.js... Ô£à OK (9 pruebas, 0.08s)
+[18/27] Ejecutando t003_consumos_fifo.test.js... Ô£à OK (9 pruebas, 0.07s)
+[19/27] Ejecutando t004_clave_nombre.test.js... Ô£à OK (6 pruebas, 0.12s)
+[20/27] Ejecutando t005_catalogo.test.js... Ô£à OK (8 pruebas, 0.11s)
+[21/27] Ejecutando t006_parser_csv.test.js... Ô£à OK (5 pruebas, 0.05s)
+[22/27] Ejecutando t006b_clasificador.test.js... Ô£à OK (5 pruebas, 0.05s)
+[23/27] Ejecutando t007_importacion_lote.test.js... Ô£à OK (13 pruebas, 0.12s)
+[24/27] Ejecutando t018_copias.test.js... Ô£à OK (12 pruebas, 0.10s)
+[25/27] Ejecutando t022_libro.test.js... Ô£à OK (5 pruebas, 0.07s)
+[26/27] Ejecutando t022_propiedades.test.js... Ô£à OK (1 pruebas, 0.37s)
+[27/27] Ejecutando t023_superficie.test.js... Ô£à OK (8 pruebas, 0.10s)
+
+================================================================
+ RESUMEN GLOBAL DE EJECUCI├ôN
+================================================================
+ Suites ejecutadas:  27
+ Suites superadas:   27
+ Suites fallidas:    0
+ Pruebas superadas:  294
+ Tiempo total:       2.74s
+================================================================
+
+RESULTADO FINAL: TODO EN VERDE (0 fallos)
+

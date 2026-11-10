@@ -49,7 +49,45 @@ const SCHEMA_DEFINITIONS = {
     'drive_url',
     'estado_proceso',
     'fecha_subida',
-    'usuario_subida'
+    'usuario_subida',
+    'firma_lineas'
+  ],
+  PENDIENTES: [
+    'id_pendiente',
+    'id_importacion',
+    'tipo_doc',
+    'serie',
+    'numero',
+    'linea',
+    'fecha_negocio',
+    'entidad',
+    'articulo',
+    'envase',
+    'cajas',
+    'kg',
+    'motivo',
+    'estado',
+    'fecha_alta',
+    'fecha_resolucion'
+  ],
+  IMPORTACIONES: [
+    'id_importacion',
+    'fecha_hora',
+    'usuario',
+    'tipo_csv',
+    'hash',
+    'documentos_nuevos',
+    'documentos_saltados',
+    'documentos_modificados',
+    'documentos_pendientes',
+    'lineas_ok',
+    'lineas_no_seguidas',
+    'lineas_abono',
+    'lineas_series_ignoradas',
+    'lineas_pendientes',
+    'lineas_error',
+    'estado',
+    'ultimo_tramo'
   ],
   MOVIMIENTOS: [
     'id_movimiento',
@@ -472,13 +510,43 @@ class SheetsRepository {
     return this.replaceTable('DOCUMENTOS', docs);
   }
 
+  getPendientes() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('PENDIENTES')) return [];
+    return this.readTable('PENDIENTES');
+  }
+
+  appendPendientes(records = []) {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    return this.appendRecords('PENDIENTES', records);
+  }
+
+  savePendientes(records = []) {
+    return this.replaceTable('PENDIENTES', records);
+  }
+
+  getImportaciones() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('IMPORTACIONES')) return [];
+    return this.readTable('IMPORTACIONES');
+  }
+
+  appendImportaciones(records = []) {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    return this.appendRecords('IMPORTACIONES', records);
+  }
+
+  saveImportaciones(records = []) {
+    return this.replaceTable('IMPORTACIONES', records);
+  }
+
   getMovimientos() {
     return this.readTable('MOVIMIENTOS');
   }
 
-  appendMovimientos(movs) {
+  appendMovimientos(movs, movimientosExistentes = null) {
     if (!movs || movs.length === 0) return 0;
-    const existentes = this.getMovimientos();
+    const existentes = Array.isArray(movimientosExistentes) ? movimientosExistentes : this.getMovimientos();
     let maxSecuencia = 0;
     for (const m of existentes) {
       const s = Number(m.secuencia);
