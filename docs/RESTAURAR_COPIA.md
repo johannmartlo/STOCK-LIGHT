@@ -11,10 +11,25 @@ de Apps Script, como propietario del script; desde la web app se rechazan.
 - Comprueba que el disparador diario está instalado (opcional, pero recomendable):
   `adminInstalarCopiaDiaria()`. Crea una copia cada día a las 23:00 de Europe/Madrid.
 - Las copias se llaman `STOCK-LIGHT_COPIA_<YYYY-MM-DD_HHmm>_<MOTIVO>`, con motivo `DIARIA`,
-  `MANUAL` o `PRE_DESPLIEGUE`. Se conservan las 30 `DIARIA` más recientes; las `MANUAL` y
-  `PRE_DESPLIEGUE` no se borran automáticamente.
+  `MANUAL`, `PRE_DESPLIEGUE` o `PRE_STOCK_INICIAL`. Se conservan las 30 `DIARIA` más recientes;
+  las `MANUAL`, `PRE_DESPLIEGUE` y `PRE_STOCK_INICIAL` no se borran automáticamente.
 - Solo se crea una copia `DIARIA` por día (Europe/Madrid). Si el disparador se ejecuta varias
   veces el mismo día, la segunda y siguientes se omiten sin crear ni borrar nada.
+
+## Copia `PRE_STOCK_INICIAL` (T-011)
+
+Antes de confirmar una carga de stock inicial, STOCK-LIGHT crea automáticamente una copia
+`PRE_STOCK_INICIAL` (por ejemplo, `STOCK-LIGHT_COPIA_2026-11-25_2210_PRE_STOCK_INICIAL`).
+Si esa copia no se puede crear, la carga de stock inicial **no se aplica**.
+
+Si una carga de stock inicial sale mal:
+
+1. Localiza en la carpeta de copias la `PRE_STOCK_INICIAL` inmediatamente anterior a la carga.
+2. Sigue los pasos de restauración de abajo, haciendo primero una copia `MANUAL` del estado
+   actual.
+3. Al comprobar la consistencia, revisa también que no quedan movimientos con
+   `motivo_ajuste = STOCK_INICIAL` de la carga incorrecta.
+4. Cuando el estado sea correcto, vuelve a cargar el stock inicial con los datos corregidos.
 
 ## Pasos para restaurar
 

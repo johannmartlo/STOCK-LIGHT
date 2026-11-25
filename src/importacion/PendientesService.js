@@ -194,6 +194,7 @@ class PendientesService {
       let pendientesModificadas = false;
       const candidatosAplicar = [];
       const docsAfectados = new Set();
+      const cajasNuevasPorClave = new Map();
 
       for (const fila of pendientesActivas) {
         const motivo = String(fila.motivo || '').trim().toUpperCase();
@@ -215,6 +216,13 @@ class PendientesService {
             pendientesModificadas = true;
             docsAfectados.add(clave);
           } else if (seguimiento === 'SEGUIDA') {
+            // La línea deja de ser desconocida: sus cajas entran en total_cajas una sola vez,
+            // tanto si se aplica en este reintento como si pasa a STOCK_INSUFICIENTE.
+            cajasNuevasPorClave.set(
+              clave,
+              (cajasNuevasPorClave.get(clave) || 0) + Math.abs(Number(fila.cajas) || 0)
+            );
+            docsAfectados.add(clave);
             candidatosAplicar.push({ fila, motivo: 'SEGUIMIENTO_DESCONOCIDO', clave });
           }
           continue;
@@ -263,7 +271,6 @@ class PendientesService {
       let movimientosExistentes = null;
       let documentosExistentes = null;
       const generatedMovements = [];
-      const cajasNuevasPorClave = new Map();
       const aplicadasPorClave = new Set();
 
       if (gruposOrdenados.length > 0 || docsAfectados.size > 0) {
@@ -355,12 +362,6 @@ class PendientesService {
               fila.estado = 'APLICADA';
               fila.fecha_resolucion = ahoraIso;
               aplicados[motivo] = (aplicados[motivo] || 0) + 1;
-              if (motivo === 'SEGUIMIENTO_DESCONOCIDO') {
-                cajasNuevasPorClave.set(
-                  grupo.clave,
-                  (cajasNuevasPorClave.get(grupo.clave) || 0) + Math.abs(Number(fila.cajas) || 0)
-                );
-              }
             }
             pendientesModificadas = true;
             docsAfectados.add(grupo.clave);

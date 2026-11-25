@@ -187,7 +187,7 @@ Bitácora y trazabilidad de todos los archivos importados al sistema.
 | `fecha_documento` | `DATE` | NO | Fecha de expedición del albarán (`YYYY-MM-DD`). |
 | `entidad_nombre` | `VARCHAR(200)`| SÍ | Razón social del proveedor o cliente. |
 | `total_lineas` | `INTEGER` | NO | Cantidad de líneas de stock reconocidas en el documento. |
-| `total_cajas` | `INTEGER` | NO | Sumatorio total de cajas contabilizadas en el documento. |
+| `total_cajas` | `INTEGER` | NO | Sumatorio de cajas de las líneas **seguidas** del documento, aplicadas o pendientes de stock. No incluye líneas ignoradas ni líneas que siguen con seguimiento desconocido (T-026). |
 | `drive_file_id` | `VARCHAR(100)`| NO | Identificador único del archivo alojado en Google Drive. |
 | `drive_url` | `VARCHAR(255)`| NO | Enlace directo para visualización del PDF en Google Drive. |
 | `estado_proceso` | `ENUM` | NO | `SUBIDO`, `PARSEADO`, `CONFIRMADO`, `DUPLICADO`, `ERROR`. |
@@ -263,7 +263,7 @@ Libro diario inmutable de eventos de inventario. Cada fila representa un cambio 
 | `fecha_negocio` | `DATE` | NO | Fecha de negocio del albarán/documento (D-008, formato YYYY-MM-DD en Europe/Madrid). Fija la antigüedad de la capa, no el orden de reproducción. |
 | `entidad_nombre`| `VARCHAR(150)`| SÍ | Nombre del emisor/proveedor o cliente del documento. |
 | `secuencia` | `INTEGER` | NO | Secuencia estrictamente creciente asignada dentro del lock. Define el orden determinista de reproducción en reconstrucción. |
-| `origen_dato` | `ENUM` | NO | Origen documental (`CSV`, `PDF`, `FOTO`, `MANUAL`; D-023). Por defecto `MANUAL`. |
+| `origen_dato` | `ENUM` | NO | Origen documental (`CSV`, `PDF`, `FOTO`, `MANUAL`, `STOCK_INICIAL`; D-023, T-011). Por defecto `MANUAL`. |
 | `kg_informativo`| `DECIMAL` | SÍ | Kilos netos del documento para estadísticas y previsiones futuras (D-025). No computa en stock (D-004). |
 | `id_movimiento_ref`| `VARCHAR(50)`| SÍ | Vínculo al movimiento original afectado (en anulaciones, correcciones de salida/entrada, divisiones y traspasos; D-022, T-022). |
 | `id_capa_objetivo` | `VARCHAR(50)`| SÍ | Identificador de la capa FIFO específica sobre la que opera un ajuste dirigido o una anulación de entrada (D-022, T-022). |
@@ -303,7 +303,7 @@ Estructura de capas vivas e históricas para la asignación y consumo cronológi
 | `documento_ref` | `VARCHAR(50)` | NO | Serie/Número de albarán de compra o recepción. |
 | `proveedor` | `VARCHAR(150)`| SÍ | Nombre del proveedor/emisor de la partida (D-016). |
 | `id_capa_origen`| `VARCHAR(50)` | SÍ | ID de la capa previa si procede de reproceso, reclasificación o ajuste. |
-| `origen_dato` | `ENUM` | NO | Origen documental (`CSV`, `PDF`, `FOTO`, `MANUAL`; D-023). |
+| `origen_dato` | `ENUM` | NO | Origen documental (`CSV`, `PDF`, `FOTO`, `MANUAL`, `STOCK_INICIAL`; D-023, T-011). |
 
 ---
 
@@ -447,6 +447,20 @@ Detalle de partidas consumidas (ORIGEN) y capas creadas (DESTINO) en cada reproc
 | `fecha_capa` | `DATE` | NO | Fecha de la capa consumida o heredada por el destino (`YYYY-MM-DD`). |
 | `destrio_prorrateado`| `INTEGER` | NO | Cajas de destrío imputadas proporcionalmente a cada origen (D-030). |
 | `id_movimiento` | `VARCHAR(50)` | NO | Enlace al movimiento de ajuste aplicado en `MOVIMIENTOS`. |
+
+### 3.12. Copias de seguridad (T-018, T-011)
+Las copias de la hoja de datos son archivos de Drive, no filas de una hoja. Se nombran
+`STOCK-LIGHT_COPIA_<YYYY-MM-DD_HHmm>_<MOTIVO>`, con estos motivos:
+
+| Motivo | Cuándo se crea | Retención |
+| :--- | :--- | :--- |
+| `DIARIA` | Disparador diario de las 23:00 (Europe/Madrid); como máximo una por día. | Se conservan las 30 más recientes. |
+| `MANUAL` | `adminCrearCopiaManual()` antes de una restauración u operación delicada. | No se borra automáticamente. |
+| `PRE_DESPLIEGUE` | Antes de un despliegue, cuando se ejecuta la copia con ese motivo. | No se borra automáticamente. |
+| `PRE_STOCK_INICIAL` | Automáticamente antes de confirmar una carga de stock inicial (T-011). Si la copia falla, la carga no se aplica. | No se borra automáticamente. |
+
+`crearCopiaSeguridad_(motivo)` es la única función que crea copias y registra el resultado
+en `LOG_OPERACIONES`. La restauración se describe en `docs/RESTAURAR_COPIA.md`.
 
 ---
 
