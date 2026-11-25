@@ -18,6 +18,7 @@
 const assert = require('assert');
 const { crearEntorno } = require('./helpers/mockSheets');
 const codigo = require('../src/Código');
+const { conContextoDePrueba_ } = require('../src/Seguridad');
 const { planificarReproceso } = require('../src/Reproceso');
 
 let passed = 0;
@@ -652,34 +653,36 @@ runTest('9. API pública en src/Código.js y apiObtenerDetallePartidas devuelve 
     { codigo_articulo: 'TOMATE DETALLE', codigo_envase: 'CRT', cajas: 100, partida: 'P-DETALLE' }
   ], 'test@user');
 
-  // Verificar apiObtenerDetallePartidas
-  const detalle = codigo.apiObtenerDetallePartidas('TOMATE DETALLE', 'CRT', { repository: env.repo });
-  assert.ok(detalle, 'Debe devolver detalle');
-  assert.strictEqual(detalle.partidas.length, 1);
-  const p = detalle.partidas[0];
-  assert.strictEqual(p.proveedor, 'AGRICULTOR GARCIA', 'Debe incluir proveedor');
-  assert.strictEqual(p.fecha_capa, '2026-10-18', 'Debe incluir fecha_capa');
+  conContextoDePrueba_('test@user', 'ENCARGADO', () => {
+    // Verificar apiObtenerDetallePartidas
+    const detalle = codigo.apiObtenerDetallePartidas('TOMATE DETALLE', 'CRT', { repository: env.repo });
+    assert.ok(detalle, 'Debe devolver detalle');
+    assert.strictEqual(detalle.partidas.length, 1);
+    const p = detalle.partidas[0];
+    assert.strictEqual(p.proveedor, 'AGRICULTOR GARCIA', 'Debe incluir proveedor');
+    assert.strictEqual(p.fecha_capa, '2026-10-18', 'Debe incluir fecha_capa');
 
-  // Probar apiRegistrarReproceso
-  const resApiRep = codigo.apiRegistrarReproceso({
-    origenes: [{ id_capa: p.idCapa, cajas: 50 }],
-    destinos: [{ articulo: 'TOMATE DETALLE DEST', envase: 'CRT', cajas: 50 }]
-  }, { repository: env.repo, movementService: env.movService });
-  assert.strictEqual(resApiRep.success, true);
+    // Probar apiRegistrarReproceso
+    const resApiRep = codigo.apiRegistrarReproceso({
+      origenes: [{ id_capa: p.idCapa, cajas: 50 }],
+      destinos: [{ articulo: 'TOMATE DETALLE DEST', envase: 'CRT', cajas: 50 }]
+    }, { repository: env.repo, movementService: env.movService });
+    assert.strictEqual(resApiRep.success, true);
 
-  // Probar apiListarReprocesos
-  const listado = codigo.apiListarReprocesos({ estado: 'ACTIVO' }, { repository: env.repo, movementService: env.movService });
-  assert.strictEqual(listado.length, 1);
+    // Probar apiListarReprocesos
+    const listado = codigo.apiListarReprocesos({ estado: 'ACTIVO' }, { repository: env.repo, movementService: env.movService });
+    assert.strictEqual(listado.length, 1);
 
-  // Probar apiSugerenciasReproceso
-  const sugs = codigo.apiSugerenciasReproceso('TOMATE DETALLE', 'CRT', { repository: env.repo, movementService: env.movService });
-  assert.strictEqual(sugs.length, 1);
-  assert.strictEqual(sugs[0][0].articulo, 'TOMATE DETALLE DEST');
+    // Probar apiSugerenciasReproceso
+    const sugs = codigo.apiSugerenciasReproceso('TOMATE DETALLE', 'CRT', { repository: env.repo, movementService: env.movService });
+    assert.strictEqual(sugs.length, 1);
+    assert.strictEqual(sugs[0][0].articulo, 'TOMATE DETALLE DEST');
 
-  // Probar apiAnularReproceso
-  const resApiAnul = codigo.apiAnularReproceso(resApiRep.id_reproceso, { repository: env.repo, movementService: env.movService });
-  assert.strictEqual(resApiAnul.success, true);
-  assert.strictEqual(resApiAnul.estado, 'ANULADO');
+    // Probar apiAnularReproceso
+    const resApiAnul = codigo.apiAnularReproceso(resApiRep.id_reproceso, { repository: env.repo, movementService: env.movService });
+    assert.strictEqual(resApiAnul.success, true);
+    assert.strictEqual(resApiAnul.estado, 'ANULADO');
+  });
 });
 
 // --------------------------------------------------------------------------

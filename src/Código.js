@@ -1052,6 +1052,7 @@ function _resolveMovementService_(options = {}) {
  * @returns {Object}
  */
 function apiRegistrarReproceso(params, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveMovementService_(options);
   return service.registrarReproceso(params, user);
@@ -1066,6 +1067,7 @@ function apiRegistrarReproceso(params, options = {}) {
  * @returns {Object}
  */
 function apiAnularReproceso(id, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const service = _resolveMovementService_(options);
   return service.anularReproceso(id, user);
@@ -1080,6 +1082,7 @@ function apiAnularReproceso(id, options = {}) {
  * @returns {Array<Object>}
  */
 function apiListarReprocesos(filtros = {}, options = {}) {
+  exigirSesionApi_();
   const service = _resolveMovementService_(options);
   return service.listarReprocesos(filtros);
 }
@@ -1094,6 +1097,7 @@ function apiListarReprocesos(filtros = {}, options = {}) {
  * @returns {Array<Array<{ articulo: string, envase: string, cajas: number }>>}
  */
 function apiSugerenciasReproceso(articulo, envase, options = {}) {
+  exigirSesionApi_();
   let opt = options;
   if (typeof envase === 'object' && envase !== null) {
     opt = envase;

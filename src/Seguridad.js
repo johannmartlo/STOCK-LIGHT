@@ -61,6 +61,8 @@ const PERMISOS_API = {
   revisarDocumentoHispatec: 'CONSULTA',
   apiGetGruposComerciales: 'CONSULTA',
   apiGetMatrizArticuloEnvase: 'CONSULTA',
+  apiListarReprocesos: 'CONSULTA',
+  apiSugerenciasReproceso: 'CONSULTA',
 
   // LECTURA de usuarios — ADMIN
   apiListarUsuarios: 'ADMIN',
@@ -80,6 +82,8 @@ const PERMISOS_API = {
   apiCorregirEntrada: 'ENCARGADO',
   apiCorregirSalida: 'ENCARGADO',
   apiDividirEntrada: 'ENCARGADO',
+  apiRegistrarReproceso: 'ENCARGADO',
+  apiAnularReproceso: 'ENCARGADO',
   apiConfirmarDocumentoRevisado: 'ENCARGADO',
   apiConfirmarImportacionCsv: 'ENCARGADO',
   apiUpsertGrupoComercial: 'ENCARGADO',
