@@ -92,6 +92,11 @@ no las expone.
 | `apiAnularReproceso` | `src/Código.js` | ESCRITURA | Anula un reproceso si sus destinos no tienen consumos; usuario del servidor (T-009). |
 | `apiListarReprocesos` | `src/Código.js` | LECTURA | Lista los reprocesos registrados (T-009). |
 | `apiSugerenciasReproceso` | `src/Código.js` | LECTURA | Sugerencias de combinaciones de destinos usadas antes desde una combinación de origen (T-009). |
+| `apiSugerenciasCambio` | `src/Código.js` | LECTURA | Destinos habituales de un cambio con proporciones, destrío y veces de uso (T-025). |
+| `apiEvaluarCambio` | `src/Código.js` | LECTURA | Compara el rendimiento real de un cambio con el habitual (T-025). |
+| `apiPrevisualizarAnulacion` | `src/Código.js` | LECTURA | Vista previa de anulación sin escribir, con las mismas reglas que la anulación real (T-025). |
+| `apiListarMovimientos` | `src/Código.js` | LECTURA | Historial de movimientos agrupado por fecha de negocio, con filtros y paginado (T-025). |
+| `apiBuscar` | `src/Código.js` | LECTURA | Búsqueda global de variedades, partidas, albaranes y cambios (T-025). |
 | `planificarReproceso` | `src/Reproceso.js` | INTERNA | Valida y planifica movimientos de un reproceso (función pura, T-009). |
 | `doGet` | `src/Código.js` | LECTURA | Punto de entrada HTTP que sirve la interfaz. Sin sesión por diseño. |
 | `apiConfirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento revisado; usuario del servidor. |

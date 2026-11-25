@@ -35,6 +35,8 @@ if (typeof require !== 'undefined') {
   try { instalacionMod = require('./Instalacion'); } catch (e) {}
   let stockInicialMod = null;
   try { stockInicialMod = require('./importacion/StockInicialService'); } catch (e) {}
+  let operacionesMod = null;
+  try { operacionesMod = require('./OperacionesService'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -50,6 +52,7 @@ if (typeof require !== 'undefined') {
   if (semillaMod) global.sembrarCatalogoEnRepositorio_ = semillaMod.sembrarCatalogoEnRepositorio_;
   if (instalacionMod) global.adminInstalarStockLight = global.adminInstalarStockLight || instalacionMod.adminInstalarStockLight;
   if (stockInicialMod) global.StockInicialService = global.StockInicialService || stockInicialMod.StockInicialService;
+  if (operacionesMod) global.OperacionesService = global.OperacionesService || operacionesMod.OperacionesService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -1280,6 +1283,105 @@ function apiSugerenciasReproceso(articulo, envase, options = {}) {
 }
 
 /**
+ * Resuelve el servicio de operaciones de solo lectura (T-025).
+ * Función interna: no se expone en docs/API_PUBLICA.md.
+ * @param {Object} [options]
+ * @returns {OperacionesService}
+ */
+function _resolveOperacionesService_(options = {}) {
+  if (options && options.operacionesService) return options.operacionesService;
+  const SvcClass = (typeof OperacionesService !== 'undefined')
+    ? OperacionesService
+    : (typeof require !== 'undefined' ? require('./OperacionesService').OperacionesService : null);
+  if (!SvcClass) throw new Error('OperacionesService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || (typeof SheetsRepository !== 'undefined'
+    ? new SheetsRepository()
+    : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
+  return new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    configCatalogo: options.configCatalogo,
+    lockService: options.lockService
+  });
+}
+
+/**
+ * Sugerencias de destinos habituales para un cambio de origen (T-025).
+ * LECTURA, rol mínimo CONSULTA.
+ * @param {string} articulo
+ * @param {string} envase
+ * @param {Object} [options]
+ * @returns {Array<Object>}
+ */
+function apiSugerenciasCambio(articulo, envase, options = {}) {
+  exigirSesionApi_();
+  let opt = options;
+  let art = articulo;
+  let env = envase;
+  if (art && typeof art === 'object') {
+    if (env && typeof env === 'object') opt = env;
+    env = art.envase || art.codigo_envase;
+    art = art.articulo || art.codigo_articulo;
+  } else if (env && typeof env === 'object') {
+    opt = env;
+    env = undefined;
+  }
+  return _resolveOperacionesService_(opt).sugerenciasCambio(art, env);
+}
+
+/**
+ * Evalúa el rendimiento de un cambio frente al habitual (T-025).
+ * LECTURA, rol mínimo CONSULTA.
+ * @param {number} origenCajas
+ * @param {Array<Object>} destinos
+ * @param {Object|number|null} sugerencia
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiEvaluarCambio(origenCajas, destinos, sugerencia, options = {}) {
+  exigirSesionApi_();
+  return _resolveOperacionesService_(options).evaluarCambio_(origenCajas, destinos, sugerencia);
+}
+
+/**
+ * Previsualiza una anulación sin escribir nada (T-025).
+ * LECTURA, rol mínimo CONSULTA.
+ * @param {'REPROCESO'|'ENTRADA'|'SALIDA'} tipo
+ * @param {string} id
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiPrevisualizarAnulacion(tipo, id, options = {}) {
+  exigirSesionApi_();
+  return _resolveOperacionesService_(options).previsualizarAnulacion(tipo, id);
+}
+
+/**
+ * Lista el historial de movimientos agrupado por fecha de negocio (T-025).
+ * LECTURA, rol mínimo CONSULTA.
+ * @param {Object} [filtros]
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiListarMovimientos(filtros = {}, options = {}) {
+  exigirSesionApi_();
+  return _resolveOperacionesService_(options).listarMovimientos(filtros);
+}
+
+/**
+ * Búsqueda global de variedades, partidas, albaranes y cambios (T-025).
+ * LECTURA, rol mínimo CONSULTA.
+ * @param {string} texto
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiBuscar(texto, options = {}) {
+  exigirSesionApi_();
+  return _resolveOperacionesService_(options).buscar(texto);
+}
+
+/**
  * Resuelve una función global por nombre para el despachador.
  * En Apps Script las funciones declaradas son propiedades de globalThis; en
  * Node se resuelven desde las exportaciones de este módulo.
@@ -1801,6 +1903,11 @@ if (typeof module !== 'undefined' && module.exports) {
     apiAnularReproceso,
     apiListarReprocesos,
     apiSugerenciasReproceso,
+    apiSugerenciasCambio,
+    apiEvaluarCambio,
+    apiPrevisualizarAnulacion,
+    apiListarMovimientos,
+    apiBuscar,
     apiLlamar,
     apiEntrar,
     apiEstablecerPin,

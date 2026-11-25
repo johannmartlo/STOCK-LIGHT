@@ -64,6 +64,11 @@ const PERMISOS_API = {
   apiListarReprocesos: 'CONSULTA',
   apiSugerenciasReproceso: 'CONSULTA',
   apiListarPendientes: 'CONSULTA',
+  apiSugerenciasCambio: 'CONSULTA',
+  apiEvaluarCambio: 'CONSULTA',
+  apiPrevisualizarAnulacion: 'CONSULTA',
+  apiListarMovimientos: 'CONSULTA',
+  apiBuscar: 'CONSULTA',
 
   // LECTURA de usuarios — ADMIN
   apiListarUsuarios: 'ADMIN',
