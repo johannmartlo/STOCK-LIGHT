@@ -238,7 +238,10 @@ const SCHEMA_DEFINITIONS = {
     'grupo',
     'subgrupo',
     'filtro',
-    'activo'
+    'activo',
+    'color',
+    'dias_aviso',
+    'stock_bajo'
   ],
   LOG_OPERACIONES: [
     'id_log',
@@ -1172,7 +1175,17 @@ class SheetsRepository {
       Number(a.orden) === orden
     );
 
-    const record = { agrupacion, orden, grupo, subgrupo, filtro, activo };
+    const record = {
+      agrupacion,
+      orden,
+      grupo,
+      subgrupo,
+      filtro,
+      activo,
+      color: agrup.color !== undefined && agrup.color !== null ? String(agrup.color).trim() : '',
+      dias_aviso: agrup.dias_aviso !== undefined && agrup.dias_aviso !== null && agrup.dias_aviso !== '' ? Number(agrup.dias_aviso) : '',
+      stock_bajo: agrup.stock_bajo !== undefined && agrup.stock_bajo !== null && agrup.stock_bajo !== '' ? Number(agrup.stock_bajo) : ''
+    };
     if (idx >= 0) {
       list[idx] = record;
     } else {

@@ -1,0 +1,960 @@
+<script>
+  (function () {
+    const SL = {
+      inicio: null,
+      ultimoOkAt: null,
+      periodo: '30',
+      filtroModo: 'todas',
+      busqueda: '',
+      hoverIdx: null,
+      variedadAbierta: null,
+      partidaActual: null,
+      estadoForzado: null,
+      toastTimer: null
+    };
+
+    function fmt(n) {
+      return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function fmtSigned(n) {
+      const val = Math.round(Number(n) || 0);
+      if (val > 0) return '+' + fmt(val);
+      if (val < 0) return '−' + fmt(Math.abs(val));
+      return '0';
+    }
+
+    function fmtFechaDdMm(iso) {
+      const s = String(iso || '').trim();
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return s || '—';
+      return m[3] + '/' + m[2];
+    }
+
+    function fmtHora(dateObj) {
+      if (!dateObj) return '—';
+      const hh = String(dateObj.getHours()).padStart(2, '0');
+      const mm = String(dateObj.getMinutes()).padStart(2, '0');
+      return hh + ':' + mm;
+    }
+
+    function esc(text) {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function hexAlpha(hex, alpha) {
+      const clean = String(hex || '#4FA37C').trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(clean)) {
+        const aHex = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0');
+        return clean + aHex;
+      }
+      return clean;
+    }
+
+    function opacidadPartida(idx, total) {
+      if (total <= 1) return 1;
+      return 1 - (idx / (total - 1)) * 0.55;
+    }
+
+    function mostrarAviso(msg, tipo) {
+      const cont = document.getElementById('toastContainer');
+      if (!cont) return;
+      cont.innerHTML = '';
+      const el = document.createElement('div');
+      el.className = 'sl-toast' + (tipo ? ' ' + tipo : '');
+      el.textContent = msg;
+      cont.appendChild(el);
+      clearTimeout(SL.toastTimer);
+      SL.toastTimer = setTimeout(function () {
+        el.remove();
+      }, 3200);
+    }
+
+    function proximaVersion() {
+      mostrarAviso('Llega en la próxima versión');
+    }
+
+    function setVisibilidad(id, visible) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (visible) el.classList.remove('sl-hidden');
+      else el.classList.add('sl-hidden');
+    }
+
+    function mostrarEstadoExistencias(modo, mensajeError) {
+      setVisibilidad('viewExistencias', true);
+      setVisibilidad('viewPartida', false);
+
+      setVisibilidad('estadoCargando', modo === 'cargando');
+      setVisibilidad('estadoVacio', modo === 'vacio');
+      setVisibilidad('estadoSinConexion', modo === 'sin_conexion');
+      setVisibilidad('estadoError', modo === 'error');
+
+      const hayDatos = Boolean(SL.inicio && Number(SL.inicio.total || 0) > 0);
+      const mostrarDatosConBanner = modo === 'sin_conexion_con_datos';
+      setVisibilidad('estadoSinConexionBanner', mostrarDatosConBanner);
+      setVisibilidad('contenidoExistencias', modo === 'datos' || mostrarDatosConBanner);
+
+      const contEl = document.getElementById('contenidoExistencias');
+      if (contEl) {
+        contEl.style.opacity = mostrarDatosConBanner ? '0.62' : '1';
+      }
+
+      if (mostrarDatosConBanner) {
+        const lbl = document.getElementById('lblSinConexionBanner');
+        if (lbl) {
+          lbl.innerHTML = '<b>Sin conexión.</b> Datos de las ' + esc(fmtHora(SL.ultimoOkAt)) + '. Los cambios se bloquean hasta reconectar.';
+        }
+      }
+
+      if (modo === 'error') {
+        const errEl = document.getElementById('lblErrorMensaje');
+        if (errEl) errEl.textContent = mensajeError || 'No se pudieron cargar los datos del servidor.';
+      }
+    }
+
+    function calcularDeltaSemanal(serie) {
+      if (!Array.isArray(serie) || serie.length === 0) return { texto: '', color: 'var(--sl-text-secondary)' };
+      const hoyVal = Number(serie[serie.length - 1].stock || 0);
+      const idx7 = Math.max(0, serie.length - 8);
+      const prevVal = Number(serie[idx7].stock || 0);
+      const diff = hoyVal - prevVal;
+      if (prevVal > 0) {
+        const pct = Math.round((diff / prevVal) * 100);
+        if (pct > 0) return { texto: '+' + pct + ' % esta semana', color: 'var(--sl-green)' };
+        if (pct < 0) return { texto: '−' + Math.abs(pct) + ' % esta semana', color: 'var(--sl-red)' };
+        return { texto: '0 % esta semana', color: 'var(--sl-text-secondary)' };
+      }
+      if (diff > 0) return { texto: '+' + fmt(diff) + ' cj esta semana', color: 'var(--sl-green)' };
+      if (diff < 0) return { texto: '−' + fmt(Math.abs(diff)) + ' cj esta semana', color: 'var(--sl-red)' };
+      return { texto: 'Sin cambios esta semana', color: 'var(--sl-text-secondary)' };
+    }
+
+    function obtenerSerieVisible() {
+      const serie = (SL.inicio && Array.isArray(SL.inicio.serie)) ? SL.inicio.serie : [];
+      if (SL.periodo === '7' && serie.length > 7) {
+        return serie.slice(serie.length - 7);
+      }
+      return serie;
+    }
+
+    function renderGraficoOrdenador() {
+      const serie = obtenerSerieVisible();
+      const svg = document.getElementById('deskCurveSvg');
+      const overlay = document.getElementById('deskCurveOverlay');
+      const bars = document.getElementById('deskBarsWrap');
+      const axisStart = document.getElementById('deskAxisStart');
+      const axisEnd = document.getElementById('deskAxisEnd');
+      if (!svg || !overlay || !bars || serie.length === 0) return;
+
+      const W = 1120;
+      const H = 150;
+      const maxStock = Math.max(1, Math.max.apply(null, serie.map(d => Number(d.stock || 0))));
+      const pts = serie.map((d, i) => [
+        (i + 0.5) * W / serie.length,
+        H - 6 - (Number(d.stock || 0) / maxStock) * (H - 22)
+      ]);
+      const lineD = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+      const areaD = lineD + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + H + ' L' + pts[0][0].toFixed(1) + ' ' + H + ' Z';
+
+      svg.innerHTML =
+        '<defs><linearGradient id="sl-area" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#F2553D" stop-opacity=".22"></stop>' +
+        '<stop offset="1" stop-color="#F2553D" stop-opacity="0"></stop>' +
+        '</linearGradient></defs>' +
+        '<line x1="0" y1="149.5" x2="1120" y2="149.5" stroke="#1C1C20"></line>' +
+        '<path class="sl-fill" d="' + areaD + '" fill="url(#sl-area)"></path>' +
+        '<path class="sl-draw" d="' + lineD + '" fill="none" stroke="#F2553D" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"></path>';
+
+      if (SL.hoverIdx === null || SL.hoverIdx >= serie.length) {
+        SL.hoverIdx = serie.length - 1;
+      }
+
+      const maxBar = Math.max(
+        1,
+        Math.max.apply(null, serie.map(d => Math.max(Math.abs(Number(d.entradas || 0)), Math.abs(Number(d.salidas || 0)))))
+      );
+
+      overlay.innerHTML = '';
+      bars.innerHTML = '<div style="position:absolute;left:0;right:0;top:32px;border-top:1px solid var(--sl-line-strong)"></div>';
+
+      serie.forEach((d, i) => {
+        const activo = i === SL.hoverIdx;
+        const slot = document.createElement('div');
+        slot.style.cssText = 'flex:1;height:100%;position:relative';
+        slot.addEventListener('mouseenter', function () {
+          if (SL.hoverIdx !== i) {
+            SL.hoverIdx = i;
+            renderGraficoOrdenador();
+          }
+        });
+
+        if (activo) {
+          const tipX = i > serie.length - 6 ? '-94%' : (i < 4 ? '-6%' : '-50%');
+          const yPx = pts[i][1].toFixed(1);
+          slot.innerHTML =
+            '<div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:#3F3F46"></div>' +
+            '<div style="position:absolute;left:50%;top:' + yPx + 'px;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#F2553D;box-shadow:0 0 0 3px #0A0A0B"></div>' +
+            '<div style="position:absolute;left:50%;top:-6px;transform:translate(' + tipX + ',-100%);white-space:nowrap;background:var(--sl-elevated);border:1px solid var(--sl-line-strong);border-radius:8px;padding:7px 10px;font-size:12px;z-index:3">' +
+            '<div style="color:var(--sl-text-secondary)">' + esc(fmtFechaDdMm(d.fecha)) + '</div>' +
+            '<div class="sl-mono" style="margin-top:2px">' +
+            '<span style="color:var(--sl-text)">' + fmt(d.stock) + ' cj</span> ' +
+            '<span style="color:var(--sl-green)">+' + fmt(d.entradas) + '</span> ' +
+            '<span style="color:#A1A1AA">−' + fmt(d.salidas) + '</span>' +
+            '</div></div>';
+        }
+        overlay.appendChild(slot);
+
+        const ent = Math.max(0, Number(d.entradas || 0));
+        const sal = Math.max(0, Number(d.salidas || 0));
+        const hE = ent > 0 ? Math.max(2, (ent / maxBar) * 30).toFixed(1) : '0';
+        const hS = sal > 0 ? Math.max(2, (sal / maxBar) * 30).toFixed(1) : '0';
+        const cE = activo ? '#4ADE80' : '#4ADE8099';
+        const cS = activo ? '#A1A1AA' : '#71717A99';
+        const delay = (220 + i * 14) + 'ms';
+
+        const col = document.createElement('div');
+        col.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;height:100%';
+        col.addEventListener('mouseenter', function () {
+          if (SL.hoverIdx !== i) {
+            SL.hoverIdx = i;
+            renderGraficoOrdenador();
+          }
+        });
+        col.innerHTML =
+          '<div style="height:32px;width:100%;display:flex;align-items:flex-end;justify-content:center">' +
+          '<div class="sl-rise" style="width:70%;max-width:14px;height:' + hE + 'px;background:' + cE + ';border-radius:2px 2px 0 0;animation-delay:' + delay + '"></div></div>' +
+          '<div style="height:32px;width:100%;display:flex;align-items:flex-start;justify-content:center">' +
+          '<div class="sl-drop" style="width:70%;max-width:14px;height:' + hS + 'px;background:' + cS + ';border-radius:0 0 2px 2px;animation-delay:' + delay + '"></div></div>';
+        bars.appendChild(col);
+      });
+
+      if (axisStart) axisStart.textContent = fmtFechaDdMm(serie[0].fecha);
+      if (axisEnd) axisEnd.textContent = fmtFechaDdMm(serie[serie.length - 1].fecha);
+    }
+
+    function renderGraficoMovil() {
+      const serie = obtenerSerieVisible();
+      const svg = document.getElementById('mobCurveSvg');
+      if (!svg || serie.length === 0) return;
+
+      const W = 390;
+      const H = 110;
+      const maxStock = Math.max(1, Math.max.apply(null, serie.map(d => Number(d.stock || 0))));
+      const denom = Math.max(1, serie.length - 1);
+      const pts = serie.map((d, i) => [
+        i * W / denom,
+        H - 6 - (Number(d.stock || 0) / maxStock) * (H - 14)
+      ]);
+      const lineD = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+      const areaD = lineD + ' L390 110 L0 110 Z';
+      const fin = pts[pts.length - 1];
+
+      svg.innerHTML =
+        '<defs><linearGradient id="sl-am" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#F2553D" stop-opacity=".25"></stop>' +
+        '<stop offset="1" stop-color="#F2553D" stop-opacity="0"></stop></linearGradient></defs>' +
+        '<path class="sl-fill" d="' + areaD + '" fill="url(#sl-am)"></path>' +
+        '<path class="sl-draw" d="' + lineD + '" fill="none" stroke="#F2553D" stroke-width="2" stroke-linejoin="round"></path>' +
+        '<circle cx="' + Math.min(386, fin[0]).toFixed(1) + '" cy="' + fin[1].toFixed(1) + '" r="4" fill="#F2553D" stroke="#0A0A0B" stroke-width="3"></circle>';
+    }
+
+    function renderIndicadores() {
+      const data = SL.inicio;
+      const vars = Array.isArray(data.variedades) ? data.variedades : [];
+
+      // 1. Sale primero (capa más antigua global)
+      let minFecha = '';
+      let maxDias = 0;
+      let hayAviso = false;
+      vars.forEach(v => {
+        if (v.sale_primero && (!minFecha || v.sale_primero < minFecha)) {
+          minFecha = v.sale_primero;
+          maxDias = Number(v.dias || 0);
+        }
+        if (v.aviso_antiguedad) hayAviso = true;
+      });
+      const kpiSale = document.getElementById('kpiSalePrimero');
+      if (kpiSale) {
+        if (minFecha) {
+          const col = hayAviso ? 'var(--sl-amber)' : 'var(--sl-text-secondary)';
+          kpiSale.innerHTML = esc(fmtFechaDdMm(minFecha)) + ' <span class="sl-kpi-sub" style="color:' + col + '">· ' + maxDias + ' d</span>';
+        } else {
+          kpiSale.textContent = '—';
+        }
+      }
+
+      // 2. Por revisar (pendientes)
+      const kpiPend = document.getElementById('kpiPendientes');
+      const totalPend = Number((data.pendientes && data.pendientes.total) || 0);
+      const badgeNav = document.getElementById('navPendientesBadge');
+      if (badgeNav) {
+        if (totalPend > 0) {
+          badgeNav.textContent = String(totalPend);
+          badgeNav.classList.remove('sl-hidden');
+        } else {
+          badgeNav.classList.add('sl-hidden');
+        }
+      }
+      if (kpiPend) {
+        const sub = totalPend === 1 ? 'pendiente' : 'pendientes';
+        const col = totalPend > 0 ? 'var(--sl-amber)' : 'var(--sl-text-secondary)';
+        kpiPend.innerHTML = fmt(totalPend) + ' <span class="sl-kpi-sub" style="color:' + col + ';font-weight:400">' + sub + '</span>';
+      }
+
+      // 3. Destrío 7 días
+      const kpiDes = document.getElementById('kpiDestrio');
+      if (kpiDes) {
+        const d7 = Number(data.destrio7 || 0);
+        kpiDes.innerHTML = fmt(d7) + ' <span class="sl-kpi-sub" style="color:var(--sl-text-secondary);font-weight:400">cj</span>';
+      }
+
+      // 4. Importado hasta
+      const kpiImp = document.getElementById('kpiImportado');
+      if (kpiImp) {
+        const ih = data.importado_hasta || {};
+        if (ih.compras || ih.ventas) {
+          const fMax = (ih.compras && ih.ventas)
+            ? (ih.compras >= ih.ventas ? ih.compras : ih.ventas)
+            : (ih.compras || ih.ventas);
+          const detalle = [];
+          if (ih.compras) detalle.push('C ' + fmtFechaDdMm(ih.compras));
+          if (ih.ventas) detalle.push('V ' + fmtFechaDdMm(ih.ventas));
+          kpiImp.innerHTML = esc(fmtFechaDdMm(fMax)) + ' <span class="sl-kpi-sub" style="color:var(--sl-green)">· ' + esc(detalle.join(' · ')) + '</span>';
+        } else {
+          kpiImp.innerHTML = '— <span class="sl-kpi-sub" style="color:var(--sl-text-secondary)">sin CSV</span>';
+        }
+      }
+    }
+
+    function resumenVariedad(v) {
+      const n = Array.isArray(v.partidas) ? v.partidas.length : 0;
+      const provs = [];
+      (v.partidas || []).forEach(p => {
+        if (p.proveedor && !provs.includes(p.proveedor)) provs.push(p.proveedor);
+      });
+      const base = n + (n === 1 ? ' partida' : ' partidas');
+      if (provs.length === 1) return provs[0] + ' · ' + base;
+      if (provs.length > 1) return provs.length + ' agricultores · ' + base;
+      return base;
+    }
+
+    function renderBarraPartidasHtml(v, maxCajas, alturaPx, rowIdx) {
+      const wPct = Math.max(12, Math.min(100, (Number(v.cajas || 0) / Math.max(1, maxCajas)) * 100)).toFixed(1);
+      const partidas = Array.isArray(v.partidas) ? v.partidas : [];
+      const tramos = partidas.map((p, j) => {
+        const bg = hexAlpha(v.color, opacidadPartida(j, partidas.length));
+        const delay = (180 + rowIdx * 45 + j * 30) + 'ms';
+        return '<span class="sl-grow" style="flex:' + Math.max(1, Number(p.cajas || 0)) + ' 1 0;min-width:3px;border-radius:2px;background:' + esc(bg) + ';animation-delay:' + delay + '"></span>';
+      }).join('');
+      return '<span style="display:flex;gap:2px;height:' + alturaPx + 'px;width:' + wPct + '%">' + tramos + '</span>';
+    }
+
+    function renderSparkSvg(v) {
+      const pts = Array.isArray(v.serie7) && v.serie7.length === 7 ? v.serie7 : [0, 0, 0, 0, 0, 0, Number(v.cajas || 0)];
+      const mx = Math.max(1, Math.max.apply(null, pts));
+      const d = pts.map((y, k) => (k ? 'L' : 'M') + (k * 16 + 2) + ' ' + (21 - (Number(y || 0) / mx) * 18).toFixed(1)).join(' ');
+      const col = Number(v.tendencia7 || 0) >= 0 ? '#4ADE80' : '#F87171';
+      return '<svg aria-hidden="true" width="100" height="24" viewBox="0 0 100 24" style="justify-self:end"><path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></path></svg>';
+    }
+
+    function filtrarVariedades(vars) {
+      const q = String(SL.busqueda || '').trim().toUpperCase();
+      return vars.filter(v => {
+        if (SL.filtroModo === 'sacar' && !v.aviso_antiguedad) return false;
+        if (!q) return true;
+        if (String(v.grupo || '').toUpperCase().includes(q)) return true;
+        return (v.partidas || []).some(p =>
+          String(p.articulo || '').toUpperCase().includes(q) ||
+          String(p.envase || '').toUpperCase().includes(q) ||
+          String(p.proveedor || '').toUpperCase().includes(q)
+        );
+      });
+    }
+
+    function renderVariedades() {
+      const vars = (SL.inicio && Array.isArray(SL.inicio.variedades)) ? SL.inicio.variedades : [];
+      const sacarCount = vars.filter(v => v.aviso_antiguedad).length;
+
+      const btnTodas = document.getElementById('btnFiltroTodas');
+      const btnSacar = document.getElementById('btnFiltroSacar');
+      const mobSacar = document.getElementById('mobParaSacar');
+      if (btnTodas) {
+        btnTodas.textContent = 'Todas · ' + vars.length;
+        btnTodas.setAttribute('aria-pressed', SL.filtroModo === 'todas' ? 'true' : 'false');
+      }
+      if (btnSacar) {
+        btnSacar.textContent = 'Para sacar · ' + sacarCount;
+        btnSacar.setAttribute('aria-pressed', SL.filtroModo === 'sacar' ? 'true' : 'false');
+      }
+      if (mobSacar) {
+        mobSacar.textContent = sacarCount > 0 ? (sacarCount + ' para sacar') : '';
+      }
+
+      const filtradas = filtrarVariedades(vars);
+      const maxCajas = Math.max(1, Math.max.apply(null, vars.map(v => Number(v.cajas || 0))));
+
+      // Ordenador
+      const deskBody = document.getElementById('deskVariedadesBody');
+      if (deskBody) {
+        deskBody.innerHTML = '';
+        if (filtradas.length === 0) {
+          deskBody.innerHTML = '<div style="padding:20px 16px;font-size:13px;color:var(--sl-text-secondary)">Ninguna variedad coincide con el filtro.</div>';
+        } else {
+          filtradas.forEach((v, idx) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sl-row' + (SL.variedadAbierta && SL.variedadAbierta.grupo === v.grupo ? ' selected' : '');
+            const edadCol = v.aviso_antiguedad ? '#FBBF24' : '#8A8F98';
+            const tint = hexAlpha(v.color, 0.14);
+            btn.innerHTML =
+              '<span style="display:flex;align-items:center;gap:12px;min-width:0">' +
+              '<span style="width:32px;height:32px;border-radius:8px;background:' + esc(tint) + ';display:flex;align-items:center;justify-content:center;flex:none">' +
+              '<span style="width:14px;height:14px;border-radius:50%;background:' + esc(v.color) + '"></span></span>' +
+              '<span style="min-width:0"><span style="display:block;font-weight:500">' + esc(v.grupo) + '</span>' +
+              '<span style="display:block;font-size:12px;color:var(--sl-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(resumenVariedad(v)) + '</span></span></span>' +
+              '<span class="sl-mono" style="text-align:right;font-size:15px;font-weight:500">' + fmt(v.cajas) + '</span>' +
+              renderBarraPartidasHtml(v, maxCajas, 10, idx) +
+              '<span style="font-size:13px;color:' + edadCol + ';display:inline-flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:' + edadCol + '"></span>' + esc(fmtFechaDdMm(v.sale_primero)) + ' · ' + Number(v.dias || 0) + ' d</span>' +
+              renderSparkSvg(v);
+            btn.addEventListener('click', function () {
+              abrirVariedad(v);
+            });
+            deskBody.appendChild(btn);
+          });
+        }
+      }
+
+      // Móvil
+      const mobBody = document.getElementById('mobVariedadesBody');
+      if (mobBody) {
+        mobBody.innerHTML = '';
+        vars.forEach((v, idx) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'sl-mobile-var-row';
+          const edadCol = v.aviso_antiguedad ? '#FBBF24' : '#8A8F98';
+          const tint = hexAlpha(v.color, 0.16);
+          const primeroTxt = (v.aviso_antiguedad ? 'Sacar · ' : '') + fmtFechaDdMm(v.sale_primero);
+          btn.innerHTML =
+            '<span style="width:36px;height:36px;border-radius:50%;background:' + esc(tint) + ';display:flex;align-items:center;justify-content:center">' +
+            '<span style="width:14px;height:14px;border-radius:50%;background:' + esc(v.color) + '"></span></span>' +
+            '<span style="min-width:0">' +
+            '<span style="display:block;font-weight:500;font-size:15px">' + esc(v.grupo) + '</span>' +
+            '<span style="display:block;margin-top:6px">' + renderBarraPartidasHtml(v, maxCajas, 5, idx) + '</span>' +
+            '</span>' +
+            '<span style="text-align:right">' +
+            '<span class="sl-mono" style="display:block;font-weight:500">' + fmt(v.cajas) + '</span>' +
+            '<span style="display:block;font-size:12px;color:' + edadCol + '">' + esc(primeroTxt) + '</span>' +
+            '</span>';
+          btn.addEventListener('click', function () {
+            abrirVariedad(v);
+          });
+          mobBody.appendChild(btn);
+        });
+      }
+    }
+
+    function iconoMovimiento(m) {
+      if (m.tipo === 'REPROCESO') return { sym: '⇄', color: '#F59ABF' };
+      if (m.tipo === 'DESTRIO') return { sym: '×', color: '#F87171' };
+      if (m.tipo === 'ENTRADA' || Number(m.cajas || 0) > 0) return { sym: '↑', color: '#4ADE80' };
+      return { sym: '↓', color: '#EDEDEF' };
+    }
+
+    function renderMovimientos() {
+      const ultimos = (SL.inicio && Array.isArray(SL.inicio.ultimos)) ? SL.inicio.ultimos : [];
+      const deskBody = document.getElementById('deskMovimientosBody');
+      const mobBody = document.getElementById('mobMovimientosBody');
+
+      if (deskBody) {
+        deskBody.innerHTML = '';
+        if (ultimos.length === 0) {
+          deskBody.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--sl-text-secondary)">Sin movimientos todavía.</div>';
+        } else {
+          ultimos.forEach(m => {
+            const ic = iconoMovimiento(m);
+            const row = document.createElement('div');
+            row.className = 'sl-mov-row';
+            const detParts = [fmtFechaDdMm(m.fecha)];
+            if (m.detalle) detParts.push(m.detalle);
+            if (m.usuario) detParts.push(m.usuario);
+            row.innerHTML =
+              '<span class="sl-mov-sym" style="color:' + ic.color + '">' + ic.sym + '</span>' +
+              '<span style="min-width:0">' +
+              '<span style="display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(m.texto) + '</span>' +
+              '<span style="display:block;font-size:12px;color:var(--sl-text-secondary)">' + esc(detParts.join(' · ')) + '</span>' +
+              '</span>' +
+              '<span class="sl-mono" style="font-weight:500;color:' + ic.color + '">' + fmtSigned(m.cajas) + '</span>';
+            deskBody.appendChild(row);
+          });
+        }
+      }
+
+      if (mobBody) {
+        mobBody.innerHTML = '';
+        ultimos.slice(0, 6).forEach(m => {
+          const ic = iconoMovimiento(m);
+          const row = document.createElement('div');
+          row.className = 'sl-mov-row';
+          row.style.borderBottom = '0';
+          row.innerHTML =
+            '<span class="sl-mov-sym" style="width:36px;height:36px;border:0;color:' + ic.color + '">' + ic.sym + '</span>' +
+            '<span style="min-width:0">' +
+            '<span style="display:block;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(m.texto) + '</span>' +
+            '<span style="display:block;font-size:12px;color:var(--sl-text-secondary)">' + esc(fmtFechaDdMm(m.fecha) + (m.usuario ? ' · ' + m.usuario : '')) + '</span>' +
+            '</span>' +
+            '<span class="sl-mono" style="font-weight:500;color:' + ic.color + '">' + fmtSigned(m.cajas) + '</span>';
+          mobBody.appendChild(row);
+        });
+      }
+    }
+
+    function construirListaPartidasHtml(v, esMovil) {
+      const partidas = Array.isArray(v.partidas) ? v.partidas : [];
+      return partidas.map((p, j) => {
+        const bg = hexAlpha(v.color, opacidadPartida(j, partidas.length));
+        const infoParts = ['Entrada ' + fmtFechaDdMm(p.fecha), Number(p.dias || 0) + ' días'];
+        if (p.proveedor) infoParts.push(p.proveedor);
+        let vieneHtml = '';
+        if (p.viene_de && Array.isArray(p.viene_de.origenes) && p.viene_de.origenes.length > 0) {
+          const origResumen = p.viene_de.origenes.map(o => o.articulo + ' · ' + fmtFechaDdMm(o.fecha_capa)).slice(0, 2).join(', ');
+          vieneHtml = '<span style="display:inline-block;margin-top:4px;font-size:12px;color:var(--sl-pink)">⇄ Viene de ' + esc(origResumen) + '</span>';
+        }
+        return (
+          '<button type="button" class="sl-partida-row" data-id-capa="' + esc(p.id_capa) + '"' + (esMovil ? ' style="padding:10px 0"' : '') + '>' +
+          '<span style="align-self:stretch;border-radius:2px;background:' + esc(bg) + '"></span>' +
+          '<span style="min-width:0">' +
+          '<span style="display:block;font-weight:500;font-size:14px">' + esc(p.articulo) + ' · ' + esc(p.envase) + '</span>' +
+          '<span style="display:block;font-size:12px;color:var(--sl-text-secondary)">' + esc(infoParts.join(' · ')) + '</span>' +
+          vieneHtml +
+          '</span>' +
+          '<span class="sl-mono" style="font-weight:500">' + fmt(p.cajas) + '</span>' +
+          '</button>'
+        );
+      }).join('');
+    }
+
+    function abrirVariedad(v) {
+      SL.variedadAbierta = v;
+      renderVariedades();
+
+      const esOrdenador = window.innerWidth >= 1024;
+      setVisibilidad('panelBackdrop', true);
+
+      if (esOrdenador) {
+        setVisibilidad('hojaVariedad', false);
+        setVisibilidad('panelVariedad', true);
+        document.getElementById('panelColorDot').style.background = v.color;
+        document.getElementById('panelTitulo').textContent = v.grupo;
+        document.getElementById('panelSubtitulo').textContent = resumenVariedad(v);
+        document.getElementById('panelCajas').textContent = fmt(v.cajas);
+        const list = document.getElementById('panelPartidasList');
+        list.innerHTML = construirListaPartidasHtml(v, false);
+        list.querySelectorAll('[data-id-capa]').forEach(btn => {
+          btn.addEventListener('click', function () {
+            abrirPartida(btn.getAttribute('data-id-capa'));
+          });
+        });
+      } else {
+        setVisibilidad('panelVariedad', false);
+        setVisibilidad('hojaVariedad', true);
+        document.getElementById('hojaTitulo').textContent = v.grupo;
+        document.getElementById('hojaSubtitulo').textContent = resumenVariedad(v);
+        document.getElementById('hojaCajas').textContent = fmt(v.cajas);
+        const list = document.getElementById('hojaPartidasList');
+        list.innerHTML = construirListaPartidasHtml(v, true);
+        list.querySelectorAll('[data-id-capa]').forEach(btn => {
+          btn.addEventListener('click', function () {
+            abrirPartida(btn.getAttribute('data-id-capa'));
+          });
+        });
+      }
+    }
+
+    function cerrarDetalleVariedad() {
+      SL.variedadAbierta = null;
+      setVisibilidad('panelBackdrop', false);
+      setVisibilidad('panelVariedad', false);
+      setVisibilidad('hojaVariedad', false);
+      renderVariedades();
+    }
+
+    function abrirPartida(idCapa) {
+      if (!idCapa) return;
+      SL.partidaActual = idCapa;
+      setVisibilidad('panelBackdrop', false);
+      setVisibilidad('panelVariedad', false);
+      setVisibilidad('hojaVariedad', false);
+      setVisibilidad('viewExistencias', false);
+      setVisibilidad('viewPartida', true);
+
+      setVisibilidad('partidaCargando', true);
+      setVisibilidad('partidaError', false);
+      setVisibilidad('partidaContenido', false);
+      document.getElementById('partidaBreadcrumb').textContent = 'Cargando partida…';
+
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        setVisibilidad('partidaCargando', false);
+        setVisibilidad('partidaError', true);
+        document.getElementById('partidaErrorMsg').textContent = 'Puente de servidor no disponible.';
+        return;
+      }
+
+      window.SLBridge.call('apiObtenerPartida', idCapa)
+        .then(function (data) {
+          setVisibilidad('partidaCargando', false);
+          renderPartida(data);
+        })
+        .catch(function (err) {
+          setVisibilidad('partidaCargando', false);
+          setVisibilidad('partidaError', true);
+          document.getElementById('partidaErrorMsg').textContent = err && err.message ? err.message : String(err);
+        });
+    }
+
+    function renderPartida(p) {
+      setVisibilidad('partidaContenido', true);
+      document.getElementById('partidaBreadcrumb').textContent = (p.articulo || 'Partida') + ' · partida';
+
+      const color = p.color || '#EC4899';
+      document.getElementById('partidaColorBox').style.background = hexAlpha(color, 0.14);
+      document.getElementById('partidaColorDot').style.background = color;
+      document.getElementById('partidaArticulo').textContent = p.articulo || '';
+      document.getElementById('partidaEnvase').textContent = p.envase || '';
+      document.getElementById('partidaCajasRestantes').textContent = fmt(p.cajas_restantes);
+      document.getElementById('partidaCajasUnidad').textContent =
+        Number(p.cajas_consumidas || 0) > 0
+          ? ('cajas (de ' + fmt(p.cajas_iniciales) + ' iniciales)')
+          : 'cajas';
+
+      const esReproceso = p.origen && p.origen.tipo === 'REPROCESO';
+      const badge = document.getElementById('partidaBadgeOrigen');
+      if (esReproceso) {
+        badge.style.background = 'rgba(230,75,155,.14)';
+        badge.style.color = '#F28CC4';
+        badge.textContent = '⇄ De un cambio';
+      } else {
+        badge.style.background = 'rgba(255,255,255,.06)';
+        badge.style.color = 'var(--sl-text-secondary)';
+        badge.textContent = (p.origen && p.origen.tipo === 'STOCK_INICIAL')
+          ? 'Stock inicial'
+          : (p.origen && p.origen.tipo === 'AJUSTE' ? 'Ajuste' : 'Compra');
+      }
+
+      document.getElementById('partidaFechaFifo').textContent =
+        fmtFechaDdMm(p.fecha_capa) + (esReproceso ? ' · heredada' : '');
+      document.getElementById('partidaAgricultor').textContent = p.proveedor || '—';
+
+      const secBtn = document.getElementById('btnPartidaSecundario');
+      if (secBtn) {
+        secBtn.textContent = esReproceso ? 'Anular el cambio' : 'Destrío';
+      }
+
+      // DE DÓNDE VIENE
+      const timeline = document.getElementById('partidaOrigenTimeline');
+      if (esReproceso && p.origen && p.origen.viene_de) {
+        const vd = p.origen.viene_de;
+        const origenesHtml = (vd.origenes || []).map(o => {
+          const quedan = (o.cajas_restantes !== null && o.cajas_restantes !== undefined)
+            ? (' · quedan ' + fmt(o.cajas_restantes) + ' cj')
+            : '';
+          return (
+            '<button type="button" data-origen-capa="' + esc(o.id_capa) + '" style="display:flex;gap:14px;width:100%;background:transparent;border:0;color:var(--sl-text);text-align:left;padding:0;cursor:pointer;margin-top:6px">' +
+            '<div style="display:flex;flex-direction:column;align-items:center;width:14px;padding-top:4px">' +
+            '<span style="width:14px;height:14px;border-radius:50%;background:#F5A3B5"></span></div>' +
+            '<div style="flex:1;background:var(--sl-line);border:1px solid var(--sl-line-strong);border-radius:14px;padding:12px 14px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+            '<span style="font-weight:700;font-size:15px">Viene de · ' + esc(o.articulo) + '</span>' +
+            '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A4ACB9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></div>' +
+            '<div style="font-size:13px;color:#A4ACB9;margin-top:2px">' + esc(o.envase) + (o.proveedor ? ' · ' + esc(o.proveedor) : '') + ' · entrada ' + esc(fmtFechaDdMm(o.fecha_capa)) + '</div>' +
+            '<div style="font-size:13px;margin-top:6px">Se cogieron <b>' + fmt(o.cajas) + ' cj</b>' + esc(quedan) + '</div>' +
+            '</div></button>'
+          );
+        }).join('');
+
+        timeline.innerHTML =
+          '<div style="display:flex;gap:14px">' +
+          '<div style="display:flex;flex-direction:column;align-items:center;width:14px">' +
+          '<span style="width:14px;height:14px;border-radius:50%;background:' + esc(color) + ';box-shadow:0 0 0 4px ' + esc(hexAlpha(color, 0.22)) + '"></span>' +
+          '<span class="sl-draw" style="width:2px;flex:1;background:linear-gradient(' + esc(color) + ',#F5A3B5);margin:4px 0"></span></div>' +
+          '<div style="padding-bottom:16px">' +
+          '<div style="font-weight:700;font-size:15px">Esta partida · ' + esc(p.articulo) + '</div>' +
+          '<div style="font-size:13px;color:#A4ACB9;margin-top:2px">Creada en el cambio del ' + esc(fmtFechaDdMm(vd.fecha)) + (vd.usuario ? ' · ' + esc(vd.usuario) : '') + '</div>' +
+          '<div style="display:inline-flex;gap:6px;margin-top:8px;font-size:12px;flex-wrap:wrap">' +
+          '<span style="background:var(--sl-line);border-radius:8px;padding:4px 8px">' + fmt(p.cajas_iniciales) + ' cj salieron</span>' +
+          (Number(vd.destrio_cajas || 0) > 0 ? '<span style="background:var(--sl-line);border-radius:8px;padding:4px 8px">destrío ' + fmt(vd.destrio_cajas) + ' cj</span>' : '') +
+          '</div></div></div>' +
+          origenesHtml;
+
+        timeline.querySelectorAll('[data-origen-capa]').forEach(btn => {
+          btn.addEventListener('click', function () {
+            const idOrig = btn.getAttribute('data-origen-capa');
+            if (idOrig) abrirPartida(idOrig);
+          });
+        });
+      } else {
+        const orig = p.origen || {};
+        timeline.innerHTML =
+          '<div style="font-size:14px;line-height:1.5">' +
+          '<b>' + esc(orig.tipo === 'STOCK_INICIAL' ? 'Stock inicial' : (orig.tipo === 'AJUSTE' ? 'Ajuste positivo' : 'Compra')) + '</b>' +
+          ' del ' + esc(fmtFechaDdMm(orig.fecha || p.fecha_capa)) +
+          (orig.documento_ref ? ' · Albarán ' + esc(orig.documento_ref) : '') +
+          (orig.usuario ? ' · ' + esc(orig.usuario) : '') +
+          ' · ' + fmt(orig.cajas || p.cajas_iniciales) + ' cajas.' +
+          '</div>';
+      }
+
+      // QUÉ HA PASADO DESPUÉS
+      const despues = document.getElementById('partidaDespuesBody');
+      const consumos = Array.isArray(p.consumos) ? p.consumos : [];
+      const destinos = Array.isArray(p.se_convirtio_en) ? p.se_convirtio_en : [];
+      if (consumos.length === 0 && destinos.length === 0) {
+        despues.innerHTML = '<div style="font-size:14px;color:var(--sl-text-secondary)">Todavía no ha salido nada de esta partida.</div>';
+      } else {
+        let html = '<div style="display:flex;flex-direction:column;gap:8px">';
+        consumos.forEach(c => {
+          const titulo = c.tipo === 'REPROCESO'
+            ? 'Cambio (reproceso)'
+            : (c.tipo === 'VENTA' ? 'Venta' : ('Ajuste · ' + c.tipo));
+          html +=
+            '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:10px;background:var(--sl-elevated);font-size:13px">' +
+            '<span><b>' + esc(titulo) + '</b> · ' + esc(fmtFechaDdMm(c.fecha)) + (c.entidad ? ' · ' + esc(c.entidad) : (c.documento_ref ? ' · ' + esc(c.documento_ref) : '')) + '</span>' +
+            '<span class="sl-mono">−' + fmt(c.cajas) + ' cj</span>' +
+            '</div>';
+        });
+        destinos.forEach(d => {
+          html +=
+            '<button type="button" data-dest-capa="' + esc(d.id_capa) + '" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;background:rgba(230,75,155,.10);border:1px solid rgba(230,75,155,.25);color:var(--sl-text);font-size:13px;cursor:pointer;width:100%;text-align:left">' +
+            '<span><span style="color:var(--sl-pink);font-weight:600">⇄ Se convirtió en ' + esc(d.articulo) + '</span> · ' + esc(d.envase) + ' (' + esc(fmtFechaDdMm(d.fecha)) + ')</span>' +
+            '<span class="sl-mono" style="color:var(--sl-pink)">+' + fmt(d.cajas) + ' cj</span>' +
+            '</button>';
+        });
+        html += '</div>';
+        despues.innerHTML = html;
+        despues.querySelectorAll('[data-dest-capa]').forEach(btn => {
+          btn.addEventListener('click', function () {
+            const idDest = btn.getAttribute('data-dest-capa');
+            if (idDest) abrirPartida(idDest);
+          });
+        });
+      }
+    }
+
+    function volverAExistencias() {
+      setVisibilidad('viewPartida', false);
+      setVisibilidad('viewExistencias', true);
+    }
+
+    function renderInicio(data) {
+      SL.inicio = data;
+      SL.ultimoOkAt = new Date();
+      SL.hoverIdx = null;
+
+      if (!data || (Number(data.total || 0) === 0 && (!data.variedades || data.variedades.length === 0))) {
+        mostrarEstadoExistencias('vacio');
+        return;
+      }
+
+      mostrarEstadoExistencias('datos');
+
+      const deskTotal = document.getElementById('deskTotalNum');
+      const mobTotal = document.getElementById('mobTotalNum');
+      if (deskTotal) deskTotal.textContent = fmt(data.total);
+      if (mobTotal) mobTotal.textContent = fmt(data.total);
+
+      const deskFecha = document.getElementById('deskFechaSub');
+      if (deskFecha) {
+        deskFecha.textContent = 'Cajas en cámara · ' + fmtFechaDdMm(data.fecha_referencia);
+      }
+
+      const delta = calcularDeltaSemanal(data.serie);
+      const deskDelta = document.getElementById('deskTotalDelta');
+      const mobDelta = document.getElementById('mobTotalDelta');
+      if (deskDelta) {
+        deskDelta.textContent = delta.texto;
+        deskDelta.style.color = delta.color;
+      }
+      if (mobDelta) {
+        mobDelta.textContent = delta.texto;
+        mobDelta.style.color = delta.color;
+      }
+
+      renderGraficoOrdenador();
+      renderGraficoMovil();
+      renderIndicadores();
+      renderVariedades();
+      renderMovimientos();
+    }
+
+    function cargarInicio() {
+      if (SL.estadoForzado) {
+        aplicarEstadoPreview(SL.estadoForzado);
+        return Promise.resolve();
+      }
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        mostrarEstadoExistencias(SL.inicio ? 'sin_conexion_con_datos' : 'sin_conexion');
+        return Promise.resolve();
+      }
+
+      mostrarEstadoExistencias('cargando');
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        mostrarEstadoExistencias('error', 'No se encontró conexión con el servidor.');
+        return Promise.resolve();
+      }
+
+      return window.SLBridge.call('apiObtenerInicio')
+        .then(function (data) {
+          renderInicio(data);
+        })
+        .catch(function (err) {
+          const msg = err && err.message ? err.message : String(err);
+          if (msg === 'SESION_INVALIDA') return;
+          if (/network|fetch|conexi[oó]n|offline|failed/i.test(msg)) {
+            mostrarEstadoExistencias(SL.inicio ? 'sin_conexion_con_datos' : 'sin_conexion');
+          } else {
+            mostrarEstadoExistencias('error', msg);
+          }
+        });
+    }
+
+    function aplicarEstadoPreview(estado) {
+      SL.estadoForzado = estado === 'normal' ? null : estado;
+      if (estado === 'normal') {
+        cargarInicio();
+      } else if (estado === 'cargando') {
+        mostrarEstadoExistencias('cargando');
+      } else if (estado === 'vacio') {
+        mostrarEstadoExistencias('vacio');
+      } else if (estado === 'sin_conexion') {
+        mostrarEstadoExistencias(SL.inicio ? 'sin_conexion_con_datos' : 'sin_conexion');
+      } else if (estado === 'error') {
+        mostrarEstadoExistencias('error', 'No se pudieron leer los datos de Google Sheets.');
+      }
+    }
+
+    function enlazarEventos() {
+      document.querySelectorAll('[data-proxima-version]').forEach(el => {
+        el.addEventListener('click', function (e) {
+          e.preventDefault();
+          proximaVersion();
+        });
+      });
+
+      const navExist = document.getElementById('navExistencias');
+      if (navExist) navExist.addEventListener('click', volverAExistencias);
+
+      const deskPeriodo = document.getElementById('deskPeriodoGroup');
+      if (deskPeriodo) {
+        deskPeriodo.querySelectorAll('button[data-periodo]').forEach(btn => {
+          btn.addEventListener('click', function () {
+            SL.periodo = btn.getAttribute('data-periodo') || '30';
+            deskPeriodo.querySelectorAll('button[data-periodo]').forEach(b => {
+              b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+            });
+            SL.hoverIdx = null;
+            renderGraficoOrdenador();
+          });
+        });
+      }
+
+      const btnTodas = document.getElementById('btnFiltroTodas');
+      const btnSacar = document.getElementById('btnFiltroSacar');
+      const btnBuscar = document.getElementById('btnToggleBuscar');
+      const inputBuscar = document.getElementById('inputBuscarVar');
+      if (btnTodas) {
+        btnTodas.addEventListener('click', function () {
+          SL.filtroModo = 'todas';
+          renderVariedades();
+        });
+      }
+      if (btnSacar) {
+        btnSacar.addEventListener('click', function () {
+          SL.filtroModo = 'sacar';
+          renderVariedades();
+        });
+      }
+      if (btnBuscar && inputBuscar) {
+        btnBuscar.addEventListener('click', function () {
+          const oculto = inputBuscar.classList.contains('sl-hidden');
+          if (oculto) {
+            inputBuscar.classList.remove('sl-hidden');
+            btnBuscar.setAttribute('aria-pressed', 'true');
+            inputBuscar.focus();
+          } else {
+            inputBuscar.classList.add('sl-hidden');
+            btnBuscar.setAttribute('aria-pressed', 'false');
+            inputBuscar.value = '';
+            SL.busqueda = '';
+            renderVariedades();
+          }
+        });
+        inputBuscar.addEventListener('input', function () {
+          SL.busqueda = inputBuscar.value;
+          renderVariedades();
+        });
+      }
+
+      const backdrop = document.getElementById('panelBackdrop');
+      const btnCerrarPanel = document.getElementById('btnCerrarPanel');
+      const btnCerrarHoja = document.getElementById('btnCerrarHoja');
+      if (backdrop) backdrop.addEventListener('click', cerrarDetalleVariedad);
+      if (btnCerrarPanel) btnCerrarPanel.addEventListener('click', cerrarDetalleVariedad);
+      if (btnCerrarHoja) btnCerrarHoja.addEventListener('click', cerrarDetalleVariedad);
+
+      const btnVolverPartida = document.getElementById('btnVolverPartida');
+      const btnReintentarPartida = document.getElementById('btnReintentarPartida');
+      if (btnVolverPartida) btnVolverPartida.addEventListener('click', volverAExistencias);
+      if (btnReintentarPartida) {
+        btnReintentarPartida.addEventListener('click', function () {
+          if (SL.partidaActual) abrirPartida(SL.partidaActual);
+        });
+      }
+
+      ['btnReintentarOffline', 'btnReintentarSinConexion', 'btnReintentarError'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('click', function () {
+            SL.estadoForzado = null;
+            cargarInicio();
+          });
+        }
+      });
+
+      window.addEventListener('offline', function () {
+        if (document.getElementById('app') && document.getElementById('app').style.display !== 'none') {
+          mostrarEstadoExistencias(SL.inicio ? 'sin_conexion_con_datos' : 'sin_conexion');
+        }
+      });
+      window.addEventListener('online', function () {
+        if (document.getElementById('app') && document.getElementById('app').style.display !== 'none') {
+          cargarInicio();
+        }
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', enlazarEventos);
+    } else {
+      enlazarEventos();
+    }
+
+    window.SLApp = {
+      cargarInicio,
+      renderInicio,
+      abrirPartida,
+      abrirVariedad,
+      cerrarDetalleVariedad,
+      volverAExistencias,
+      aplicarEstadoPreview,
+      mostrarAviso,
+      proximaVersion
+    };
+  })();
+</script>

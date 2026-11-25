@@ -1,0 +1,275 @@
+<section id="viewExistencias" aria-label="Existencias">
+  <!-- Banner sin conexión (cuando hay caché previa) -->
+  <div id="estadoSinConexionBanner" class="sl-offline-banner sl-hidden" role="status">
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M2 8.8a15 15 0 0 1 20 0"></path><path d="M5 12.5a10 10 0 0 1 14 0"></path><path d="M8.5 16.1a5 5 0 0 1 7 0"></path><path d="M3 3l18 18"></path></svg>
+    <span id="lblSinConexionBanner" style="flex:1"><b>Sin conexión.</b> Los cambios se bloquean hasta reconectar.</span>
+    <button type="button" id="btnReintentarOffline" class="sl-ghost" style="height:30px;padding:0 10px;font-size:12px">Reintentar</button>
+  </div>
+
+  <!-- Estado 1: Cargando (esqueleto) -->
+  <div id="estadoCargando" class="sl-state-wrap sl-hidden" aria-busy="true" aria-label="Cargando existencias">
+    <div class="sl-state-card" style="padding: 24px 18px">
+      <div class="sl-sk" style="width: 120px; height: 14px; border-radius: 7px"></div>
+      <div class="sl-sk" style="width: 190px; height: 56px; border-radius: 12px"></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+        <div class="sl-sk" style="height: 58px; border-radius: 14px"></div>
+        <div class="sl-sk" style="height: 58px; border-radius: 14px"></div>
+        <div class="sl-sk" style="height: 58px; border-radius: 14px"></div>
+      </div>
+      <div class="sl-sk" style="height: 170px; border-radius: 12px"></div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+        <div class="sl-sk" style="height: 110px; border-radius: 12px"></div>
+        <div class="sl-sk" style="height: 110px; border-radius: 12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Estado 2: Vacío (primer día sin stock) -->
+  <div id="estadoVacio" class="sl-state-wrap sl-hidden">
+    <div class="sl-state-card" style="align-items:center;justify-content:center;text-align:center;min-height:420px">
+      <div class="sl-float" style="display:flex;gap:4px;width:150px;height:14px">
+        <span style="flex:3;border-radius:4px;background:#4FA37C"></span>
+        <span style="flex:2;border-radius:4px;background:#4FA37C;opacity:.6"></span>
+        <span style="flex:1;border-radius:4px;background:#4FA37C;opacity:.35"></span>
+      </div>
+      <div style="font-size:22px;font-weight:700;margin-top:8px">Aún no hay stock</div>
+      <div style="font-size:14px;color:var(--sl-text-secondary);line-height:1.5;max-width:340px">
+        Carga el stock inicial desde el Excel y después importa las compras y ventas de Hispatec.
+      </div>
+      <button type="button" data-proxima-version="1" class="sl-btn" style="height:48px;padding:0 20px;border-radius:14px;font-size:14px;font-weight:700;margin-top:6px">Cargar stock inicial</button>
+      <button type="button" data-proxima-version="1" class="sl-ghost" style="height:44px;padding:0 16px;border-radius:12px;font-size:14px;font-weight:600">Importar CSV</button>
+    </div>
+  </div>
+
+  <!-- Estado 3: Sin conexión (sin caché) -->
+  <div id="estadoSinConexion" class="sl-state-wrap sl-hidden">
+    <div class="sl-state-card">
+      <div class="sl-offline-banner" style="margin:0">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M2 8.8a15 15 0 0 1 20 0"></path><path d="M5 12.5a10 10 0 0 1 14 0"></path><path d="M8.5 16.1a5 5 0 0 1 7 0"></path><path d="M3 3l18 18"></path></svg>
+        <span><b>Sin conexión.</b> Los cambios se bloquean hasta reconectar.</span>
+      </div>
+      <div style="opacity:.45;display:flex;flex-direction:column;gap:10px;padding:8px 0">
+        <div style="font-size:12px;color:var(--sl-text-secondary)">Cajas en cámara</div>
+        <div style="font-size:48px;font-weight:700;letter-spacing:-.04em;line-height:1">—</div>
+        <div style="height:130px;border-radius:12px;background:var(--sl-panel);border:1px solid var(--sl-line)"></div>
+      </div>
+      <button type="button" id="btnReintentarSinConexion" class="sl-ghost" style="height:48px;border-radius:14px;font-weight:600;font-size:14px">
+        <svg class="sl-spin" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"></path></svg>
+        Reintentando…
+      </button>
+    </div>
+  </div>
+
+  <!-- Estado 4: Error con reintento -->
+  <div id="estadoError" class="sl-state-wrap sl-hidden">
+    <div class="sl-state-card">
+      <div style="width:52px;height:52px;border-radius:16px;background:rgba(248,113,113,.12);color:var(--sl-red);display:flex;align-items:center;justify-content:center">
+        <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6"></path><path d="M10 13l4 4M14 13l-4 4"></path></svg>
+      </div>
+      <div style="font-size:22px;font-weight:700">No se pudieron cargar las existencias</div>
+      <div id="lblErrorMensaje" style="font-size:14px;color:var(--sl-text-secondary);line-height:1.5">Ha ocurrido un problema al consultar el inventario.</div>
+      <div style="background:rgba(255,255,255,.04);border:1px solid var(--sl-line);border-radius:14px;padding:12px 14px;font-size:13px;color:#A1A1AA;line-height:1.6">
+        <b style="color:var(--sl-text)">Cómo arreglarlo</b><br>
+        1. Comprueba tu conexión a internet.<br>
+        2. Pulsa «Reintentar» para volver a cargar los datos.
+      </div>
+      <button type="button" id="btnReintentarError" class="sl-btn" style="height:48px;border-radius:14px;font-size:14px;font-weight:700">Reintentar</button>
+    </div>
+  </div>
+
+  <!-- Contenido principal con datos -->
+  <div id="contenidoExistencias" class="sl-hidden">
+
+    <!-- ORDENADOR (>= 1024px) -->
+    <div class="sl-desktop-only">
+      <div class="sl-desktop-container">
+        <!-- Hero total + curva 30d + barras entradas/salidas -->
+        <section class="sl-up" aria-label="Stock total">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px">
+            <div>
+              <div id="deskFechaSub" style="color:var(--sl-text-secondary);font-size:13px">Cajas en cámara</div>
+              <div style="display:flex;align-items:baseline;gap:10px;margin-top:6px">
+                <span id="deskTotalNum" class="sl-hero-num">0</span>
+                <span id="deskTotalDelta" style="font-size:14px;font-weight:500;color:var(--sl-green)"></span>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div role="group" aria-label="Periodo" class="sl-seg" id="deskPeriodoGroup">
+                <button type="button" data-periodo="7" aria-pressed="false">7 d</button>
+                <button type="button" data-periodo="30" aria-pressed="true">30 d</button>
+                <button type="button" data-periodo="campana" aria-pressed="false">Campaña</button>
+              </div>
+              <button type="button" data-proxima-version="1" class="sl-btn">Importar CSV</button>
+            </div>
+          </div>
+
+          <div id="deskChartWrap" style="position:relative;height:150px;margin-top:18px">
+            <svg id="deskCurveSvg" aria-hidden="true" width="100%" height="150" viewBox="0 0 1120 150" preserveAspectRatio="none" style="display:block"></svg>
+            <div id="deskCurveOverlay" style="position:absolute;inset:0;display:flex"></div>
+          </div>
+
+          <div id="deskBarsWrap" aria-hidden="true" style="display:flex;gap:3px;height:64px;margin-top:8px;position:relative"></div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--sl-mono);font-size:11px;color:var(--sl-text-label);margin-top:6px">
+            <span id="deskAxisStart"></span>
+            <span style="font-family:var(--sl-font);font-size:12px;display:flex;gap:14px">
+              <span style="display:inline-flex;gap:6px;align-items:center"><span style="width:8px;height:8px;border-radius:2px;background:var(--sl-green)"></span>Entradas</span>
+              <span style="display:inline-flex;gap:6px;align-items:center"><span style="width:8px;height:8px;border-radius:2px;background:var(--sl-out)"></span>Salidas</span>
+              <span style="display:inline-flex;gap:6px;align-items:center"><span style="width:10px;height:2px;background:var(--sl-brand)"></span>Stock</span>
+            </span>
+            <span id="deskAxisEnd"></span>
+          </div>
+        </section>
+
+        <!-- Franja indicadores -->
+        <section class="sl-up sl-kpi-strip" aria-label="Indicadores" style="animation-delay:80ms">
+          <div class="sl-kpi-cell">
+            <div class="sl-kpi-label">Sale primero</div>
+            <div id="kpiSalePrimero" class="sl-kpi-val">—</div>
+          </div>
+          <div class="sl-kpi-cell">
+            <div class="sl-kpi-label">Por revisar</div>
+            <div id="kpiPendientes" class="sl-kpi-val">—</div>
+          </div>
+          <div class="sl-kpi-cell">
+            <div class="sl-kpi-label">Destrío esta semana</div>
+            <div id="kpiDestrio" class="sl-kpi-val">—</div>
+          </div>
+          <div class="sl-kpi-cell">
+            <div class="sl-kpi-label">Importado hasta</div>
+            <div id="kpiImportado" class="sl-kpi-val">—</div>
+          </div>
+        </section>
+
+        <!-- Tabla de variedades -->
+        <section class="sl-up" aria-labelledby="lblVarDesk" style="animation-delay:140ms">
+          <div class="sl-var-header-bar">
+            <h2 id="lblVarDesk" style="margin:0;font-size:15px;font-weight:600">Variedades</h2>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              <button type="button" id="btnFiltroTodas" class="sl-chip" aria-pressed="true">Todas · 0</button>
+              <button type="button" id="btnFiltroSacar" class="sl-chip" aria-pressed="false">Para sacar · 0</button>
+              <button type="button" id="btnToggleBuscar" class="sl-chip" aria-pressed="false">
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+                Buscar
+              </button>
+              <input id="inputBuscarVar" type="search" class="sl-search-input sl-hidden" placeholder="Filtrar variedad…" aria-label="Buscar variedad">
+            </div>
+          </div>
+
+          <div class="sl-table-box">
+            <div class="sl-table-inner">
+              <div class="sl-table-head">
+                <span>Variedad</span>
+                <span style="text-align:right">Cajas</span>
+                <span>Partidas · de la más antigua a la más nueva</span>
+                <span>Sale primero</span>
+                <span style="text-align:right">7 días</span>
+              </div>
+              <div id="deskVariedadesBody"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Últimos movimientos -->
+        <section class="sl-up" aria-labelledby="lblMovDesk" style="animation-delay:200ms">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h2 id="lblMovDesk" style="margin:0;font-size:15px;font-weight:600">Últimos movimientos</h2>
+            <button type="button" data-proxima-version="1" style="background:transparent;border:0;color:var(--sl-text-secondary);font-size:13px;cursor:pointer;padding:0">Ver todos →</button>
+          </div>
+          <div id="deskMovimientosBody" class="sl-mov-list"></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- MÓVIL Y TABLET (< 1024px) -->
+    <div class="sl-mobile-only">
+      <div class="sl-mobile-container">
+        <div class="sl-up" style="padding:24px 18px 0;text-align:center">
+          <div style="font-size:13px;color:var(--sl-text-secondary)">Cajas en cámara</div>
+          <div id="mobTotalNum" class="sl-mobile-hero-num">0</div>
+          <div id="mobTotalDelta" style="font-size:13px;color:var(--sl-green);margin-top:2px"></div>
+        </div>
+
+        <svg id="mobCurveSvg" aria-hidden="true" width="100%" height="110" viewBox="0 0 390 110" preserveAspectRatio="none" style="display:block;margin-top:10px"></svg>
+
+        <div class="sl-up sl-mobile-actions" style="animation-delay:80ms">
+          <button type="button" class="sl-round-action" data-proxima-version="1">
+            <span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3"></path><path d="M20 17H7l3 3"></path></svg></span>
+            Cambiar
+          </button>
+          <button type="button" class="sl-round-action" data-proxima-version="1">
+            <span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M4 21h16"></path></svg></span>
+            Importar
+          </button>
+          <button type="button" class="sl-round-action" data-proxima-version="1">
+            <span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+            Destrío
+          </button>
+          <button type="button" class="sl-round-action" data-proxima-version="1">
+            <span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg></span>
+            Movimientos
+          </button>
+        </div>
+
+        <div class="sl-up sl-card" style="animation-delay:140ms">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px 4px">
+            <span style="font-weight:600">Variedades</span>
+            <span id="mobParaSacar" style="font-size:12px;color:var(--sl-amber)"></span>
+          </div>
+          <div id="mobVariedadesBody" style="padding-bottom:6px"></div>
+        </div>
+
+        <div class="sl-up sl-card" style="animation-delay:200ms">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px 4px">
+            <span style="font-weight:600">Movimientos</span>
+            <button type="button" data-proxima-version="1" style="background:transparent;border:0;color:var(--sl-text-secondary);font-size:12px;cursor:pointer;padding:0">Ver todos</button>
+          </div>
+          <div id="mobMovimientosBody" style="padding-bottom:6px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel lateral ordenador -->
+  <div id="panelBackdrop" class="sl-backdrop sl-hidden"></div>
+  <aside id="panelVariedad" class="sl-drawer-panel sl-drawer sl-hidden" role="dialog" aria-modal="true" aria-label="Detalle de variedad">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--sl-line-subtle)">
+      <span style="display:flex;align-items:center;gap:10px">
+        <span id="panelColorDot" style="width:12px;height:12px;border-radius:50%;background:var(--sl-brand)"></span>
+        <span id="panelTitulo" style="font-weight:600;font-size:15px">Variedad</span>
+      </span>
+      <button type="button" id="btnCerrarPanel" aria-label="Cerrar" style="width:30px;height:30px;border-radius:6px;border:0;background:transparent;color:var(--sl-text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </button>
+    </div>
+    <div style="padding:18px">
+      <div id="panelSubtitulo" style="color:var(--sl-text-secondary);font-size:12px"></div>
+      <div style="font-size:40px;font-weight:600;letter-spacing:-.03em;margin-top:4px;font-variant-numeric:tabular-nums">
+        <span id="panelCajas">0</span><span style="margin-left:8px;font-size:14px;color:var(--sl-text-secondary);letter-spacing:0;font-weight:400">cajas</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button type="button" data-proxima-version="1" class="sl-btn" style="flex:1">⇄ Cambiar</button>
+        <button type="button" data-proxima-version="1" class="sl-ghost" style="flex:1">Destrío</button>
+      </div>
+    </div>
+    <div style="padding:0 18px;font-size:12px;color:var(--sl-text-label);margin-bottom:6px">Partidas · sale primero la de arriba</div>
+    <div id="panelPartidasList" style="border-top:1px solid var(--sl-line-subtle);overflow-y:auto;flex:1"></div>
+  </aside>
+
+  <!-- Hoja inferior móvil -->
+  <div id="hojaVariedad" class="sl-sheet-panel sl-sheet sl-hidden" role="dialog" aria-modal="true" aria-label="Detalle de variedad móvil">
+    <div style="width:36px;height:4px;border-radius:2px;background:#3F3F46;margin:0 auto 14px"></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+      <div style="min-width:0">
+        <div id="hojaTitulo" style="font-size:20px;font-weight:600">Variedad</div>
+        <div id="hojaSubtitulo" style="font-size:13px;color:var(--sl-text-secondary)"></div>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:10px;flex:none">
+        <span id="hojaCajas" style="font-size:28px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums">0</span>
+        <button type="button" id="btnCerrarHoja" aria-label="Cerrar" style="width:32px;height:32px;border-radius:50%;border:0;background:var(--sl-elevated);color:var(--sl-text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--sl-text-label);margin:14px 0 4px">Sale primero la de arriba</div>
+    <div id="hojaPartidasList"></div>
+  </div>
+</section>

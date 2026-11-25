@@ -37,6 +37,8 @@ if (typeof require !== 'undefined') {
   try { stockInicialMod = require('./importacion/StockInicialService'); } catch (e) {}
   let operacionesMod = null;
   try { operacionesMod = require('./OperacionesService'); } catch (e) {}
+  let inicioMod = null;
+  try { inicioMod = require('./InicioService'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -53,6 +55,7 @@ if (typeof require !== 'undefined') {
   if (instalacionMod) global.adminInstalarStockLight = global.adminInstalarStockLight || instalacionMod.adminInstalarStockLight;
   if (stockInicialMod) global.StockInicialService = global.StockInicialService || stockInicialMod.StockInicialService;
   if (operacionesMod) global.OperacionesService = global.OperacionesService || operacionesMod.OperacionesService;
+  if (inicioMod) global.InicioService = global.InicioService || inicioMod.InicioService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -1840,6 +1843,72 @@ function apiEjecutarPruebaAisladaInicializacion(testSpreadsheetId, options = {})
   );
 }
 
+/**
+ * Incluye un parcial HTML desde `src/` para plantillas HtmlService (`<?!= include('ui/estilos') ?>`) (T-024).
+ * Clasificada INTERNA: solo sirve plantillas de la interfaz.
+ *
+ * @param {string} nombre
+ * @returns {string}
+ */
+function include(nombre) {
+  const limpio = String(nombre || '').trim().replace(/^\/+/, '');
+  if (!limpio || limpio.includes('..') || !/^[a-zA-Z0-9_/-]+$/.test(limpio)) {
+    throw new Error(`include: nombre de parcial inválido '${nombre}'.`);
+  }
+  if (typeof HtmlService !== 'undefined' && HtmlService && typeof HtmlService.createHtmlOutputFromFile === 'function') {
+    return HtmlService.createHtmlOutputFromFile(limpio).getContent();
+  }
+  if (typeof require !== 'undefined') {
+    const fs = require('fs');
+    const path = require('path');
+    return fs.readFileSync(path.join(__dirname, `${limpio}.html`), 'utf8');
+  }
+  return '';
+}
+
+function _resolveInicioService_(options = {}) {
+  if (options && options.inicioService) return options.inicioService;
+  const SvcClass = (typeof InicioService !== 'undefined')
+    ? InicioService
+    : (typeof require !== 'undefined' ? require('./InicioService').InicioService : null);
+  if (!SvcClass) throw new Error('InicioService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || new SheetsRepository();
+  return new SvcClass({
+    repository: repo,
+    catalogoService: options.catalogoService,
+    pendientesService: options.pendientesService,
+    configCatalogo: options.configCatalogo,
+    reloj: options.reloj
+  });
+}
+
+/**
+ * Devuelve el resumen agregado para la pantalla de Existencias (T-024).
+ * Categoría: LECTURA (rol mínimo CONSULTA).
+ *
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiObtenerInicio(options = {}) {
+  exigirSesionApi_();
+  const service = _resolveInicioService_(options);
+  return service.obtenerInicio(options);
+}
+
+/**
+ * Devuelve la historia completa de una partida (origen, consumos y destinos de reproceso) (T-024).
+ * Categoría: LECTURA (rol mínimo CONSULTA).
+ *
+ * @param {string} idCapa
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiObtenerPartida(idCapa, options = {}) {
+  exigirSesionApi_();
+  const service = _resolveInicioService_(options);
+  return service.obtenerPartida(idCapa);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     initDatabase,
@@ -1928,6 +1997,9 @@ if (typeof module !== 'undefined' && module.exports) {
       : (instalacionMod ? instalacionMod.adminInstalarStockLight : null),
     copiaDiariaProgramada,
     doGet,
+    include,
+    apiObtenerInicio,
+    apiObtenerPartida,
     apiGetMaestroArticulos,
     apiGetMaestroEnvases,
     apiSubirYAnalizarPdf,
