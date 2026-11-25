@@ -73,6 +73,21 @@ class ImportacionService {
       : (typeof UMBRAL_DOCUMENTOS_POR_TRAMO !== 'undefined' ? UMBRAL_DOCUMENTOS_POR_TRAMO : 150);
     const umbral = Number(options.umbralTramos || umbralPredeterminado);
     this.umbralTramos = Number.isFinite(umbral) && umbral > 0 ? Math.floor(umbral) : 150;
+    this.pendientesService = options.pendientesService || null;
+  }
+
+  _resolverPendientesService_() {
+    if (this.pendientesService) return this.pendientesService;
+    const PendClass = (typeof PendientesService !== 'undefined')
+      ? PendientesService
+      : (typeof require !== 'undefined' ? require('./PendientesService').PendientesService : null);
+    if (!PendClass) return null;
+    return new PendClass({
+      repository: this.repo,
+      movementService: this.movementService,
+      catalogoService: this.catalogoService,
+      lockService: this.movementService && this.movementService.lock
+    });
   }
 
   /**
@@ -517,7 +532,101 @@ class ImportacionService {
       return resultado || this._resultadoDocumento_(item.documento, 'SIN_LINEAS_APLICABLES', null);
     });
 
-    return {
+    // Regla 4 (T-008): registrar fila MODIFICADO_EN_ERP en PENDIENTES si no existe ya una PENDIENTE para ese documento
+    const modificadosItems = clasificados.filter(item => item.estado === 'MODIFICADO_EN_ERP');
+    if (modificadosItems.length > 0 && this.repo && typeof this.repo.appendPendientes === 'function') {
+      const pendientesExistentes = typeof this.repo.getPendientes === 'function' ? this.repo.getPendientes() : [];
+      const nuevosModificados = [];
+      const ahoraIso = new Date().toISOString();
+
+      for (const item of modificadosItems) {
+        const doc = item.documento;
+        const tipoDoc = doc.tipoDoc === 'ENTRADA' ? 'ENTRADA' : 'SALIDA';
+        const serie = String(doc.serie || '').trim();
+        const numero = String(doc.numero || '').trim();
+        const clave = this._claveDocumento_(tipoDoc, serie, numero);
+
+        const yaExistePendiente = pendientesExistentes.some(p =>
+          String(p.estado || '').trim().toUpperCase() === 'PENDIENTE' &&
+          String(p.motivo || '').trim().toUpperCase() === 'MODIFICADO_EN_ERP' &&
+          this._claveDocumento_(p.tipo_doc, p.serie, p.numero) === clave
+        ) || nuevosModificados.some(p =>
+          this._claveDocumento_(p.tipo_doc, p.serie, p.numero) === clave
+        );
+
+        if (yaExistePendiente) continue;
+
+        const lineasBase = (Array.isArray(doc.lineasOk) && doc.lineasOk.length > 0)
+          ? doc.lineasOk
+          : (Array.isArray(doc.lineasTodas) ? doc.lineasTodas : []);
+        const cajasNuevo = lineasBase.reduce((acc, l) => acc + Math.abs(Number(l.cajas) || 0), 0);
+        const cajasImportado = Number((item.existente && item.existente.total_cajas) || 0);
+        const diferencia = cajasNuevo - cajasImportado;
+
+        nuevosModificados.push({
+          id_pendiente: this._nuevoId_('PEND'),
+          id_importacion: importacion.id_importacion,
+          tipo_doc: tipoDoc,
+          serie,
+          numero,
+          linea: '',
+          fecha_negocio: doc.fecha || '',
+          entidad: String(doc.entidad || '').trim(),
+          articulo: '',
+          envase: '',
+          cajas: diferencia,
+          kg: '',
+          motivo: 'MODIFICADO_EN_ERP',
+          estado: 'PENDIENTE',
+          fecha_alta: ahoraIso,
+          fecha_resolucion: ''
+        });
+      }
+
+      if (nuevosModificados.length > 0) {
+        this.repo.appendPendientes(nuevosModificados);
+      }
+    }
+
+    // Regla 3 (T-008): reintento automático cuando se haya creado al menos una capa
+    const seCreoCapa = Array.from(resultadosPorClave.values()).some(doc =>
+      doc &&
+      doc.tipoDoc === 'ENTRADA' &&
+      doc.estado === 'NUEVO' &&
+      (doc.estadoProceso === 'CONFIRMADO' || doc.estadoProceso === 'CONFIRMADO_PARCIAL')
+    );
+
+    let reintentoPendientes = null;
+    const avisos = [];
+    let avisoReintento = '';
+    if (seCreoCapa) {
+      try {
+        const pendientesSvc = this._resolverPendientesService_();
+        if (pendientesSvc && typeof pendientesSvc.reintentarPendientes === 'function') {
+          reintentoPendientes = pendientesSvc.reintentarPendientes(usuario);
+        }
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        avisoReintento = `Importación confirmada, pero falló el reintento automático de pendientes: ${msg}`;
+        avisos.push(avisoReintento);
+        try {
+          if (this.repo && typeof this.repo.appendLogOperacion === 'function') {
+            this.repo.appendLogOperacion({
+              id_log: this._nuevoId_('LOG'),
+              usuario: usuario || 'SISTEMA',
+              operacion: 'REINTENTO_PENDIENTES_IMPORTACION',
+              referencia: importacion.id_importacion,
+              estado: 'ERROR',
+              observaciones: msg
+            });
+          }
+        } catch (logErr) {
+          // Nunca fallar la importación por un error de log
+        }
+      }
+    }
+
+    const salida = {
       success: true,
       status: importacion.estado,
       hash,
@@ -533,6 +642,12 @@ class ImportacionService {
         pendientes: Number(importacion.documentos_pendientes || 0)
       }
     };
+    if (reintentoPendientes) salida.reintentoPendientes = reintentoPendientes;
+    if (avisos.length > 0) {
+      salida.avisos = avisos;
+      salida.avisoReintento = avisoReintento;
+    }
+    return salida;
   }
 }
 

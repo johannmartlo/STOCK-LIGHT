@@ -114,6 +114,7 @@ class MovementService {
 
     this.defaultTenantId = options.defaultTenantId || 'DEFAULT';
     this.ingestionService = options.articuloEnvaseIngestionService || null;
+    this.pendientesService = options.pendientesService || null;
   }
 
   /**
@@ -3155,6 +3156,7 @@ class MovementService {
    * @returns {Object}
    */
   registrarReproceso(params = {}, usuario = 'SISTEMA') {
+    let resultado = null;
     this._acquireLock(30000);
     try {
       let { estado } = this._cargarEstado();
@@ -3224,7 +3226,7 @@ class MovementService {
         reprocesoLineas: plan.reprocesoLineas
       });
 
-      return {
+      resultado = {
         success: true,
         status: 'CONFIRMADO',
         id_reproceso: plan.id_reproceso,
@@ -3241,6 +3243,41 @@ class MovementService {
     } finally {
       this._releaseLock();
     }
+
+    // Regla 3 (T-008, D-030): reintento automático tras liberar el lock del reproceso
+    if (resultado && resultado.success) {
+      try {
+        const PendClass = (typeof PendientesService !== 'undefined')
+          ? PendientesService
+          : (typeof require !== 'undefined' ? require('./importacion/PendientesService').PendientesService : null);
+        const pendientesSvc = this.pendientesService || (PendClass
+          ? new PendClass({ repository: this.repo, movementService: this, lockService: this.lock })
+          : null);
+        if (pendientesSvc && typeof pendientesSvc.reintentarPendientes === 'function') {
+          resultado.reintentoPendientes = pendientesSvc.reintentarPendientes(usuario);
+        }
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        resultado.avisoReintento = `Reproceso confirmado, pero falló el reintento automático de pendientes: ${msg}`;
+        resultado.avisos = [resultado.avisoReintento];
+        try {
+          if (this.repo && typeof this.repo.appendLogOperacion === 'function') {
+            this.repo.appendLogOperacion({
+              id_log: this._nuevoId('LOG'),
+              usuario: usuario || 'SISTEMA',
+              operacion: 'REINTENTO_PENDIENTES_REPROCESO',
+              referencia: resultado.id_reproceso || '',
+              estado: 'ERROR',
+              observaciones: msg
+            });
+          }
+        } catch (logErr) {
+          // Nunca fallar el reproceso por un error de log
+        }
+      }
+    }
+
+    return resultado;
   }
 
   /**

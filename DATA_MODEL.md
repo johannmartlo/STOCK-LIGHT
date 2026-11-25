@@ -212,8 +212,8 @@ Líneas que no se pueden aplicar todavía y quedan en cuarentena, sin crear movi
 | `envase` | `VARCHAR(150)` | NO | Envase normalizado. |
 | `cajas` | `DECIMAL` | SÍ | Cajas de la línea. |
 | `kg` | `DECIMAL` | SÍ | Kilos informativos (D-025). |
-| `motivo` | `ENUM` | NO | `SEGUIMIENTO_DESCONOCIDO` o `STOCK_INSUFICIENTE`. |
-| `estado` | `ENUM` | NO | `PENDIENTE`, `APLICADA` o `IGNORADA`. |
+| `motivo` | `ENUM` | NO | `SEGUIMIENTO_DESCONOCIDO`, `STOCK_INSUFICIENTE` o `MODIFICADO_EN_ERP`. |
+| `estado` | `ENUM` | NO | `PENDIENTE`, `APLICADA`, `IGNORADA` o `RESUELTA`. |
 | `fecha_alta` | `DATETIME` | NO | Fecha y hora de entrada en cuarentena. |
 | `fecha_resolucion` | `DATETIME` | SÍ | Fecha y hora de resolución. |
 

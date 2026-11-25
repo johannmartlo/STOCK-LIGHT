@@ -73,6 +73,9 @@ no las expone.
 | `apiProcesarSalidaDocumento` | `src/Código.js` | ESCRITURA | Procesa una salida; usuario del servidor. |
 | `apiPrevisualizarImportacionCsv` | `src/Código.js` | LECTURA | Previsualiza un CSV de Hispatec sin escribir en ninguna hoja (T-007). |
 | `apiConfirmarImportacionCsv` | `src/Código.js` | ESCRITURA | Confirma un CSV de Hispatec en lote; usuario del servidor (T-007). |
+| `apiListarPendientes` | `src/Código.js` | LECTURA | Lista los pendientes agrupados por motivo y documento; rol CONSULTA (T-008). |
+| `apiReintentarPendientes` | `src/Código.js` | ESCRITURA | Reintenta los pendientes de stock insuficiente y seguimiento desconocido; usuario del servidor; rol ENCARGADO (T-008). |
+| `apiMarcarPendienteResuelto` | `src/Código.js` | ESCRITURA | Marca un pendiente como RESUELTA y guarda la nota sin tocar stock; usuario del servidor; rol ENCARGADO (T-008). |
 | `apiConciliarStock` | `src/Código.js` | ADMIN | Compara contra un inventario externo sin alterar existencias. |
 | `apiEjecutarAjusteOperativo` | `src/Código.js` | ESCRITURA | Ajuste o reclasificación unificada; usuario del servidor. |
 | `apiObtenerLogOperaciones` | `src/Código.js` | LECTURA | Log de trazabilidad operativa. |

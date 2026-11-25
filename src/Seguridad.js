@@ -63,6 +63,7 @@ const PERMISOS_API = {
   apiGetMatrizArticuloEnvase: 'CONSULTA',
   apiListarReprocesos: 'CONSULTA',
   apiSugerenciasReproceso: 'CONSULTA',
+  apiListarPendientes: 'CONSULTA',
 
   // LECTURA de usuarios — ADMIN
   apiListarUsuarios: 'ADMIN',
@@ -86,6 +87,8 @@ const PERMISOS_API = {
   apiAnularReproceso: 'ENCARGADO',
   apiConfirmarDocumentoRevisado: 'ENCARGADO',
   apiConfirmarImportacionCsv: 'ENCARGADO',
+  apiReintentarPendientes: 'ENCARGADO',
+  apiMarcarPendienteResuelto: 'ENCARGADO',
   apiUpsertGrupoComercial: 'ENCARGADO',
   apiUpsertMatrizArticuloEnvase: 'ENCARGADO',
 

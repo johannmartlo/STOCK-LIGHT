@@ -187,7 +187,12 @@ Ante un movimiento de salida de $N$ cajas para el par $\langle \text{artículo},
      * **Déficit a justificar:** $N - S$ cajas.
   4. El usuario responsable deberá resolver el déficit mediante:
      * La importación de un albarán de entrada que faltaba por procesar.
+     * Un reproceso que genere las cajas del formato vendido (D-030).
      * Un ajuste manual debidamente justificado (ej. corrección de inventario inicial).
+
+### Regla de Consumo Tardío (Reintento de Pendientes — T-008):
+* Un documento o línea pendiente que se aplica tarde (automáticamente tras una importación con entradas nuevas o tras un reproceso, o manualmente al reintentar pendientes) **consume FIFO sobre las capas tal como están en ese momento**.
+* **Nunca se rehacen los consumos de salidas posteriores ya confirmadas** (D-022): el libro de movimientos es de solo añadir y los consumos previos quedan intactos.
 
 ---
 

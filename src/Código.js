@@ -27,6 +27,8 @@ if (typeof require !== 'undefined') {
   try { catSvcMod = require('./CatalogoService'); } catch (e) {}
   let importacionMod = null;
   try { importacionMod = require('./importacion/ImportacionService'); } catch (e) {}
+  let pendientesMod = null;
+  try { pendientesMod = require('./importacion/PendientesService'); } catch (e) {}
   let semillaMod = null;
   try { semillaMod = require('./SemillaCatalogo'); } catch (e) {}
 
@@ -40,6 +42,7 @@ if (typeof require !== 'undefined') {
   if (masterInitMod) global.MasterInitializationService = masterInitMod.MasterInitializationService;
   if (catSvcMod) global.CatalogoService = catSvcMod.CatalogoService;
   if (importacionMod) global.ImportacionService = importacionMod.ImportacionService;
+  if (pendientesMod) global.PendientesService = pendientesMod.PendientesService;
   if (semillaMod) global.sembrarCatalogoEnRepositorio_ = semillaMod.sembrarCatalogoEnRepositorio_;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
@@ -917,9 +920,67 @@ function apiConfirmarImportacionCsv(textoCsv, hash, options = {}) {
     catalogoService: options.catalogoService,
     configCatalogo: options.configCatalogo,
     umbralTramos: options.umbralTramos,
-    lockService: options.lockService
+    lockService: options.lockService,
+    pendientesService: options.pendientesService
   });
   return service.confirmar(textoCsv, hash, user);
+}
+
+function _resolvePendientesService_(options = {}) {
+  if (options && options.pendientesService) return options.pendientesService;
+  const SvcClass = (typeof PendientesService !== 'undefined')
+    ? PendientesService
+    : (typeof require !== 'undefined' ? require('./importacion/PendientesService').PendientesService : null);
+  if (!SvcClass) throw new Error('PendientesService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || new SheetsRepository();
+  return new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    configCatalogo: options.configCatalogo,
+    lockService: options.lockService
+  });
+}
+
+/**
+ * Lista los pendientes agrupados por motivo y por documento (T-008).
+ * Categoría: LECTURA (rol mínimo CONSULTA).
+ * @param {Object} [filtros={}]
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiListarPendientes(filtros = {}, options = {}) {
+  exigirSesionApi_();
+  const service = _resolvePendientesService_(options);
+  return service.listarPendientes(filtros);
+}
+
+/**
+ * Reintenta los pendientes activos de stock insuficiente y seguimiento desconocido (T-008).
+ * Categoría: ESCRITURA (rol mínimo ENCARGADO); usuario del servidor.
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiReintentarPendientes(options = {}) {
+  exigirSesionApi_();
+  const user = usuarioActual_(options && options.session);
+  const service = _resolvePendientesService_(options);
+  return service.reintentarPendientes(user, options);
+}
+
+/**
+ * Marca un pendiente (p. ej. MODIFICADO_EN_ERP) como RESUELTA y guarda la nota (T-008).
+ * Categoría: ESCRITURA (rol mínimo ENCARGADO); usuario del servidor. No toca el stock.
+ * @param {string} idPendiente
+ * @param {string} [nota='']
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiMarcarPendienteResuelto(idPendiente, nota = '', options = {}) {
+  exigirSesionApi_();
+  const user = usuarioActual_(options && options.session);
+  const service = _resolvePendientesService_(options);
+  return service.marcarPendienteResuelto(idPendiente, nota, user);
 }
 
 /**
@@ -1608,6 +1669,9 @@ if (typeof module !== 'undefined' && module.exports) {
     apiProcesarSalidaDocumento,
     apiPrevisualizarImportacionCsv,
     apiConfirmarImportacionCsv,
+    apiListarPendientes,
+    apiReintentarPendientes,
+    apiMarcarPendienteResuelto,
     apiConciliarStock,
     apiEjecutarAjusteOperativo,
     apiObtenerLogOperaciones,
