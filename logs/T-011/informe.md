@@ -19,14 +19,24 @@
 
 ## git status
 
+Salida capturada tras el commit de trabajo `288a6bc`, antes del commit que añade este informe.
+
 ```text
-@@GIT_STATUS@@
+On branch ticket/T-011-puesta-en-marcha
+Your branch is ahead of 'origin/main' by 2 commits.
+  (use "git push" to publish your local commits)
+
+nothing to commit, working tree clean
 ```
 
 ## git log --oneline -5
 
 ```text
-@@GIT_LOG@@
+288a6bc feat(T-011): instalacion, stock inicial y puesta en marcha
+36fd197 docs(tickets): anadir T-011 puesta en marcha
+c99e7d4 docs(T-008): actualizar informe con seccion de correccion
+b6cc504 fix(T-008): punto fijo en reintento, paso a STOCK_INSUFICIENTE, guardia SOLO_MODIFICADO_EN_ERP y avisos
+b4b36bc docs(T-008): anadir informe de entrega
 ```
 
 ## Dudas (cambios no pedidos por el ticket)
