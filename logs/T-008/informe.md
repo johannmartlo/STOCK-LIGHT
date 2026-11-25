@@ -55,3 +55,29 @@ Lista de todos los cambios no descritos literalmente en las reglas del ticket `d
 3. **Persistencia de la nota de `marcarPendienteResuelto` (`src/importacion/PendientesService.js`):** como la Regla 6 prohíbe cambiar las columnas de `PENDIENTES`, la nota se registra en `LOG_OPERACIONES` (`operacion: 'RESOLVER_PENDIENTE'`, `referencia: id_pendiente`, `observaciones: nota`) además de marcar `estado = 'RESUELTA'` y `fecha_resolucion` en `PENDIENTES`.
 4. **Inyección opcional `options.pendientesService` (`src/MovementService.js`, `src/importacion/ImportacionService.js` y `src/Código.js`):** añadida en los constructores y en `apiConfirmarImportacionCsv` para poder simular fallos de reintento de forma limpia y determinista en las pruebas (Aceptación 7).
 5. **Valor `MODIFICADO_EN_ERP` en `DATA_MODEL.md` (§3.2.1):** además de añadir `RESUELTA` al `ENUM` de `estado` de `PENDIENTES` (Regla 6), se añadió `MODIFICADO_EN_ERP` al `ENUM` de `motivo` en la misma tabla para reflejar la Regla 4 (sin alterar ninguna columna).
+
+## Corrección
+
+### Cambios realizados
+
+1. **Punto fijo en `PendientesService.reintentarPendientes` (`src/importacion/PendientesService.js`):** se sustituyó la pasada única sobre `gruposOrdenados` por un bucle de punto fijo en memoria (`while (huboAplicados && gruposRestantes.length > 0)`), repitiendo el recorrido sobre los grupos que fallaron por `STOCK_INSUFICIENTE` mientras en la pasada anterior se haya aplicado al menos un documento. Todo se ejecuta dentro del mismo lock y con una única llamada a `_persistir`. Los recuentos de `siguenPendientes` se calculan al final con `contarSiguenPendientes()` sobre `todasPendientes`.
+2. **Paso a `STOCK_INSUFICIENTE` (`src/importacion/PendientesService.js`):** al terminar el bucle de punto fijo, cualquier fila que permanezca en `gruposRestantes` con motivo `SEGUIMIENTO_DESCONOCIDO` (es decir, ya era `SEGUIDA` pero su documento no entró por falta de stock) pasa su `motivo` a `'STOCK_INSUFICIENTE'` conservando `estado = 'PENDIENTE'`.
+3. **Guardia de motivo en `marcarPendienteResuelto` (`src/importacion/PendientesService.js`):** ahora comprueba que `motivo === 'MODIFICADO_EN_ERP'`; en cualquier otro motivo devuelve `{ success: false, errorCode: 'SOLO_MODIFICADO_EN_ERP', ... }` sin modificar `PENDIENTES` ni escribir en `LOG_OPERACIONES`.
+4. **Conservación de avisos en `MovementService.registrarReproceso` (`src/MovementService.js`):** si falla el reintento automático, el aviso se concatena a `resultado.avisos` sin borrar avisos previos (`Array.isArray(resultado.avisos) ? resultado.avisos.concat(...) : [...]`) e inicializa `resultado.avisos` desde `plan.avisos` si existieran.
+5. **Pruebas y log (`test/t008_pendientes.test.js` y `logs/T-008/tests.txt`):** añadidas las pruebas 9, 10, 11 y 12 (una por cada punto de la corrección). `node test/run_all.js` ejecutado tras la última edición: **30/30 suites, 334 pruebas, 0 fallos** (log actualizado en `logs/T-008/tests.txt`).
+
+### `git log --oneline -5`
+```text
+b6cc504 fix(T-008): punto fijo en reintento, paso a STOCK_INSUFICIENTE, guardia SOLO_MODIFICADO_EN_ERP y avisos
+b4b36bc docs(T-008): anadir informe de entrega
+111822c feat(T-008): reintento automatico de pendientes, MODIFICADO_EN_ERP y APIs con acceso T-020
+eda8667 docs(T-008): anadir ticket de pendientes
+0311dde docs(T-009): anadir informe de rebase y coordinacion T-020
+```
+*(Este informe actualizado se añade en el commit inmediatamente posterior sobre `b6cc504` en la misma rama `ticket/T-008-pendientes`.)*
+
+### Dudas
+
+1. **Inicialización desde `plan.avisos` en `MovementService.registrarReproceso`:** además de concatenar el aviso de fallo a `resultado.avisos`, si `plan.avisos` es un array no vacío se copia a `resultado.avisos` al construir `resultado` (para propagar posibles avisos previos del plan antes del reintento y poder verificar la no sobreescritura en la prueba 12).
+2. **Cálculo de `doc.total_cajas` si una fila `SEGUIMIENTO_DESCONOCIDO` pasa a `STOCK_INSUFICIENTE`:** mientras no se aplique la línea, `doc.total_cajas` en `DOCUMENTOS` no se incrementa al cambiar `motivo` a `STOCK_INSUFICIENTE`; al aplicarse posteriormente, si ya tenía `motivo = 'STOCK_INSUFICIENTE'`, `cajasNuevasPorClave` solo suma las que tenían `motivo === 'SEGUIMIENTO_DESCONOCIDO'` en la llamada en que se aplican (sin afectar al stock ni a `CAPAS_FIFO` ni a `MOVIMIENTOS`).
+
