@@ -31,6 +31,10 @@ if (typeof require !== 'undefined') {
   try { pendientesMod = require('./importacion/PendientesService'); } catch (e) {}
   let semillaMod = null;
   try { semillaMod = require('./SemillaCatalogo'); } catch (e) {}
+  let instalacionMod = null;
+  try { instalacionMod = require('./Instalacion'); } catch (e) {}
+  let stockInicialMod = null;
+  try { stockInicialMod = require('./importacion/StockInicialService'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -44,6 +48,8 @@ if (typeof require !== 'undefined') {
   if (importacionMod) global.ImportacionService = importacionMod.ImportacionService;
   if (pendientesMod) global.PendientesService = pendientesMod.PendientesService;
   if (semillaMod) global.sembrarCatalogoEnRepositorio_ = semillaMod.sembrarCatalogoEnRepositorio_;
+  if (instalacionMod) global.adminInstalarStockLight = global.adminInstalarStockLight || instalacionMod.adminInstalarStockLight;
+  if (stockInicialMod) global.StockInicialService = global.StockInicialService || stockInicialMod.StockInicialService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -926,6 +932,84 @@ function apiConfirmarImportacionCsv(textoCsv, hash, options = {}) {
   return service.confirmar(textoCsv, hash, user);
 }
 
+/**
+ * Previsualiza el stock inicial desde la hoja STOCK_INICIAL_ENTRADA (T-011).
+ * Categoría: ADMIN. No escribe nada.
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function adminPrevisualizarStockInicialDesdeHoja(options = {}) {
+  exigirPropietario_(options && options.session);
+  const service = _crearStockInicialService_(options);
+  try {
+    return service.previsualizar(service.leerFilasHoja());
+  } catch (err) {
+    return {
+      status: 'HOJA_NO_DISPONIBLE',
+      error: err.message,
+      filas: [],
+      totales: { porArticuloEnvase: [], porProveedor: [], general: { cajas: 0, filas: 0 } },
+      hash: '',
+      bloquea: true,
+      bloqueos: 0,
+      avisos: 0
+    };
+  }
+}
+
+/**
+ * Confirma el stock inicial desde la hoja STOCK_INICIAL_ENTRADA (T-011).
+ * Categoría: ADMIN. Exige el hash de la previsualización; `anadir` permite una segunda carga.
+ * @param {string} hash
+ * @param {boolean} [anadir=false]
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function adminConfirmarStockInicialDesdeHoja(hash, anadir = false, options = {}) {
+  exigirPropietario_(options && options.session);
+  const service = _crearStockInicialService_(options);
+  let filas;
+  try {
+    filas = service.leerFilasHoja();
+  } catch (err) {
+    return { success: false, status: 'HOJA_NO_DISPONIBLE', error: err.message };
+  }
+  return service.confirmar(filas, hash, usuarioActual_(options && options.session), {
+    anadir: anadir === true,
+    timeoutMs: options.timeoutMs
+  });
+}
+
+/**
+ * Previsualiza un CSV de stock inicial (T-011).
+ * Categoría: ESCRITURA, rol mínimo ADMIN.
+ * @param {string} textoCsv
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiPrevisualizarStockInicial(textoCsv, options = {}) {
+  exigirSesionApi_();
+  return _crearStockInicialService_(options).previsualizar(textoCsv);
+}
+
+/**
+ * Confirma un CSV de stock inicial (T-011).
+ * Categoría: ESCRITURA, rol mínimo ADMIN. El usuario de auditoría lo decide el servidor.
+ * @param {string} textoCsv
+ * @param {string} hash
+ * @param {boolean} [anadir=false]
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiConfirmarStockInicial(textoCsv, hash, anadir = false, options = {}) {
+  exigirSesionApi_();
+  const user = usuarioActual_(options && options.session);
+  return _crearStockInicialService_(options).confirmar(textoCsv, hash, user, {
+    anadir: anadir === true,
+    timeoutMs: options.timeoutMs
+  });
+}
+
 function _resolvePendientesService_(options = {}) {
   if (options && options.pendientesService) return options.pendientesService;
   const SvcClass = (typeof PendientesService !== 'undefined')
@@ -939,6 +1023,33 @@ function _resolvePendientesService_(options = {}) {
     catalogoService: options.catalogoService,
     configCatalogo: options.configCatalogo,
     lockService: options.lockService
+  });
+}
+
+/**
+ * Resuelve el servicio de stock inicial (T-011) con las dependencias de la ejecución.
+ * Función interna: no se expone en docs/API_PUBLICA.md.
+ * @param {Object} [options]
+ * @returns {StockInicialService}
+ */
+function _crearStockInicialService_(options = {}) {
+  const SvcClass = (typeof StockInicialService !== 'undefined')
+    ? StockInicialService
+    : (typeof require !== 'undefined' ? require('./importacion/StockInicialService').StockInicialService : null);
+  if (!SvcClass) throw new Error('StockInicialService no está disponible en este entorno de ejecución.');
+
+  const repo = options.repository || new SheetsRepository();
+  return new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    pendientesService: options.pendientesService,
+    lockService: options.lockService,
+    configCatalogo: options.configCatalogo || options.config,
+    crearCopiaSeguridad: options.crearCopiaSeguridad,
+    backupOptions: options.backupOptions,
+    clock: options.clock || options.reloj,
+    timeoutMs: options.timeoutMs
   });
 }
 
@@ -1669,6 +1780,10 @@ if (typeof module !== 'undefined' && module.exports) {
     apiProcesarSalidaDocumento,
     apiPrevisualizarImportacionCsv,
     apiConfirmarImportacionCsv,
+    apiPrevisualizarStockInicial,
+    apiConfirmarStockInicial,
+    adminPrevisualizarStockInicialDesdeHoja,
+    adminConfirmarStockInicialDesdeHoja,
     apiListarPendientes,
     apiReintentarPendientes,
     apiMarcarPendienteResuelto,
@@ -1701,6 +1816,9 @@ if (typeof module !== 'undefined' && module.exports) {
     adminCrearCopiaManual,
     adminInstalarCopiaDiaria,
     adminConfigurarCarpetaCopias,
+    adminInstalarStockLight: (typeof adminInstalarStockLight !== 'undefined')
+      ? adminInstalarStockLight
+      : (instalacionMod ? instalacionMod.adminInstalarStockLight : null),
     copiaDiariaProgramada,
     doGet,
     apiGetMaestroArticulos,

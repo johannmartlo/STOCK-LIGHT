@@ -95,6 +95,8 @@ const PERMISOS_API = {
   // ESCRITURA de configuración y usuarios — ADMIN
   apiUpsertReglaClasificacion: 'ADMIN',
   apiUpsertExcepcionCatalogo: 'ADMIN',
+  apiPrevisualizarStockInicial: 'ADMIN',
+  apiConfirmarStockInicial: 'ADMIN',
   apiCrearUsuario: 'ADMIN',
   apiRegenerarEnlace: 'ADMIN',
   apiDesactivarUsuario: 'ADMIN',

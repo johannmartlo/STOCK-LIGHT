@@ -21,7 +21,7 @@ if (typeof require !== 'undefined') {
 }
 
 const BACKUP_FOLDER_ID_KEY = 'BACKUP_FOLDER_ID';
-const MOTIVOS_COPIA = ['DIARIA', 'MANUAL', 'PRE_DESPLIEGUE'];
+const MOTIVOS_COPIA = ['DIARIA', 'MANUAL', 'PRE_DESPLIEGUE', 'PRE_STOCK_INICIAL'];
 const MAX_COPIAS_DIARIAS = 30;
 
 /**
@@ -79,13 +79,13 @@ function _partesFechaMadrid_(fecha) {
  * Función pura: no accede a Drive, Sheets ni Session.
  *
  * @param {Date|string|number} fecha
- * @param {string} motivo - DIARIA | MANUAL | PRE_DESPLIEGUE
+ * @param {string} motivo - DIARIA | MANUAL | PRE_DESPLIEGUE | PRE_STOCK_INICIAL
  * @returns {string}
  */
 function nombreCopiaSeguridad(fecha, motivo) {
   const motivoNormalizado = String(motivo || '').trim().toUpperCase();
   if (MOTIVOS_COPIA.indexOf(motivoNormalizado) === -1) {
-    throw new Error(`Motivo de copia no válido: '${motivo}'. Debe ser DIARIA, MANUAL o PRE_DESPLIEGUE.`);
+    throw new Error(`Motivo de copia no válido: '${motivo}'. Debe ser DIARIA, MANUAL, PRE_DESPLIEGUE o PRE_STOCK_INICIAL.`);
   }
 
   const partes = _partesFechaMadrid_(fecha);
@@ -364,7 +364,7 @@ function _aplicarRetencionCopias_(carpeta, driveApp) {
  * Crea una copia de seguridad de la hoja de datos y la registra en LOG_OPERACIONES.
  * Función privada: la invocan las funciones admin* y el disparador diario.
  *
- * @param {string} motivo - DIARIA | MANUAL | PRE_DESPLIEGUE
+ * @param {string} motivo - DIARIA | MANUAL | PRE_DESPLIEGUE | PRE_STOCK_INICIAL
  * @param {Object} [options] - Inyección para pruebas
  * @returns {{ id: string, nombre: string }}
  */

@@ -73,6 +73,8 @@ no las expone.
 | `apiProcesarSalidaDocumento` | `src/Código.js` | ESCRITURA | Procesa una salida; usuario del servidor. |
 | `apiPrevisualizarImportacionCsv` | `src/Código.js` | LECTURA | Previsualiza un CSV de Hispatec sin escribir en ninguna hoja (T-007). |
 | `apiConfirmarImportacionCsv` | `src/Código.js` | ESCRITURA | Confirma un CSV de Hispatec en lote; usuario del servidor (T-007). |
+| `apiPrevisualizarStockInicial` | `src/Código.js` | ESCRITURA | Previsualiza un CSV de stock inicial sin escribir; rol ADMIN (T-011). |
+| `apiConfirmarStockInicial` | `src/Código.js` | ESCRITURA | Confirma el stock inicial en un solo lock; rol ADMIN y usuario del servidor (T-011). |
 | `apiListarPendientes` | `src/Código.js` | LECTURA | Lista los pendientes agrupados por motivo y documento; rol CONSULTA (T-008). |
 | `apiReintentarPendientes` | `src/Código.js` | ESCRITURA | Reintenta los pendientes de stock insuficiente y seguimiento desconocido; usuario del servidor; rol ENCARGADO (T-008). |
 | `apiMarcarPendienteResuelto` | `src/Código.js` | ESCRITURA | Marca un pendiente como RESUELTA y guarda la nota sin tocar stock; usuario del servidor; rol ENCARGADO (T-008). |
@@ -188,6 +190,9 @@ no las expone.
 | `adminCrearCopiaManual` | `src/Código.js` | ADMIN | Crea una copia de seguridad MANUAL de la hoja de datos. |
 | `adminInstalarCopiaDiaria` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario de copia a las 23:00. |
 | `adminConfigurarCarpetaCopias` | `src/Código.js` | ADMIN | Persiste la carpeta de Drive de las copias (`BACKUP_FOLDER_ID`). |
+| `adminInstalarStockLight` | `src/Instalacion.js` | ADMIN | Puesta en marcha idempotente: provisiona hojas, siembra el catálogo si está vacío, instala la copia diaria y crea el primer ADMIN (T-011). |
+| `adminPrevisualizarStockInicialDesdeHoja` | `src/Código.js` | ADMIN | Previsualiza la hoja `STOCK_INICIAL_ENTRADA` sin escribir (T-011). |
+| `adminConfirmarStockInicialDesdeHoja` | `src/Código.js` | ADMIN | Confirma la hoja `STOCK_INICIAL_ENTRADA` con hash; `anadir` permite una segunda carga (T-011). |
 | `copiaDiariaProgramada` | `src/Código.js` | ESCRITURA | Punto de entrada del disparador diario; omite la copia si ya existe una DIARIA de hoy y no la usa la interfaz. Sin sesión: la ejecuta el disparador. |
 | `nombreCopiaSeguridad` | `src/BackupService.js` | INTERNA | Genera el nombre canónico de una copia en Europe/Madrid. |
 | `existeCopiaDiariaDeHoy` | `src/BackupService.js` | INTERNA | Comprueba si ya hay una copia DIARIA con la fecha de hoy en el nombre. |

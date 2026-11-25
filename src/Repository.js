@@ -257,6 +257,15 @@ const SCHEMA_DEFINITIONS = {
     'estado',
     'observaciones'
   ],
+  // Hoja de entrada del stock inicial (T-011). Se crea con solo la cabecera.
+  STOCK_INICIAL_ENTRADA: [
+    'Fecha',
+    'Proveedor',
+    'Articulo',
+    'Envase',
+    'Cajas',
+    'Kg'
+  ],
   USUARIOS: [
     'id_usuario',
     'nombre',
