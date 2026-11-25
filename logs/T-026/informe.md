@@ -19,14 +19,31 @@
 
 ## git status
 
+Salida capturada tras el commit de trabajo `8922e9b`, antes del commit que añade este informe.
+
 ```text
-@@GIT_STATUS@@
+On branch ticket/T-026-deuda-menor
+Your branch is ahead of 'origin/main' by 2 commits.
+  (use "git push" to publish your local commits)
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	logs/T-011/fusion.md
+
+nothing added to commit but untracked files present (use "git add" to track)
 ```
+
+`logs/T-011/fusion.md` es el archivo pendiente del ticket T-011; no forma parte de T-026 y
+no se ha incluido en ningún commit.
 
 ## git log --oneline -5
 
 ```text
-@@GIT_LOG@@
+8922e9b fix(T-026): total_cajas al pasar seguimiento desconocido a seguido
+274e76d docs(tickets): anadir T-026 deuda menor
+bb816bc docs(T-011): completar informe de entrega
+288a6bc feat(T-011): instalacion, stock inicial y puesta en marcha
+36fd197 docs(tickets): anadir T-011 puesta en marcha
 ```
 
 ## Dudas (cambios no pedidos por el ticket)
