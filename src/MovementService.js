@@ -3240,6 +3240,9 @@ class MovementService {
         capasCreadas,
         stock: estado.stock
       };
+      if (Array.isArray(plan.avisos) && plan.avisos.length > 0) {
+        resultado.avisos = plan.avisos.slice();
+      }
     } finally {
       this._releaseLock();
     }
@@ -3259,7 +3262,9 @@ class MovementService {
       } catch (err) {
         const msg = err && err.message ? err.message : String(err);
         resultado.avisoReintento = `Reproceso confirmado, pero falló el reintento automático de pendientes: ${msg}`;
-        resultado.avisos = [resultado.avisoReintento];
+        resultado.avisos = Array.isArray(resultado.avisos)
+          ? resultado.avisos.concat(resultado.avisoReintento)
+          : [resultado.avisoReintento];
         try {
           if (this.repo && typeof this.repo.appendLogOperacion === 'function') {
             this.repo.appendLogOperacion({

@@ -610,6 +610,215 @@ runTest('8. APIs de T-008 exigen sesión y funcionan correctamente dentro de con
   verificarCoherencia(env);
 });
 
+// --------------------------------------------------------------------------
+// 9. CORRECCIÓN PUNTO 1: PUNTO FIJO (COMPRA DÍA 4 DESBLOQUEA VENTA DÍA 2 EN UNA SOLA LLAMADA)
+// --------------------------------------------------------------------------
+runTest('9. Punto fijo: compra del día 4 desbloquea venta del día 2 en la misma llamada, con un solo lock y un solo _persistir', () => {
+  const env = crearEntorno();
+  const cat = catalogoTomate(env.repo);
+  const imp = new ImportacionService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: cat
+  });
+
+  // Venta del día 2 y compra del día 4 para un producto inicialmente con seguimiento desconocido
+  const csvVentaDia2 = crearCsv(HEADER_VENTAS, [
+    filaVenta({ fecha: '02/11/2026', serie: 'AVT27', numero: '901', linea: 1, articulo: 'CALABACIN PF', envase: 'CAJA', cajas: 15 })
+  ]);
+  const csvCompraDia4 = crearCsv(HEADER_COMPRAS, [
+    filaCompra({ fecha: '04/11/2026', serie: 'ACT27', numero: '902', linea: 1, articulo: 'CALABACIN PF', envase: 'CAJA', cajas: 40 })
+  ]);
+  imp.confirmar(csvVentaDia2, imp.previsualizar(csvVentaDia2).hash, 'encargado@test');
+  imp.confirmar(csvCompraDia4, imp.previsualizar(csvCompraDia4).hash, 'encargado@test');
+
+  // Ahora añadimos regla que hace CALABACIN PF -> SEGUIDA
+  env.repo.upsertReglaClasificacion({
+    id: 'R-PF',
+    atributo: 'SEGUIMIENTO',
+    valor: 'SI',
+    prioridad: 5,
+    articulo_contiene: 'CALABACIN PF',
+    activo: true
+  });
+
+  // Contar llamadas a _acquireLock y _persistir durante un único reintentarPendientes
+  let locks = 0;
+  let persistirs = 0;
+  const origAcquire = env.movService._acquireLock.bind(env.movService);
+  const origPersistir = env.movService._persistir.bind(env.movService);
+  env.movService._acquireLock = (...args) => { locks++; return origAcquire(...args); };
+  env.movService._persistir = (...args) => { persistirs++; return origPersistir(...args); };
+
+  try {
+    const pendSvc = new PendientesService({ repository: env.repo, movementService: env.movService, catalogoService: cat });
+    const res = pendSvc.reintentarPendientes('encargado@test');
+
+    assert.strictEqual(locks, 1, 'Debe usar exactamente un lock');
+    assert.strictEqual(persistirs, 1, 'Debe hacer una sola llamada a _persistir');
+    assert.strictEqual(res.aplicados.SEGUIMIENTO_DESCONOCIDO, 2);
+    assert.strictEqual(res.aplicados.total, 2);
+    assert.strictEqual(res.siguenPendientes.total, 0);
+    assert.strictEqual(res.documentosConfirmados, 2);
+  } finally {
+    env.movService._acquireLock = origAcquire;
+    env.movService._persistir = origPersistir;
+  }
+
+  // Stock final = 40 - 15 = 25, y ambos documentos CONFIRMADO
+  const stock = env.repo.getStockActual().find(s => s.codigo_articulo === 'CALABACIN PF');
+  assert.strictEqual(Number(stock.cajas_actuales), 25);
+  assert.strictEqual(env.repo.getDocumentos().find(d => d.serie === 'AVT27' && d.numero === '901').estado_proceso, 'CONFIRMADO');
+  assert.strictEqual(env.repo.getDocumentos().find(d => d.serie === 'ACT27' && d.numero === '902').estado_proceso, 'CONFIRMADO');
+  assert.ok(env.repo.getPendientes().every(p => p.estado === 'APLICADA'));
+
+  verificarCoherencia(env);
+});
+
+// --------------------------------------------------------------------------
+// 10. CORRECCIÓN PUNTO 2: SEGUIMIENTO_DESCONOCIDO -> SEGUIDA SIN STOCK PASA A STOCK_INSUFICIENTE
+// --------------------------------------------------------------------------
+runTest('10. Fila SEGUIMIENTO_DESCONOCIDO ya SEGUIDA que no entra por stock pasa a motivo STOCK_INSUFICIENTE', () => {
+  const env = crearEntorno();
+  const cat = catalogoTomate(env.repo);
+  const imp = new ImportacionService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: cat
+  });
+
+  // Venta de producto desconocido sin stock
+  const csvVenta = crearCsv(HEADER_VENTAS, [
+    filaVenta({ fecha: '03/11/2026', serie: 'AVT27', numero: '903', linea: 1, articulo: 'CALABACIN SINSTOCK', envase: 'CAJA', cajas: 20 })
+  ]);
+  imp.confirmar(csvVenta, imp.previsualizar(csvVenta).hash, 'encargado@test');
+  assert.strictEqual(env.repo.getPendientes()[0].motivo, 'SEGUIMIENTO_DESCONOCIDO');
+
+  // Regla que la convierte en SEGUIDA, pero sigue sin haber stock
+  env.repo.upsertReglaClasificacion({
+    id: 'R-SS',
+    atributo: 'SEGUIMIENTO',
+    valor: 'SI',
+    prioridad: 5,
+    articulo_contiene: 'CALABACIN SINSTOCK',
+    activo: true
+  });
+
+  const pendSvc = new PendientesService({ repository: env.repo, movementService: env.movService, catalogoService: cat });
+  const res = pendSvc.reintentarPendientes('encargado@test');
+
+  assert.strictEqual(res.aplicados.total, 0);
+  assert.strictEqual(res.siguenPendientes.STOCK_INSUFICIENTE, 1);
+  assert.strictEqual(res.siguenPendientes.SEGUIMIENTO_DESCONOCIDO, 0);
+  assert.strictEqual(res.siguenPendientes.total, 1);
+
+  const pend = env.repo.getPendientes()[0];
+  assert.strictEqual(pend.estado, 'PENDIENTE');
+  assert.strictEqual(pend.motivo, 'STOCK_INSUFICIENTE');
+
+  verificarCoherencia(env);
+});
+
+// --------------------------------------------------------------------------
+// 11. CORRECCIÓN PUNTO 3: marcarPendienteResuelto SOLO ADMITE MODIFICADO_EN_ERP
+// --------------------------------------------------------------------------
+runTest('11. marcarPendienteResuelto rechaza motivos distintos de MODIFICADO_EN_ERP con SOLO_MODIFICADO_EN_ERP sin tocar nada', () => {
+  const env = crearEntorno();
+  const cat = catalogoTomate(env.repo);
+  const imp = new ImportacionService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: cat
+  });
+
+  // Crear un pendiente STOCK_INSUFICIENTE y uno SEGUIMIENTO_DESCONOCIDO
+  const csvVentaStock = crearCsv(HEADER_VENTAS, [
+    filaVenta({ fecha: '03/11/2026', serie: 'AVT27', numero: '904', linea: 1, articulo: 'TOMATE FICTICIO', envase: 'CAJA', cajas: 10 })
+  ]);
+  const csvVentaDesc = crearCsv(HEADER_VENTAS, [
+    filaVenta({ fecha: '03/11/2026', serie: 'AVT27', numero: '905', linea: 1, articulo: 'BERENJENA DESC', envase: 'CAJA', cajas: 5 })
+  ]);
+  imp.confirmar(csvVentaStock, imp.previsualizar(csvVentaStock).hash, 'encargado@test');
+  imp.confirmar(csvVentaDesc, imp.previsualizar(csvVentaDesc).hash, 'encargado@test');
+
+  const pStock = env.repo.getPendientes().find(p => p.motivo === 'STOCK_INSUFICIENTE');
+  const pDesc = env.repo.getPendientes().find(p => p.motivo === 'SEGUIMIENTO_DESCONOCIDO');
+  assert.ok(pStock && pDesc);
+
+  const logsAntes = env.repo.getLogOperaciones().length;
+
+  conContextoDePrueba_('encargado@test', 'ENCARGADO', () => {
+    const r1 = codigo.apiMarcarPendienteResuelto(pStock.id_pendiente, 'intento', { repository: env.repo, movementService: env.movService, catalogoService: cat });
+    assert.strictEqual(r1.success, false);
+    assert.strictEqual(r1.errorCode, 'SOLO_MODIFICADO_EN_ERP');
+
+    const r2 = codigo.apiMarcarPendienteResuelto(pDesc.id_pendiente, 'intento', { repository: env.repo, movementService: env.movService, catalogoService: cat });
+    assert.strictEqual(r2.success, false);
+    assert.strictEqual(r2.errorCode, 'SOLO_MODIFICADO_EN_ERP');
+  });
+
+  // Nada ha cambiado
+  const pStockPost = env.repo.getPendientes().find(p => p.id_pendiente === pStock.id_pendiente);
+  const pDescPost = env.repo.getPendientes().find(p => p.id_pendiente === pDesc.id_pendiente);
+  assert.strictEqual(pStockPost.estado, 'PENDIENTE');
+  assert.strictEqual(pDescPost.estado, 'PENDIENTE');
+  assert.strictEqual(pStockPost.fecha_resolucion, '');
+  assert.strictEqual(pDescPost.fecha_resolucion, '');
+  assert.strictEqual(env.repo.getLogOperaciones().length, logsAntes);
+
+  verificarCoherencia(env);
+});
+
+// --------------------------------------------------------------------------
+// 12. CORRECCIÓN PUNTO 4: registrarReproceso CONSERVA AVISOS PREVIOS SI FALLA REINTENTO
+// --------------------------------------------------------------------------
+runTest('12. registrarReproceso añade el aviso de fallo del reintento a resultado.avisos sin borrar los previos', () => {
+  const env = crearEntorno();
+
+  env.movService.registrarEntrada({
+    id_documento: 'DOC-AV-1',
+    tipo_documento: 'COMPRA',
+    serie: 'ACT27',
+    numero: '906',
+    fecha_documento: '2026-11-01',
+    entidad_nombre: 'PROV AV'
+  }, [
+    { codigo_articulo: 'TOMATE AVISO', codigo_envase: 'CAJA', cajas: 50, partida: 'P-AV' }
+  ], 'encargado@test');
+
+  const capa = env.repo.getCapasFifo().find(c => c.codigo_articulo === 'TOMATE AVISO');
+  env.movService.pendientesService = {
+    reintentarPendientes() {
+      throw new Error('FALLO_CONSERVAR_AVISOS');
+    }
+  };
+
+  const origPlanificar = global.planificarReproceso;
+  global.planificarReproceso = (params, capas) => {
+    const plan = origPlanificar(params, capas);
+    plan.avisos = ['AVISO_PREVIO_REPROCESO'];
+    return plan;
+  };
+
+  try {
+    const res = env.movService.registrarReproceso({
+      origenes: [{ id_capa: capa.id_capa, cajas: 20 }],
+      destinos: [{ articulo: 'TOMATE AVISO DEST', envase: 'CAJA', cajas: 20 }],
+      destrio_cajas: 0
+    }, 'encargado@test');
+
+    assert.strictEqual(res.success, true);
+    assert.ok(Array.isArray(res.avisos), 'Debe devolver array avisos');
+    assert.strictEqual(res.avisos.length, 2, 'Debe conservar el aviso previo y añadir el del fallo');
+    assert.strictEqual(res.avisos[0], 'AVISO_PREVIO_REPROCESO');
+    assert.ok(res.avisos[1].includes('FALLO_CONSERVAR_AVISOS'));
+  } finally {
+    global.planificarReproceso = origPlanificar;
+  }
+
+  verificarCoherencia(env);
+});
+
 console.log('\n================================================================');
 console.log(` RESULTADOS T-008: ${passed} SUPERADAS | ${failed} FALLIDAS`);
 console.log('================================================================\n');

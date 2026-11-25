@@ -157,10 +157,19 @@ class PendientesService {
       const ignorados = {
         SEGUIMIENTO_DESCONOCIDO: 0
       };
-      const siguenPendientes = {
-        STOCK_INSUFICIENTE: 0,
-        SEGUIMIENTO_DESCONOCIDO: 0,
-        MODIFICADO_EN_ERP: 0
+      const contarSiguenPendientes = () => {
+        const conteo = {
+          STOCK_INSUFICIENTE: 0,
+          SEGUIMIENTO_DESCONOCIDO: 0,
+          MODIFICADO_EN_ERP: 0
+        };
+        for (const fila of todasPendientes) {
+          if (String(fila.estado || '').trim().toUpperCase() !== 'PENDIENTE') continue;
+          const m = String(fila.motivo || '').trim().toUpperCase();
+          conteo[m] = (conteo[m] || 0) + 1;
+        }
+        const total = Object.values(conteo).reduce((acc, n) => acc + n, 0);
+        return { total, ...conteo };
       };
 
       const pendientesActivas = todasPendientes.filter(
@@ -171,7 +180,7 @@ class PendientesService {
         return {
           aplicados: { total: 0, ...aplicados },
           ignorados: { total: 0, ...ignorados },
-          siguenPendientes: { total: 0, ...siguenPendientes },
+          siguenPendientes: contarSiguenPendientes(),
           documentosConfirmados: 0,
           movimientosGenerados: []
         };
@@ -191,7 +200,6 @@ class PendientesService {
         const clave = this._claveDocumento_(fila.tipo_doc, fila.serie, fila.numero);
 
         if (motivo === 'MODIFICADO_EN_ERP') {
-          siguenPendientes.MODIFICADO_EN_ERP++;
           continue;
         }
 
@@ -208,8 +216,6 @@ class PendientesService {
             docsAfectados.add(clave);
           } else if (seguimiento === 'SEGUIDA') {
             candidatosAplicar.push({ fila, motivo: 'SEGUIMIENTO_DESCONOCIDO', clave });
-          } else {
-            siguenPendientes.SEGUIMIENTO_DESCONOCIDO++;
           }
           continue;
         }
@@ -218,9 +224,6 @@ class PendientesService {
           candidatosAplicar.push({ fila, motivo: 'STOCK_INSUFICIENTE', clave });
           continue;
         }
-
-        // Motivo desconocido: no se toca
-        siguenPendientes[motivo] = (siguenPendientes[motivo] || 0) + 1;
       }
 
       // Agrupar candidatos a aplicar por documento (tipo_doc + serie + numero)
@@ -274,88 +277,108 @@ class PendientesService {
         estado = cargado.estado;
         movimientosExistentes = cargado.movimientos;
 
-        for (const grupo of gruposOrdenados) {
-          const docExistente = documentosExistentes.find(
-            d => this._claveDocumento_(d.tipo_documento, d.serie, d.numero) === grupo.clave
-          );
-          const docId = (docExistente && docExistente.id_documento)
-            ? docExistente.id_documento
-            : this._nuevoId_('DOC');
+        let gruposRestantes = gruposOrdenados;
+        let huboAplicados = true;
 
-          const estadoAntesDoc = this._clonarEstado_(estado);
-          const movsDocumento = [];
-          let faltaStock = false;
+        while (huboAplicados && gruposRestantes.length > 0) {
+          huboAplicados = false;
+          const siguientePasada = [];
 
-          for (const { fila } of grupo.items) {
-            const esEntrada = grupo.tipo_doc === 'ENTRADA';
-            const kgLinea = (fila.kg !== undefined && fila.kg !== null && fila.kg !== '')
-              ? Number(fila.kg)
-              : '';
-            const mov = {
-              id_movimiento: this._nuevoId_('MOV'),
-              fecha_hora: ahoraIso,
-              tipo_movimiento: grupo.tipo_doc,
-              id_documento_ref: docId,
-              documento_ref: `${grupo.serie}/${grupo.numero}`,
-              codigo_articulo: fila.articulo,
-              codigo_envase: fila.envase,
-              cajas: Number(fila.cajas),
-              signo: esEntrada ? 1 : -1,
-              partida_origen: '',
-              motivo_ajuste: '',
-              usuario: usuario || 'SISTEMA',
-              observaciones: '',
-              estado: 'CONFIRMADO',
-              fecha_negocio: fila.fecha_negocio || grupo.fecha_negocio || '',
-              entidad_nombre: String(fila.entidad || grupo.entidad || '').trim(),
-              secuencia: '',
-              origen_dato: 'CSV',
-              kg_informativo: kgLinea,
-              id_movimiento_ref: '',
-              id_capa_objetivo: '',
-              id_capa_creada: esEntrada ? this._nuevoId_('CAPA') : ''
-            };
+          for (const grupo of gruposRestantes) {
+            const docExistente = documentosExistentes.find(
+              d => this._claveDocumento_(d.tipo_documento, d.serie, d.numero) === grupo.clave
+            );
+            const docId = (docExistente && docExistente.id_documento)
+              ? docExistente.id_documento
+              : this._nuevoId_('DOC');
 
-            const res = this.movementService._aplicar(estado, mov);
-            if (!res.ok) {
-              if (res.errorCode === 'STOCK_INSUFICIENTE') {
-                faltaStock = true;
-                break;
+            const estadoAntesDoc = this._clonarEstado_(estado);
+            const movsDocumento = [];
+            let faltaStock = false;
+
+            for (const { fila } of grupo.items) {
+              const esEntrada = grupo.tipo_doc === 'ENTRADA';
+              const kgLinea = (fila.kg !== undefined && fila.kg !== null && fila.kg !== '')
+                ? Number(fila.kg)
+                : '';
+              const mov = {
+                id_movimiento: this._nuevoId_('MOV'),
+                fecha_hora: ahoraIso,
+                tipo_movimiento: grupo.tipo_doc,
+                id_documento_ref: docId,
+                documento_ref: `${grupo.serie}/${grupo.numero}`,
+                codigo_articulo: fila.articulo,
+                codigo_envase: fila.envase,
+                cajas: Number(fila.cajas),
+                signo: esEntrada ? 1 : -1,
+                partida_origen: '',
+                motivo_ajuste: '',
+                usuario: usuario || 'SISTEMA',
+                observaciones: '',
+                estado: 'CONFIRMADO',
+                fecha_negocio: fila.fecha_negocio || grupo.fecha_negocio || '',
+                entidad_nombre: String(fila.entidad || grupo.entidad || '').trim(),
+                secuencia: '',
+                origen_dato: 'CSV',
+                kg_informativo: kgLinea,
+                id_movimiento_ref: '',
+                id_capa_objetivo: '',
+                id_capa_creada: esEntrada ? this._nuevoId_('CAPA') : ''
+              };
+
+              const res = this.movementService._aplicar(estado, mov);
+              if (!res.ok) {
+                if (res.errorCode === 'STOCK_INSUFICIENTE') {
+                  faltaStock = true;
+                  break;
+                }
+                throw new Error(
+                  `Error inesperado al reintentar la línea ${fila.linea} de ${grupo.serie}/${grupo.numero}: ${res.error}`
+                );
               }
-              throw new Error(
-                `Error inesperado al reintentar la línea ${fila.linea} de ${grupo.serie}/${grupo.numero}: ${res.error}`
-              );
+              estado = res.estado;
+              movsDocumento.push(mov);
             }
-            estado = res.estado;
-            movsDocumento.push(mov);
+
+            if (faltaStock) {
+              // Todo o nada por documento: restaurar estado y reintentar si algún documento posterior libera stock
+              estado = estadoAntesDoc;
+              siguientePasada.push(grupo);
+              continue;
+            }
+
+            huboAplicados = true;
+            for (const mov of movsDocumento) {
+              generatedMovements.push(mov);
+            }
+            for (const { fila, motivo } of grupo.items) {
+              fila.estado = 'APLICADA';
+              fila.fecha_resolucion = ahoraIso;
+              aplicados[motivo] = (aplicados[motivo] || 0) + 1;
+              if (motivo === 'SEGUIMIENTO_DESCONOCIDO') {
+                cajasNuevasPorClave.set(
+                  grupo.clave,
+                  (cajasNuevasPorClave.get(grupo.clave) || 0) + Math.abs(Number(fila.cajas) || 0)
+                );
+              }
+            }
+            pendientesModificadas = true;
+            docsAfectados.add(grupo.clave);
+            aplicadasPorClave.add(grupo.clave);
           }
 
-          if (faltaStock) {
-            // Todo o nada por documento: restaurar estado y mantener las filas en PENDIENTE
-            estado = estadoAntesDoc;
-            for (const { motivo } of grupo.items) {
-              siguenPendientes[motivo] = (siguenPendientes[motivo] || 0) + 1;
-            }
-            continue;
-          }
+          gruposRestantes = siguientePasada;
+        }
 
-          for (const mov of movsDocumento) {
-            generatedMovements.push(mov);
-          }
-          for (const { fila, motivo } of grupo.items) {
-            fila.estado = 'APLICADA';
-            fila.fecha_resolucion = ahoraIso;
-            aplicados[motivo] = (aplicados[motivo] || 0) + 1;
-            if (motivo === 'SEGUIMIENTO_DESCONOCIDO') {
-              cajasNuevasPorClave.set(
-                grupo.clave,
-                (cajasNuevasPorClave.get(grupo.clave) || 0) + Math.abs(Number(fila.cajas) || 0)
-              );
+        // Si una fila SEGUIMIENTO_DESCONOCIDO ya es SEGUIDA pero su documento no entra por stock,
+        // su motivo pasa a STOCK_INSUFICIENTE (sigue PENDIENTE)
+        for (const grupo of gruposRestantes) {
+          for (const { fila } of grupo.items) {
+            if (String(fila.motivo || '').trim().toUpperCase() === 'SEGUIMIENTO_DESCONOCIDO') {
+              fila.motivo = 'STOCK_INSUFICIENTE';
+              pendientesModificadas = true;
             }
           }
-          pendientesModificadas = true;
-          docsAfectados.add(grupo.clave);
-          aplicadasPorClave.add(grupo.clave);
         }
       }
 
@@ -414,12 +437,11 @@ class PendientesService {
 
       const totalAplicados = Object.values(aplicados).reduce((acc, n) => acc + n, 0);
       const totalIgnorados = Object.values(ignorados).reduce((acc, n) => acc + n, 0);
-      const totalSiguen = Object.values(siguenPendientes).reduce((acc, n) => acc + n, 0);
 
       return {
         aplicados: { total: totalAplicados, ...aplicados },
         ignorados: { total: totalIgnorados, ...ignorados },
-        siguenPendientes: { total: totalSiguen, ...siguenPendientes },
+        siguenPendientes: contarSiguenPendientes(),
         documentosConfirmados,
         movimientosGenerados: generatedMovements.map(m => m.id_movimiento)
       };
@@ -561,6 +583,16 @@ class PendientesService {
           success: false,
           errorCode: 'PENDIENTE_NO_ENCONTRADO',
           message: `No se encontró el pendiente '${idLimpio}'.`
+        };
+      }
+
+      const motivoActual = String(fila.motivo || '').trim().toUpperCase();
+      if (motivoActual !== 'MODIFICADO_EN_ERP') {
+        return {
+          success: false,
+          errorCode: 'SOLO_MODIFICADO_EN_ERP',
+          message: `Solo se pueden marcar como resueltos los pendientes con motivo MODIFICADO_EN_ERP (motivo actual: '${motivoActual}').`,
+          motivo: motivoActual
         };
       }
 
