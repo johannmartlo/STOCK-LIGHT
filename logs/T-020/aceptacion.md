@@ -1,11 +1,12 @@
 # T-020 — Aceptación
 
 Ticket: `docs/tickets/T-020-acceso-enlace-pin.md` (carril B).
-Rama: `ticket/T-020-acceso-enlace-pin`, creada desde `main` `1443dcc`.
-Primer commit de la rama: `dc8e2b3` — solo el archivo del ticket, sin editar.
-Commit de trabajo: el que sigue a `dc8e2b3` en esta rama (incluye código, pruebas y estos logs).
+Rama: `ticket/T-020-acceso-enlace-pin`, creada desde `main` `1443dcc` y re-basada sobre
+`main` `abed2b5` (T-007 fusionado) el 2026-11-25, sin conflictos.
+Primer commit de la rama: `0785a26` — solo el archivo del ticket, sin editar.
+Commit de trabajo: el que sigue a `0785a26` en esta rama (incluye código, pruebas y estos logs).
 
-Resultado de `node test/run_all.js`: **27 suites, 297 pruebas, 0 fallos**. Salida completa en
+Resultado de `node test/run_all.js`: **28 suites, 312 pruebas, 0 fallos**. Salida completa en
 `logs/T-020/tests.txt`.
 
 ## Aceptación 1 — credenciales
@@ -48,22 +49,37 @@ Resultado de `node test/run_all.js`: **27 suites, 297 pruebas, 0 fallos**. Salid
 
 - **Prueba nueva:** `test/t020_acceso.test.js`, caso 4.1.
 - Se recorren todas las entradas de `PERMISOS_API` clasificadas LECTURA o ESCRITURA en
-  `docs/API_PUBLICA.md` (más `confirmarDocumentoRevisado` y `confirmarCompraPendiente`, que
-  son ESCRITURA y también exigen contexto) y se llaman **directamente**, sin `apiLlamar`.
+  `docs/API_PUBLICA.md` —empiecen o no por `api` (`revisarDocumentoHispatec`,
+  `confirmarDocumentoRevisado`, `confirmarCompraPendiente`), incluidas las dos API de
+  importación que llegaron con T-007— y se llaman **directamente**, sin `apiLlamar`.
 - Todas lanzan exactamente `Acceso no autorizado`. Se comparan las hojas antes y después y no
   hay ninguna escritura.
 
 ## Aceptación 5 — cobertura
 
-- **Prueba nueva:** `test/t020_acceso.test.js`, casos 5.1 y 5.2.
-- 5.1 recorre `src/*.js`, extrae las funciones globales, lee las clasificaciones de
+- **Prueba nueva:** `test/t020_acceso.test.js`, casos 5.1 a 5.4.
+- 5.1 recorre `src/*.js`, extrae todas las funciones globales, lee las clasificaciones de
   `docs/API_PUBLICA.md` y comprueba:
-  - toda `api*` LECTURA o ESCRITURA empieza por `exigirSesionApi_();`;
-  - toda `api*` LECTURA o ESCRITURA está en `PERMISOS_API`;
+  - toda función global LECTURA o ESCRITURA, empiece o no por `api`, empieza por
+    `exigirSesionApi_();`, salvo las dos excepciones de la prueba 5.3;
+  - toda función global LECTURA o ESCRITURA está en `PERMISOS_API`;
   - toda entrada de `PERMISOS_API` existe como función.
-- Comprobado a mano, además, con el caso sintético 5.2: una `api*` LECTURA sin guarda y sin
-  permiso produce dos problemas; la que tiene guarda y permiso no produce ninguno. Así se
-  demuestra que la prueba falla si aparece una `api*` nueva sin guarda o sin permiso.
+- 5.2 caso sintético: una `api*` LECTURA sin guarda y sin permiso produce dos problemas; una
+  función que no empieza por `api` y también es LECTURA sin guarda ni permiso produce otros
+  dos; las que tienen guarda y permiso no producen ninguno. Así se demuestra que la prueba
+  falla si aparece una función nueva sin guarda o sin permiso.
+- 5.3 fija las únicas excepciones: `doGet` (entrada HTTP que sirve la pantalla de entrada) y
+  `copiaDiariaProgramada` (la ejecuta el disparador diario sin usuario). Ambas deben funcionar
+  sin sesión, así que no llevan guarda ni están en `PERMISOS_API`. La prueba impide que la
+  lista de excepciones crezca sin revisión.
+- 5.4 comprueba el rol mínimo de las entradas nuevas: `revisarDocumentoHispatec` y
+  `apiPrevisualizarImportacionCsv` → CONSULTA; `apiConfirmarImportacionCsv` → ENCARGADO.
+- **Comprobación manual de que la prueba falla:** se quitó temporalmente la guarda de
+  `revisarDocumentoHispatec` y `node test/t020_acceso.test.js` dio **2 fallidas** (4.1 y 5.1).
+  El mensaje de 5.1 fue
+  `revisarDocumentoHispatec: clasificada LECTURA pero no empieza por exigirSesionApi_();`
+  y 4.1 falló con `revisarDocumentoHispatec debe exigir sesión`. Se restauró la guarda y la
+  suite volvió a 0 fallos.
 - La prueba 7 de `t023_superficie` sigue exigiendo que toda función global no privada esté
   clasificada en `docs/API_PUBLICA.md`.
 
@@ -100,6 +116,10 @@ Se adaptaron **solo** para envolver las llamadas directas a `api*` en
 - `test/fase8_2_apps_script_v8_loading.test.js`: llama a
   `apiEjecutarPruebaAisladaInicializacion`, que es ADMIN y sigue protegida por
   `exigirPropietario_`; no necesita contexto de sesión.
+- `test/t007_importacion_lote.test.js` (prueba 13): es de T-007 y llegó a `main` durante el
+  rebase. Sus dos llamadas directas a `apiPrevisualizarImportacionCsv` y
+  `apiConfirmarImportacionCsv` se envuelven con `conContextoDePrueba_('PruebaT007', ...)`,
+  CONSULTA y ENCARGADO respectivamente. No se cambia ninguna aserción.
 
 ## Aceptación 8 — prueba manual en móvil (pendiente del responsable y del director técnico)
 
@@ -127,10 +147,11 @@ Resultado y fecha de la prueba manual: ______________________.
 - `docs/API_PUBLICA.md`: nueva categoría **ENTRADA**; clasificadas `apiLlamar`, `apiEntrar`,
   `apiEstablecerPin`, `apiSalir`, las cuatro funciones de usuarios de la app, las cuatro del
   editor y todas las `api*` existentes. Se actualizó la explicación de ADMIN y la nota de
-  `PERMISOS_API`.
+  `PERMISOS_API`. En la revisión del 2026-11-25 se añadió que `revisarDocumentoHispatec` exige
+  sesión y que `doGet` y `copiaDiariaProgramada` son las excepciones sin sesión.
 - `docs/SEGURIDAD.md`: nuevo, con alta, enlace, PIN, roles, regenerar, desactivar, móvil
   perdido y reglas técnicas.
-- `node test/run_all.js`: 27 suites, 297 pruebas, **0 fallos**. Salida en
+- `node test/run_all.js`: 28 suites, 312 pruebas, **0 fallos**. Salida en
   `logs/T-020/tests.txt`.
 
 ## Capturas (D-014)
@@ -171,3 +192,15 @@ Con datos ficticios del modo demo local, a 360 px y 1280 px:
 9. `apiLlamar` admite que la función destino sea `confirmarDocumentoRevisado` o
    `confirmarCompraPendiente`, que no empiezan por `api`, porque la primera la llama la
    interfaz y ambas son ESCRITURA.
+10. En la prueba de cobertura se excluyen expresamente `doGet` y `copiaDiariaProgramada`,
+    aunque `docs/API_PUBLICA.md` las clasifica como LECTURA y ESCRITURA: `doGet` sirve la
+    pantalla de entrada y `copiaDiariaProgramada` la ejecuta un disparador sin usuario, así
+    que no pueden exigir sesión ni estar en `PERMISOS_API`. La regla literal «toda función
+    LECTURA/ESCRITURA» rompería el acceso a la app y la copia diaria. La lista de excepciones
+    está fijada en la prueba 5.3 y documentada en `docs/API_PUBLICA.md`.
+11. Se adaptó `test/t007_importacion_lote.test.js` (prueba 13), archivo del carril C que llegó
+    a `main` con T-007, para envolver sus dos llamadas directas a las API de importación en
+    `conContextoDePrueba_`. Sin ese cambio, las guardas nuevas hacían fallar la suite. No se
+    cambió ninguna aserción.
+12. Se añadieron a `docs/API_PUBLICA.md` las notas de `doGet` y `copiaDiariaProgramada` y se
+    ajustó el párrafo general para dejar escrita la excepción de sesión.

@@ -57,6 +57,8 @@ const PERMISOS_API = {
   apiGetMaestroArticulos: 'CONSULTA',
   apiGetMaestroEnvases: 'CONSULTA',
   apiSubirYAnalizarPdf: 'CONSULTA',
+  apiPrevisualizarImportacionCsv: 'CONSULTA',
+  revisarDocumentoHispatec: 'CONSULTA',
   apiGetGruposComerciales: 'CONSULTA',
   apiGetMatrizArticuloEnvase: 'CONSULTA',
 
@@ -79,6 +81,7 @@ const PERMISOS_API = {
   apiCorregirSalida: 'ENCARGADO',
   apiDividirEntrada: 'ENCARGADO',
   apiConfirmarDocumentoRevisado: 'ENCARGADO',
+  apiConfirmarImportacionCsv: 'ENCARGADO',
   apiUpsertGrupoComercial: 'ENCARGADO',
   apiUpsertMatrizArticuloEnvase: 'ENCARGADO',
 

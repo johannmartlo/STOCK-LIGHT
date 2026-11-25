@@ -200,13 +200,25 @@ function leerClasificaciones(documento) {
 }
 
 /**
- * Comprueba la cobertura de la superficie: toda api* LECTURA/ESCRITURA debe
- * empezar por exigirSesionApi_(); y estar en PERMISOS_API, y toda entrada de
- * PERMISOS_API debe existir como función.
+ * Funciones globales clasificadas LECTURA o ESCRITURA que no pueden exigir sesión
+ * porque no las invoca la app a través de apiLlamar:
+ * - doGet: entrada HTTP que sirve la pantalla de entrada.
+ * - copiaDiariaProgramada: la ejecuta un disparador temporal sin usuario.
+ * Cualquier otra función LECTURA/ESCRITURA, empiece o no por api, queda obligada
+ * a empezar por exigirSesionApi_(); y a estar en PERMISOS_API.
+ */
+const FUNCIONES_SIN_SESION_DE_DISENO = ['doGet', 'copiaDiariaProgramada'];
+
+/**
+ * Comprueba la cobertura de la superficie: toda función global clasificada
+ * LECTURA/ESCRITURA (empiece o no por api) debe empezar por exigirSesionApi_();
+ * y estar en PERMISOS_API, salvo las excepciones de entrada y disparador; y toda
+ * entrada de PERMISOS_API debe existir como función.
  */
 function analizarCobertura(fuentes, clasificaciones, permisos) {
   const problemas = [];
   const funciones = new Map();
+  const exentas = new Set(FUNCIONES_SIN_SESION_DE_DISENO);
 
   for (const fuente of fuentes) {
     for (const fn of extraerFunciones(fuente.contenido)) {
@@ -215,19 +227,20 @@ function analizarCobertura(fuentes, clasificaciones, permisos) {
   }
 
   for (const [nombre, primera] of funciones.entries()) {
-    if (!nombre.startsWith('api')) continue;
     const clasificacion = clasificaciones[nombre];
     if (!clasificacion) {
-      problemas.push(`${nombre}: sin clasificar en API_PUBLICA.md`);
+      if (nombre.startsWith('api')) {
+        problemas.push(`${nombre}: sin clasificar en API_PUBLICA.md`);
+      }
       continue;
     }
-    if (clasificacion === 'LECTURA' || clasificacion === 'ESCRITURA') {
-      if (!primera.startsWith('exigirSesionApi_();')) {
-        problemas.push(`${nombre}: clasificada ${clasificacion} pero no empieza por exigirSesionApi_();`);
-      }
-      if (!permisos[nombre]) {
-        problemas.push(`${nombre}: clasificada ${clasificacion} pero no está en PERMISOS_API`);
-      }
+    if (clasificacion !== 'LECTURA' && clasificacion !== 'ESCRITURA') continue;
+    if (exentas.has(nombre)) continue;
+    if (!primera.startsWith('exigirSesionApi_();')) {
+      problemas.push(`${nombre}: clasificada ${clasificacion} pero no empieza por exigirSesionApi_();`);
+    }
+    if (!permisos[nombre]) {
+      problemas.push(`${nombre}: clasificada ${clasificacion} pero no está en PERMISOS_API`);
     }
   }
 
@@ -463,7 +476,7 @@ runTest('3.1 CONSULTA, ENCARGADO y ADMIN respetan PERMISOS_API; sesión y nombre
 // Aceptación 4: sin atajos
 // ---------------------------------------------------------------------------
 
-runTest('4.1 Llamar directamente a una api* de LECTURA o ESCRITURA lanza «Acceso no autorizado» y no escribe', () => {
+runTest('4.1 Llamar directamente a una función de LECTURA o ESCRITURA lanza «Acceso no autorizado» y no escribe', () => {
   const lab = crearLaboratorio();
   const { token } = crearUsuarioConPin(lab, 'Ana', 'ADMIN');
   assert.ok(token);
@@ -494,7 +507,7 @@ runTest('4.1 Llamar directamente a una api* de LECTURA o ESCRITURA lanza «Acces
 // Aceptación 5: cobertura de la superficie
 // ---------------------------------------------------------------------------
 
-runTest('5.1 Toda api* LECTURA/ESCRITURA tiene guarda y permiso; toda entrada de PERMISOS_API existe', () => {
+runTest('5.1 Toda función LECTURA/ESCRITURA tiene guarda y permiso; toda entrada de PERMISOS_API existe', () => {
   const srcDir = path.join(__dirname, '..', 'src');
   const fuentes = listarFuentesJs(srcDir);
   const documento = fs.readFileSync(path.join(__dirname, '..', 'docs', 'API_PUBLICA.md'), 'utf8');
@@ -504,7 +517,7 @@ runTest('5.1 Toda api* LECTURA/ESCRITURA tiene guarda y permiso; toda entrada de
   assert.deepStrictEqual(problemas, []);
 });
 
-runTest('5.2 La comprobación de cobertura detecta una api* nueva sin guarda o sin permiso', () => {
+runTest('5.2 La comprobación de cobertura detecta una función nueva sin guarda o sin permiso', () => {
   const fuentes = [{
     archivo: 'sintetico.js',
     contenido: [
@@ -514,15 +527,46 @@ runTest('5.2 La comprobación de cobertura detecta una api* nueva sin guarda o s
       'function apiConGuarda() {',
       '  exigirSesionApi_();',
       '  return 1;',
+      '}',
+      'function revisarSinGuarda() {',
+      '  return 1;',
+      '}',
+      'function confirmarConGuarda() {',
+      '  exigirSesionApi_();',
+      '  return 1;',
       '}'
     ].join('\n')
   }];
-  const clasificaciones = { apiSinGuarda: 'LECTURA', apiConGuarda: 'LECTURA' };
-  const permisos = { apiConGuarda: 'CONSULTA' };
+  const clasificaciones = {
+    apiSinGuarda: 'LECTURA',
+    apiConGuarda: 'LECTURA',
+    revisarSinGuarda: 'LECTURA',
+    confirmarConGuarda: 'ESCRITURA'
+  };
+  const permisos = { apiConGuarda: 'CONSULTA', confirmarConGuarda: 'ENCARGADO' };
   const problemas = analizarCobertura(fuentes, clasificaciones, permisos);
   assert.ok(problemas.some(p => p.includes('apiSinGuarda') && p.includes('no empieza')));
   assert.ok(problemas.some(p => p.includes('apiSinGuarda') && p.includes('PERMISOS_API')));
-  assert.strictEqual(problemas.filter(p => p.includes('apiConGuarda')).length, 0);
+  assert.ok(problemas.some(p => p.includes('revisarSinGuarda') && p.includes('no empieza')));
+  assert.ok(problemas.some(p => p.includes('revisarSinGuarda') && p.includes('PERMISOS_API')));
+  assert.strictEqual(
+    problemas.filter(p => p.includes('apiConGuarda') || p.includes('confirmarConGuarda')).length,
+    0
+  );
+});
+
+runTest('5.3 Las únicas funciones LECTURA/ESCRITURA exentas de sesión son doGet y copiaDiariaProgramada', () => {
+  const documento = fs.readFileSync(path.join(__dirname, '..', 'docs', 'API_PUBLICA.md'), 'utf8');
+  const clasificaciones = leerClasificaciones(documento);
+  assert.strictEqual(clasificaciones.doGet, 'LECTURA');
+  assert.strictEqual(clasificaciones.copiaDiariaProgramada, 'ESCRITURA');
+  assert.deepStrictEqual([...FUNCIONES_SIN_SESION_DE_DISENO].sort(), ['copiaDiariaProgramada', 'doGet']);
+});
+
+runTest('5.4 Las API de importación y revisión tienen el rol mínimo que fija el ticket', () => {
+  assert.strictEqual(PERMISOS_API.revisarDocumentoHispatec, 'CONSULTA');
+  assert.strictEqual(PERMISOS_API.apiPrevisualizarImportacionCsv, 'CONSULTA');
+  assert.strictEqual(PERMISOS_API.apiConfirmarImportacionCsv, 'ENCARGADO');
 });
 
 // ---------------------------------------------------------------------------

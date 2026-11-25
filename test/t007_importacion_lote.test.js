@@ -14,6 +14,7 @@ const { CatalogoService } = require('../src/CatalogoService');
 const { ImportacionService } = require('../src/importacion/ImportacionService');
 const { clasificar, agruparEnDocumentos, resumenImportacion } = require('../src/importacion/ClasificadorLineas');
 const { PREFIJOS_SERIES_IMPORTACION, UMBRAL_DOCUMENTOS_POR_TRAMO } = require('../src/Config');
+const { conContextoDePrueba_ } = require('../src/Seguridad');
 const codigo = require('../src/Código');
 
 const FIXTURE_DIR = path.join(__dirname, 'fixtures/csv');
@@ -714,19 +715,23 @@ runTest('12. Un documento con líneas OK y PENDIENTE aplica las OK y queda CONFI
 runTest('13. Las dos API de importación están expuestas y delegan en el servicio', () => {
   const entorno = crearEntorno();
   const catalogo = catalogoBase();
-  const previa = codigo.apiPrevisualizarImportacionCsv(COMPRAS_TEXTO, {
-    repository: entorno.repo,
-    movementService: entorno.movService,
-    catalogoService: catalogo
-  });
+  const previa = conContextoDePrueba_('PruebaT007', 'CONSULTA', () => (
+    codigo.apiPrevisualizarImportacionCsv(COMPRAS_TEXTO, {
+      repository: entorno.repo,
+      movementService: entorno.movService,
+      catalogoService: catalogo
+    })
+  ));
   assert.strictEqual(typeof previa.hash, 'string');
   assert.strictEqual(previa.hash.length, 64);
 
-  const confirmada = codigo.apiConfirmarImportacionCsv(COMPRAS_TEXTO, previa.hash, {
-    repository: entorno.repo,
-    movementService: entorno.movService,
-    catalogoService: catalogo
-  });
+  const confirmada = conContextoDePrueba_('PruebaT007', 'ENCARGADO', () => (
+    codigo.apiConfirmarImportacionCsv(COMPRAS_TEXTO, previa.hash, {
+      repository: entorno.repo,
+      movementService: entorno.movService,
+      catalogoService: catalogo
+    })
+  ));
   assert.strictEqual(confirmada.status, 'CONFIRMADA');
   assert.strictEqual(entorno.repo.getMovimientos().length, 3);
 });

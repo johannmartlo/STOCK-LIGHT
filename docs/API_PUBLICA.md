@@ -12,14 +12,16 @@ qué nivel de acceso tiene.
 | **LECTURA** | La app puede llamarla. No modifica stock, configuración ni hojas. |
 | **ESCRITURA** | La app puede llamarla. Escribe datos; la auditoría usa siempre `usuarioActual_()` y **nunca** el usuario que envía el navegador. |
 | **ADMIN** | Reservada al propietario del script. Empieza con `exigirPropietario_()`, que lanza `Operación reservada al administrador` si el usuario activo no coincide con el efectivo o no se identifica. Se ejecuta desde el editor de Apps Script, no desde la web app. |
-| **ENTRADA** | Punto de entrada del cliente (T-020). `apiLlamar` es el despachador único de las llamadas autenticadas; `apiEntrar` y `apiEstablecerPin` son las únicas funciones públicas sin sesión; `apiSalir` solo borra la sesión indicada. |
+| **ENTRADA** | Punto de entrada del cliente (T-020). `apiLlamar` es el despachador único de las llamadas autenticadas; `apiEntrar` y `apiEstablecerPin` son las únicas funciones públicas de la API sin sesión; `apiSalir` solo borra la sesión indicada. `doGet` es la entrada HTTP de la interfaz. |
 | **INTERNA** | Función auxiliar pura o de infraestructura. Queda expuesta por la plataforma, pero no toca stock ni configuración y no la usa la interfaz. |
 
-Desde T-020 (D-032), las funciones `api*` de LECTURA y ESCRITURA empiezan con
-`exigirSesionApi_();` y solo funcionan dentro del contexto que fija `apiLlamar`. El rol mínimo
-de cada una vive en `PERMISOS_API` (`src/Seguridad.js`): CONSULTA para LECTURA, ENCARGADO para
-ESCRITURA, y ADMIN para usuarios y configuración (aunque su clasificación sea LECTURA o
-ESCRITURA). Un nombre que no esté en `PERMISOS_API` se rechaza aunque exista como función global.
+Desde T-020 (D-032), las funciones de LECTURA y ESCRITURA que puede invocar el despachador
+—empiecen o no por `api`— comienzan con `exigirSesionApi_();` y solo funcionan dentro del
+contexto que fija `apiLlamar`. El rol mínimo de cada una vive en `PERMISOS_API`
+(`src/Seguridad.js`): CONSULTA para LECTURA, ENCARGADO para ESCRITURA, y ADMIN para usuarios y
+configuración (aunque su clasificación sea LECTURA o ESCRITURA). Un nombre que no esté en
+`PERMISOS_API` se rechaza aunque exista como función global. Las únicas excepciones son `doGet`
+(entrada HTTP) y `copiaDiariaProgramada` (disparador diario), que deben funcionar sin sesión.
 
 Las funciones de `src/Seguridad.js` (`exigirPropietario_`, `usuarioActual_`, `_emailSesion_`,
 `exigirSesionApi_`, `ejecutarConContexto_`, `conContextoDePrueba_`, `crearServicioAcceso_`,
@@ -34,7 +36,7 @@ no las expone.
 | `ejecutarReconstruccionStock` | `src/Código.js` | ADMIN | Reconstruye derivados desde MOVIMIENTOS. |
 | `registrarAjusteManual` | `src/Código.js` | ADMIN | Ajuste manual ejecutado desde el editor. |
 | `testNucleoAppsScript` | `src/Código.js` | ADMIN | Autodiagnóstico del núcleo. |
-| `revisarDocumentoHispatec` | `src/Código.js` | LECTURA | Analiza un documento sin mutar inventario. |
+| `revisarDocumentoHispatec` | `src/Código.js` | LECTURA | Analiza un documento sin mutar inventario. Exige sesión (T-020). |
 | `confirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento canónico; usuario del servidor. Exige sesión (T-020). |
 | `configurarSpreadsheetId` | `src/Código.js` | ADMIN | Cambia la hoja de trabajo del sistema. |
 | `configurarDriveFolderId` | `src/Código.js` | ADMIN | Cambia la carpeta de Drive del sistema. |
@@ -81,7 +83,7 @@ no las expone.
 | `apiCorregirEntrada` | `src/Código.js` | ESCRITURA | Corrige una entrada; usuario del servidor. |
 | `apiCorregirSalida` | `src/Código.js` | ESCRITURA | Corrige una salida; usuario del servidor. |
 | `apiDividirEntrada` | `src/Código.js` | ESCRITURA | Divide una entrada; usuario del servidor. |
-| `doGet` | `src/Código.js` | LECTURA | Punto de entrada HTTP que sirve la interfaz. |
+| `doGet` | `src/Código.js` | LECTURA | Punto de entrada HTTP que sirve la interfaz. Sin sesión por diseño. |
 | `apiConfirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento revisado; usuario del servidor. |
 | `apiGetMaestroArticulos` | `src/Código.js` | LECTURA | Catálogo maestro de artículos. |
 | `apiGetMaestroEnvases` | `src/Código.js` | LECTURA | Catálogo maestro de envases. |
@@ -178,7 +180,7 @@ no las expone.
 | `adminCrearCopiaManual` | `src/Código.js` | ADMIN | Crea una copia de seguridad MANUAL de la hoja de datos. |
 | `adminInstalarCopiaDiaria` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario de copia a las 23:00. |
 | `adminConfigurarCarpetaCopias` | `src/Código.js` | ADMIN | Persiste la carpeta de Drive de las copias (`BACKUP_FOLDER_ID`). |
-| `copiaDiariaProgramada` | `src/Código.js` | ESCRITURA | Punto de entrada del disparador diario; omite la copia si ya existe una DIARIA de hoy y no la usa la interfaz. |
+| `copiaDiariaProgramada` | `src/Código.js` | ESCRITURA | Punto de entrada del disparador diario; omite la copia si ya existe una DIARIA de hoy y no la usa la interfaz. Sin sesión: la ejecuta el disparador. |
 | `nombreCopiaSeguridad` | `src/BackupService.js` | INTERNA | Genera el nombre canónico de una copia en Europe/Madrid. |
 | `existeCopiaDiariaDeHoy` | `src/BackupService.js` | INTERNA | Comprueba si ya hay una copia DIARIA con la fecha de hoy en el nombre. |
 | `seleccionarCopiasABorrar` | `src/BackupService.js` | INTERNA | Elige las copias DIARIA más antiguas que sobran; nunca toca MANUAL ni PRE_DESPLIEGUE. |

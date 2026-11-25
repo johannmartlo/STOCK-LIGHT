@@ -167,6 +167,7 @@ function testNucleoAppsScript() {
  * @returns {Object} ReviewPayload estructurado
  */
 function revisarDocumentoHispatec(rawText, fileMeta, options = {}) {
+  exigirSesionApi_();
   const repo = options.repository || (typeof SheetsRepository !== 'undefined' ? new SheetsRepository() : null);
   const existingDocs = repo ? repo.getDocumentos() : [];
   const maestro = repo ? repo.getMaestro() : [];
@@ -877,6 +878,7 @@ function apiProcesarSalidaDocumento(docPayload, lineas, usuario, options = {}) {
  * @returns {Object}
  */
 function apiPrevisualizarImportacionCsv(textoCsv, options = {}) {
+  exigirSesionApi_();
   const SvcClass = (typeof ImportacionService !== 'undefined')
     ? ImportacionService
     : (typeof require !== 'undefined' ? require('./importacion/ImportacionService').ImportacionService : null);
@@ -902,6 +904,7 @@ function apiPrevisualizarImportacionCsv(textoCsv, options = {}) {
  * @returns {Object}
  */
 function apiConfirmarImportacionCsv(textoCsv, hash, options = {}) {
+  exigirSesionApi_();
   const user = usuarioActual_(options && options.session);
   const SvcClass = (typeof ImportacionService !== 'undefined')
     ? ImportacionService
