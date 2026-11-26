@@ -183,10 +183,29 @@ class MovementService {
    * @param {number} timeoutMs 
    */
   _acquireLock(timeoutMs = 30000) {
-    if (this.lock && typeof this.lock.waitLock === 'function') {
-      const success = this.lock.waitLock(timeoutMs);
-      if (!success) {
-        throw new Error(`No se pudo adquirir el bloqueo de concurrencia tras ${timeoutMs}ms. Otra operación está en curso.`);
+    if (!this.lock) return;
+    const msg = `No se pudo adquirir el bloqueo de concurrencia tras ${timeoutMs}ms. Otra operación está en curso.`;
+    if (typeof this.lock.waitLock === 'function') {
+      let resultado;
+      try {
+        resultado = this.lock.waitLock(timeoutMs);
+      } catch (e) {
+        throw new Error(msg);
+      }
+      if (resultado === false) {
+        throw new Error(msg);
+      }
+      return;
+    }
+    if (typeof this.lock.tryLock === 'function') {
+      let resultado;
+      try {
+        resultado = this.lock.tryLock(timeoutMs);
+      } catch (e) {
+        throw new Error(msg);
+      }
+      if (resultado === false) {
+        throw new Error(msg);
       }
     }
   }

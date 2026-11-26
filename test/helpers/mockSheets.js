@@ -113,7 +113,20 @@ function crearEntorno(opciones = {}) {
   }
 
   const resolver = opciones.commercialResolver || new CommercialGroupResolver({ repository: repo });
-  const lockMock = opciones.lockService || { waitLock: () => true, releaseLock: () => {} };
+  const lockMock = opciones.lockService || {
+    adquisiciones: 0,
+    liberaciones: 0,
+    bloqueado: false,
+    waitLock() {
+      this.adquisiciones += 1;
+      this.bloqueado = true;
+      return undefined;
+    },
+    releaseLock() {
+      this.liberaciones += 1;
+      this.bloqueado = false;
+    }
+  };
   const movService = opciones.movementService || new MovementService({ repository: repo, lockService: lockMock });
   const queryService = opciones.stockQueryService || new StockQueryService({ repository: repo, commercialGroupResolver: resolver });
   const safetyService = opciones.operationalSafetyService || new OperationalSafetyService({

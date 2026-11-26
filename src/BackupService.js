@@ -252,10 +252,27 @@ function _escribirLogCopia_(registro, options = {}) {
   let bloqueado = false;
   try {
     if (lock && typeof lock.waitLock === 'function') {
-      bloqueado = lock.waitLock(10000);
-      if (!bloqueado) {
+      let resultado;
+      try {
+        resultado = lock.waitLock(10000);
+      } catch (e) {
         throw new Error('No se pudo adquirir el bloqueo para registrar la copia de seguridad.');
       }
+      if (resultado === false) {
+        throw new Error('No se pudo adquirir el bloqueo para registrar la copia de seguridad.');
+      }
+      bloqueado = true;
+    } else if (lock && typeof lock.tryLock === 'function') {
+      let resultado;
+      try {
+        resultado = lock.tryLock(10000);
+      } catch (e) {
+        throw new Error('No se pudo adquirir el bloqueo para registrar la copia de seguridad.');
+      }
+      if (resultado === false) {
+        throw new Error('No se pudo adquirir el bloqueo para registrar la copia de seguridad.');
+      }
+      bloqueado = true;
     }
     repo.appendLogOperacion(registro);
     return true;
