@@ -1268,7 +1268,11 @@ class CorreccionService {
     if (this._esMovimientoReproceso_(mov)) {
       return { posible: false, motivo: 'ES_MOVIMIENTO_DE_REPROCESO' };
     }
-    if (this._anuladosSet_(datos.movimientos).has(id)) {
+    const yaAnuladoPorAjuste = datos.movimientos.some(m =>
+      String(m.id_movimiento_ref || '').trim() === id &&
+      String(m.motivo_ajuste || '').trim().toUpperCase() === 'ANULACION_AJUSTE'
+    );
+    if (this._anuladosSet_(datos.movimientos).has(id) || yaAnuladoPorAjuste) {
       return { posible: false, motivo: 'AJUSTE_YA_ANULADO' };
     }
 
@@ -1281,13 +1285,46 @@ class CorreccionService {
       const cajas = this._cajasEfectivas_(estado, mov);
       anulacion = this._crearAnulacion_(mov, cajas, 1, usuario, '');
     } else if (signo === 1) {
-      const capa = estado.capas.find(c => String(c.id_capa || '') === String(mov.id_capa_creada || ''))
-        || estado.capas.find(c => String(c.id_movimiento_entrada || '') === id);
-      if (!capa) return { posible: false, motivo: 'CAPA_NO_ENCONTRADA' };
-      if (Number(capa.cajas_consumidas || 0) > 0) {
-        return { posible: false, motivo: 'AJUSTE_CON_CONSUMOS' };
+      const idCapaObj = String(mov.id_capa_objetivo || '').trim();
+      if (idCapaObj) {
+        const capa = estado.capas.find(c => String(c.id_capa || '') === idCapaObj);
+        if (!capa) return { posible: false, motivo: 'CAPA_NO_ENCONTRADA' };
+        const cajas = Math.abs(Number(mov.cajas || 0));
+        if (Number(capa.cajas_restantes || 0) < cajas) {
+          return { posible: false, motivo: 'Esas cajas ya han salido de la partida' };
+        }
+        anulacion = {
+          id_movimiento: this._nuevoId_('MOV-ANUL'),
+          fecha_hora: new Date().toISOString(),
+          tipo_movimiento: 'AJUSTE',
+          id_documento_ref: mov.id_documento_ref || '',
+          codigo_articulo: mov.codigo_articulo,
+          codigo_envase: mov.codigo_envase,
+          cajas,
+          signo: -1,
+          partida_origen: mov.partida_origen || '',
+          motivo_ajuste: 'ANULACION_AJUSTE',
+          usuario: usuario || 'SISTEMA',
+          observaciones: `Anulación de ajuste dirigido (${mov.id_movimiento || ''})`,
+          estado: 'CONFIRMADO',
+          fecha_negocio: mov.fecha_negocio || '',
+          entidad_nombre: mov.entidad_nombre || '',
+          secuencia: '',
+          origen_dato: 'MANUAL',
+          kg_informativo: '',
+          id_movimiento_ref: mov.id_movimiento || '',
+          id_capa_objetivo: capa.id_capa,
+          id_capa_creada: ''
+        };
+      } else {
+        const capa = estado.capas.find(c => String(c.id_capa || '') === String(mov.id_capa_creada || ''))
+          || estado.capas.find(c => String(c.id_movimiento_entrada || '') === id);
+        if (!capa) return { posible: false, motivo: 'CAPA_NO_ENCONTRADA' };
+        if (Number(capa.cajas_consumidas || 0) > 0) {
+          return { posible: false, motivo: 'AJUSTE_CON_CONSUMOS' };
+        }
+        anulacion = this._crearAnulacion_(mov, Number(capa.cajas_restantes || capa.cajas_iniciales || 0), -1, usuario, capa.id_capa);
       }
-      anulacion = this._crearAnulacion_(mov, Number(capa.cajas_restantes || capa.cajas_iniciales || 0), -1, usuario, capa.id_capa);
     } else {
       return { posible: false, motivo: 'SIGNO_NO_SOPORTADO' };
     }

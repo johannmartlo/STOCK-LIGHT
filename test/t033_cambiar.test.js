@@ -408,6 +408,140 @@ runTest('10. CONSULTA no tiene botones de Cambiar, Destrío ni Ajuste', () => {
   assert.ok(daHtml.includes("est.rol === 'CONSULTA'"), 'SLDestrioAjuste debe bloquear CONSULTA');
 });
 
+// --------------------------------------------------------------------------
+// 11. CORRECCIÓN: Anular ajuste POSITIVO dirigido a una partida
+// --------------------------------------------------------------------------
+runTest('11. Sumar 5 a una partida y anular con apiAnularAjuste vuelve a su valor y no toca las demás', () => {
+  const env = crearEntorno();
+  const { antigua, nueva } = sembrarDosCapas(env);
+
+  const reg = conContextoDePrueba_('Mario', 'ENCARGADO', () =>
+    codigo.apiRegistrarAjustePartida({
+      id_capa: nueva.id_capa,
+      signo: 1,
+      cajas: 5,
+      motivo: 'RECUENTO',
+      nota: 'Sobraban 5 cajas en cámara',
+      fecha: '2026-11-26'
+    }, {
+      repository: env.repo,
+      movementService: env.movService,
+      lockService: env.lock,
+      reloj: () => '2026-11-26'
+    })
+  );
+  assert.strictEqual(reg.success, true);
+  assert.strictEqual(Number(env.repo.getCapasFifo().find(c => c.id_capa === antigua.id_capa).cajas_restantes), 50);
+  assert.strictEqual(Number(env.repo.getCapasFifo().find(c => c.id_capa === nueva.id_capa).cajas_restantes), 45);
+  assert.strictEqual(env.movService.comprobarConsistencia().consistente, true);
+
+  const corrSvc = new CorreccionService({
+    repository: env.repo,
+    movementService: env.movService,
+    lockService: env.lock
+  });
+
+  const prev = conContextoDePrueba_('Mario', 'ENCARGADO', () =>
+    codigo.apiPrevisualizarAnularAjuste(reg.movimientoId, {
+      repository: env.repo,
+      movementService: env.movService,
+      correccionService: corrSvc,
+      lockService: env.lock
+    })
+  );
+  assert.strictEqual(prev.posible, true);
+  assert.strictEqual(prev.partidas_bajan.length, 1);
+  assert.strictEqual(prev.partidas_bajan[0].id_capa, nueva.id_capa);
+  assert.strictEqual(prev.partidas_bajan[0].cajas, 5);
+
+  const an = conContextoDePrueba_('Mario', 'ENCARGADO', () =>
+    codigo.apiAnularAjuste(reg.movimientoId, 'Error en recuento', {
+      repository: env.repo,
+      movementService: env.movService,
+      correccionService: corrSvc,
+      lockService: env.lock
+    })
+  );
+  assert.strictEqual(an.success, true);
+
+  const capasTras = env.repo.getCapasFifo();
+  assert.strictEqual(Number(capasTras.find(c => c.id_capa === antigua.id_capa).cajas_restantes), 50, 'La partida antigua no debe cambiar');
+  assert.strictEqual(Number(capasTras.find(c => c.id_capa === nueva.id_capa).cajas_restantes), 40, 'La partida nueva debe volver a 40');
+  assert.strictEqual(env.movService.comprobarConsistencia().consistente, true, 'comprobarConsistencia() debe ser true');
+});
+
+// --------------------------------------------------------------------------
+// 12. CORRECCIÓN: Sumar a partida, vender todo y anular → rechazado sin cambios
+// --------------------------------------------------------------------------
+runTest('12. Sumar a una partida, vender todo y anular se rechaza con motivo claro y sin cambios', () => {
+  const env = crearEntorno();
+  const { antigua, nueva } = sembrarDosCapas(env);
+
+  const reg = conContextoDePrueba_('Mario', 'ENCARGADO', () =>
+    codigo.apiRegistrarAjustePartida({
+      id_capa: nueva.id_capa,
+      signo: 1,
+      cajas: 5,
+      motivo: 'RECUENTO',
+      nota: 'Recuento inicial',
+      fecha: '2026-11-26'
+    }, {
+      repository: env.repo,
+      movementService: env.movService,
+      lockService: env.lock,
+      reloj: () => '2026-11-26'
+    })
+  );
+  assert.strictEqual(reg.success, true);
+
+  // Vender todo el stock (50 + 45 = 95 cajas)
+  const sal = env.movService.registrarSalida({
+    id_documento: 'DOC-T033-SAL-ALL',
+    tipo_documento: 'SALIDA',
+    serie: 'AVT27',
+    numero: '999',
+    fecha_documento: '2026-11-26',
+    entidad_nombre: 'CLIENTE TOTAL',
+    origen_dato: 'CSV'
+  }, [
+    { codigo_articulo: 'TOMATE ROSA GRANEL M', codigo_envase: 'CARTON 40X30', cajas: 95 }
+  ], 'Ana');
+  assert.strictEqual(sal.success, true);
+
+  const movsAntes = env.repo.getMovimientos().length;
+  const corrSvc = new CorreccionService({
+    repository: env.repo,
+    movementService: env.movService,
+    lockService: env.lock
+  });
+
+  const prev = conContextoDePrueba_('Mario', 'ENCARGADO', () =>
+    codigo.apiPrevisualizarAnularAjuste(reg.movimientoId, {
+      repository: env.repo,
+      movementService: env.movService,
+      correccionService: corrSvc,
+      lockService: env.lock
+    })
+  );
+  assert.strictEqual(prev.posible, false);
+  assert.ok(/ya han salido de la partida/i.test(prev.motivo), `Motivo esperado claro, recibido: ${prev.motivo}`);
+
+  const an = conContextoDePrueba_('Mario', 'ENCARGADO', () =>
+    codigo.apiAnularAjuste(reg.movimientoId, 'Intentar anular vendido', {
+      repository: env.repo,
+      movementService: env.movService,
+      correccionService: corrSvc,
+      lockService: env.lock
+    })
+  );
+  assert.strictEqual(an.success, false);
+  assert.ok(/ya han salido de la partida/i.test(an.message));
+  assert.strictEqual(env.repo.getMovimientos().length, movsAntes, 'No debe escribir ningún movimiento');
+  assert.strictEqual(Number(env.repo.getCapasFifo().find(c => c.id_capa === antigua.id_capa).cajas_restantes), 0);
+  assert.strictEqual(Number(env.repo.getCapasFifo().find(c => c.id_capa === nueva.id_capa).cajas_restantes), 0);
+  assert.strictEqual(env.movService.comprobarConsistencia().consistente, true, 'comprobarConsistencia() debe ser true');
+});
+
 console.log('\n================================================================');
 console.log(` RESULTADOS T-033 (CAMBIAR/DESTRÍO/AJUSTES): ${passed} SUPERADAS | ${failed} FALLIDAS`);
 console.log('================================================================\n');
