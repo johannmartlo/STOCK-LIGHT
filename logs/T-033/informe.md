@@ -77,3 +77,25 @@ f5b5d5e fix(T-028): clasificar CSV de RECEPCIONES como entradas antes que ventas
 - **`test/t033_cambiar.test.js` (pruebas 11 y 12)**: sumar 5 a una partida y anular (vuelve a su valor y las demás no cambian, con `comprobarConsistencia() === true`); sumar, vender todo y anular (rechazado con motivo claro, sin cambios y `comprobarConsistencia() === true`).
 - **Pruebas (`logs/T-033/tests.txt`)**: `node test/run_all.js` → **40/40 suites, 408 pruebas, 0 fallos**.
 - **Dudas**: la anulación de un ajuste positivo dirigido se persiste como movimiento `AJUSTE` (`signo: -1`, `id_capa_objetivo`, `motivo_ajuste: 'ANULACION_AJUSTE'`) en lugar de `ANULACION` porque en `Libro.js` el caso `ANULACION` con `signo: -1` y `id_capa_objetivo` anula la capa entera (`cajas_restantes = 0`), mientras que `AJUSTE` con `signo: -1` y `id_capa_objetivo` realiza el consumo dirigido exacto sobre esa partida; se añadió la comprobación de doble anulación en `_prepararAnulacionAjuste_`. Pendiente de rebase cuando T-034 y T-032 entren en `main`.
+
+## Rebase sobre 1920fe2
+- **Conflictos resueltos (conservando siempre ambas partes)**:
+  - `src/Index.html`: conservados los `include_` de T-034 (`ui/movimientos`, `ui/buscar`, `ui/parte`) junto con los de T-033 (`ui/cambiar`, `ui/destrio-ajuste`).
+  - `src/Seguridad.js`: conservados `apiListarEquivalencias` (de `main`, T-032) y `apiListarCombinacionesCatalogo` (de T-033) en `PERMISOS_API`.
+  - `src/ui/app.html`: conservados `navMovimientos`, `navParte`, `abrirMovimientos`, `abrirParte`, `abrirBuscar` (de T-034) junto con `navCambios`, el enlace de `Cambiar` / `Destrío` y `obtenerEstadoActual` (de T-033).
+  - `tools/vista-previa/datosFicticios.js`: conservados `ParteService`, `OperationalSafetyService`, `CorreccionService` con `catalogoService`/`pendientesService` y `OperacionesService` con `lockService`, eliminando las dos claves duplicadas (`operacionesSvc`, `correccionSvc`) generadas en el `return` por el auto-merge.
+  - `tools/vista-previa/server.js`: conservadas todas las rutas `?vista=` (`pendientes`, `movimientos`, `parte`, `buscar` de T-034 + `cambiar` de T-033) y todas las APIs del despachador, eliminando las ramas duplicadas (`apiAnularReproceso`, `apiPrevisualizarAnularAjuste`, `apiAnularAjuste`) que ya existían en `main`.
+  - `src/CorreccionService.js`: auto-fusionado sin conflictos (conserva `_crearEntradaVersion_` de T-032 y `_prepararAnulacionAjuste_` de T-033).
+- **Pruebas (`logs/T-033/tests.txt`)**: `node test/run_all.js` → **42/42 suites, 425 pruebas, 0 fallos** (incluye `t032_recepciones.test.js`, `t033_cambiar.test.js` y `t034_movimientos.test.js`).
+
+### `git log --oneline -5`
+```text
+8695e2e fix(T-033): anular ajuste positivo dirigido con consumo dirigido en CorreccionService
+b9cda6e docs(T-033): completar informe de entrega
+d7769cd feat(T-033): pantallas Cambiar, Destrio y Ajustes + apiRegistrarAjustePartida
+c43e303 docs(T-033): anadir ticket de cambiar, destrio y ajustes
+1920fe2 docs(T-032): documentar correcciones y rebase sobre T-034
+```
+
+### Dudas
+- En `tools/vista-previa/datosFicticios.js` y `tools/vista-previa/server.js` se eliminaron entradas duplicadas producidas por el auto-merge (`operacionesSvc`/`correccionSvc` repetidos en el objeto devuelto y 3 `if (targetFn === ...)` ya existentes en `main`) para dejar el código limpio y sin propiedades duplicadas.
