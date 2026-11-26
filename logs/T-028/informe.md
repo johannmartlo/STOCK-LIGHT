@@ -71,3 +71,25 @@ nothing added to commit but untracked files present (use "git add" to track)
   - Añadida prueba 8 en `test/t028_importar_pendientes.test.js` verificando que tras `SEGUIR` con grupo `ROSA`, `obtenerInicio()` coloca las cajas en la variedad `ROSA` y no en «Sin agrupar» (**35/35 suites, 360 pruebas, 0 fallos** en `logs/T-028/tests.txt`).
   - Añadida captura `logs/T-028/10-dialogo-seguir-variedad-1440.png` y actualizada `logs/T-028/09-recorrido-pendiente-resuelta-1440.png`.
   - `git log --oneline -5` tras la ampliación: `6c29347` (`feat(T-028): selector de variedad al seguir articulo y traduccion de filtro de AGRUPACIONES`).
+
+## Corrección
+- **Rebase sobre `origin/main` (`c1cbdbe`, T-029 y T-030)**: resuelto el único conflicto en `src/Código.js` conservando ambas partes (`ParteService` y `SeguimientoService`). Verificado `node test/run_all.js` con 0 fallos tras el rebase (`37/37` suites, `369` pruebas).
+- **1. Previsualización con varios archivos (`src/ui/app.html`)**: cuando en la misma importación hay un archivo de compras, en cada archivo de ventas se sustituye el bloque rojo «X sin stock» por el bloque gris `Se comprueba al aplicar las compras de esta importación` y el titular pasa a mostrar `hasta N cajas salen` (`N` = cajas de las ventas nuevas). Solo cliente. Verificado en `test/t028_importar_pendientes.test.js` (prueba 10) y en la captura `logs/T-028/02b-importar-preview-compras-y-ventas-1440.png`.
+- **2. Plurales correctos (`src/ui/app.html`)**: añadida `pluraliza(n, singular, plural)` y aplicada en toda la interfaz (`1 línea / 2 líneas`, `1 albarán / 2 albaranes`, `1 serie ignorada`, `1 ya importado`, `1 línea de artículo sin decidir`, Stock inicial, Pendientes, Existencias y Partida). Prueba unitaria en `test/t028_importar_pendientes.test.js` (prueba 9).
+- **3. Sin «−0» ni «+0» (`src/ui/app.html`)**: sustituidas las concatenaciones manuales de `+` / `−` por `fmtSigned(...)` para que `0` se muestre siempre como `0`. Verificado en las pruebas 9 y 10 de `test/t028_importar_pendientes.test.js`.
+- **4. Estado vacío de Existencias (`src/ui/existencias.html`)**: cambiado «Carga el stock inicial desde el Excel…» por «Carga el stock inicial (conteo con los nombres de Hispatec) y después importa las compras y ventas de Hispatec.». Verificado en `test/t028_importar_pendientes.test.js` (prueba 11).
+- **Pruebas finales (`logs/T-028/tests.txt`)**: `node test/run_all.js` → **37/37 suites, 372 pruebas, 0 fallos**.
+
+### `git log --oneline -5`
+```text
+35b6b0c fix(T-028): previsualizacion multiarchivo, plurales, ceros sin signo y texto vacio
+9a86b51 docs(T-028): documentar ampliacion de variedad en informe
+4a34b27 feat(T-028): selector de variedad al seguir articulo y traduccion de filtro de AGRUPACIONES
+5cc320b docs(T-028): completar informe de entrega
+8c1784c feat(T-028): pantallas de Importar, Stock inicial y Pendientes + SeguimientoService
+```
+
+### Dudas
+- **`src/ui/app.html` (`construirHtmlPrevisualizacionImportacion` y exportación en `window.SLApp`)**: se extrajo la generación de HTML de `renderPrevisualizacionImportacion` a `construirHtmlPrevisualizacionImportacion(archivos)` y se expusieron `pluraliza`, `fmtSigned` y `construirHtmlPrevisualizacionImportacion` en `window.SLApp` para probarlos directamente en Node (`test/t028_importar_pendientes.test.js`).
+- **Barra segmentada en ventas diferidas (`src/ui/app.html`)**: cuando hay un archivo de compras en el mismo lote, los albaranes `STOCK_INSUFICIENTE` del archivo de ventas también se pintan en gris (`#71717A`) en la barra segmentada en lugar de en rojo, en coherencia con el bloque de detalle gris.
+- **Extensión de `fmtSigned` a Existencias y Partida (`src/ui/app.html`)**: para cumplir de forma estricta «Nunca `−0` ni `+0`» en toda la pantalla, también se aplicó `fmtSigned` al tooltip del gráfico de ordenador y a los consumos/destinos de la vista de Partida.
