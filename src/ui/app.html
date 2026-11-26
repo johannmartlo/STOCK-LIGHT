@@ -6,12 +6,15 @@
       periodo: '30',
       filtroModo: 'todas',
       busqueda: '',
+      rol: '',
       hoverIdx: null,
       variedadAbierta: null,
       partidaActual: null,
       estadoForzado: null,
       toastTimer: null
     };
+
+    const SIGLAS_LEGIBLES = new Set(['G', 'GG', 'GGG', 'M', 'MM', 'MMM', 'I', 'II', 'EPS', 'POOL']);
 
     function fmt(n) {
       return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -22,6 +25,154 @@
       if (val > 0) return '+' + fmt(val);
       if (val < 0) return '−' + fmt(Math.abs(val));
       return '0';
+    }
+
+    function fmtDias(n) {
+      const val = Math.max(0, Math.round(Number(n) || 0));
+      if (val === 0) return 'hoy';
+      if (val === 1) return '1 día';
+      return fmt(val) + ' días';
+    }
+
+    function normalizarBusqueda(texto) {
+      return String(texto === null || texto === undefined ? '' : texto)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    }
+
+    function nombreLegible(texto) {
+      if (texto === null || texto === undefined) return '';
+      const raw = String(texto).trim();
+      if (!raw) return '';
+      return raw.split(/(\s*[·→]\s*)/).map(function (parte) {
+        if (/^\s*[·→]\s*$/.test(parte)) return parte;
+        const sinTomate = parte.trim().replace(/^TOMATE\s+/i, '');
+        if (!sinTomate) return '';
+        return sinTomate.split(/\s+/).map(function (palabra) {
+          const upper = palabra.toUpperCase();
+          if (SIGLAS_LEGIBLES.has(upper)) return upper;
+          if (/^\d+(?:[.,]\d+)?[xX]\d+(?:[.,]\d+)?[a-zA-Z]*$/.test(palabra)) {
+            return palabra.toLowerCase();
+          }
+          if (/^\d+(?:[.,]\d+)?(?:G|KG|ML|L|CM|MM)$/i.test(palabra)) {
+            return palabra.toLowerCase();
+          }
+          return palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase();
+        }).join(' ');
+      }).join('');
+    }
+
+    function etiquetaArticuloEnVariedad(articulo, grupo) {
+      const artLeg = nombreLegible(articulo);
+      if (!artLeg || !grupo) return artLeg;
+      const artWords = artLeg.split(/\s+/);
+      const grpWords = nombreLegible(grupo).split(/\s+/);
+      let matchCount = 0;
+      while (
+        matchCount < artWords.length &&
+        matchCount < grpWords.length &&
+        normalizarBusqueda(artWords[matchCount]) === normalizarBusqueda(grpWords[matchCount])
+      ) {
+        matchCount++;
+      }
+      if (matchCount > 0 && matchCount < artWords.length) {
+        return artWords.slice(matchCount).join(' ');
+      }
+      return artLeg;
+    }
+
+    function calcularDesgloseArticulos(v) {
+      const partidas = (v && Array.isArray(v.partidas)) ? v.partidas : [];
+      const mapa = new Map();
+      partidas.forEach(function (p) {
+        const art = String(p.articulo || '').trim();
+        const env = String(p.envase || '').trim();
+        const clave = art + '|' + env;
+        if (!mapa.has(clave)) {
+          mapa.set(clave, { articulo: art, envase: env, cajas: 0 });
+        }
+        mapa.get(clave).cajas += Number(p.cajas || 0);
+      });
+      return Array.from(mapa.values()).sort(function (a, b) {
+        if (b.cajas !== a.cajas) return b.cajas - a.cajas;
+        const cmpArt = a.articulo.localeCompare(b.articulo);
+        if (cmpArt !== 0) return cmpArt;
+        return a.envase.localeCompare(b.envase);
+      });
+    }
+
+    function construirTextoWhatsApp(v, fechaReferencia) {
+      if (!v) return '';
+      const fecha = fmtFechaDdMm(fechaReferencia || (SL.inicio && SL.inicio.fecha_referencia) || '');
+      const cajasNum = Number(v.cajas || 0);
+      const unidad = cajasNum === 1 ? 'caja' : 'cajas';
+      const linea1 = nombreLegible(v.grupo) + ' · ' + fecha + ' · ' + fmt(cajasNum) + ' ' + unidad;
+
+      const desglose = calcularDesgloseArticulos(v);
+      const linea2 = desglose.map(function (item) {
+        const artLbl = etiquetaArticuloEnVariedad(item.articulo, v.grupo);
+        const envLbl = nombreLegible(item.envase);
+        return [artLbl, envLbl, fmt(item.cajas)].filter(Boolean).join(' ');
+      }).join(' · ');
+
+      const lineas = [linea1];
+      if (linea2) lineas.push(linea2);
+      if (v.sale_primero) {
+        lineas.push('Sale primero: ' + fmtFechaDdMm(v.sale_primero));
+      }
+      return lineas.join('\n');
+    }
+
+    function compartirVariedadWhatsApp(v) {
+      const texto = construirTextoWhatsApp(v, SL.inicio && SL.inicio.fecha_referencia);
+      if (!texto) return;
+      const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+    function copiarFallback(texto) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = texto;
+        ta.setAttribute('readonly', 'readonly');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        mostrarAviso('Texto copiado');
+      } catch (e) {
+        mostrarAviso('No se pudo copiar el texto');
+      }
+    }
+
+    function copiarVariedad(v) {
+      const texto = construirTextoWhatsApp(v, SL.inicio && SL.inicio.fecha_referencia);
+      if (!texto) return;
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(texto).then(
+          function () { mostrarAviso('Texto copiado'); },
+          function () { copiarFallback(texto); }
+        );
+      } else {
+        copiarFallback(texto);
+      }
+    }
+
+    function aplicarRol(rol) {
+      const rolNorm = String(rol || '').trim().toUpperCase();
+      SL.rol = rolNorm;
+      const esConsulta = rolNorm === 'CONSULTA';
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.classList.toggle('sl-rol-consulta', esConsulta);
+        document.querySelectorAll('[data-solo-escritura="1"]').forEach(function (el) {
+          if (esConsulta) el.setAttribute('hidden', 'hidden');
+          else el.removeAttribute('hidden');
+        });
+      }
     }
 
     function fmtFechaDdMm(iso) {
@@ -124,16 +275,17 @@
       const hoyVal = Number(serie[serie.length - 1].stock || 0);
       const idx7 = Math.max(0, serie.length - 8);
       const prevVal = Number(serie[idx7].stock || 0);
-      const diff = hoyVal - prevVal;
-      if (prevVal > 0) {
-        const pct = Math.round((diff / prevVal) * 100);
-        if (pct > 0) return { texto: '+' + pct + ' % esta semana', color: 'var(--sl-green)' };
-        if (pct < 0) return { texto: '−' + Math.abs(pct) + ' % esta semana', color: 'var(--sl-red)' };
-        return { texto: '0 % esta semana', color: 'var(--sl-text-secondary)' };
+      const diff = Math.round(hoyVal - prevVal);
+      if (diff > 0) {
+        const unidad = diff === 1 ? 'caja' : 'cajas';
+        return { texto: '+' + fmt(diff) + ' ' + unidad + ' esta semana', color: 'var(--sl-green)' };
       }
-      if (diff > 0) return { texto: '+' + fmt(diff) + ' cj esta semana', color: 'var(--sl-green)' };
-      if (diff < 0) return { texto: '−' + fmt(Math.abs(diff)) + ' cj esta semana', color: 'var(--sl-red)' };
-      return { texto: 'Sin cambios esta semana', color: 'var(--sl-text-secondary)' };
+      if (diff < 0) {
+        const abs = Math.abs(diff);
+        const unidad = abs === 1 ? 'caja' : 'cajas';
+        return { texto: '−' + fmt(abs) + ' ' + unidad + ' esta semana', color: 'var(--sl-text-secondary)' };
+      }
+      return { texto: '0 cajas esta semana', color: 'var(--sl-text-secondary)' };
     }
 
     function obtenerSerieVisible() {
@@ -284,7 +436,7 @@
       if (kpiSale) {
         if (minFecha) {
           const col = hayAviso ? 'var(--sl-amber)' : 'var(--sl-text-secondary)';
-          kpiSale.innerHTML = esc(fmtFechaDdMm(minFecha)) + ' <span class="sl-kpi-sub" style="color:' + col + '">· ' + maxDias + ' d</span>';
+          kpiSale.innerHTML = esc(fmtFechaDdMm(minFecha)) + ' <span class="sl-kpi-sub" style="color:' + col + '">· ' + esc(fmtDias(maxDias)) + '</span>';
         } else {
           kpiSale.textContent = '—';
         }
@@ -340,7 +492,7 @@
         if (p.proveedor && !provs.includes(p.proveedor)) provs.push(p.proveedor);
       });
       const base = n + (n === 1 ? ' partida' : ' partidas');
-      if (provs.length === 1) return provs[0] + ' · ' + base;
+      if (provs.length === 1) return nombreLegible(provs[0]) + ' · ' + base;
       if (provs.length > 1) return provs.length + ' agricultores · ' + base;
       return base;
     }
@@ -364,16 +516,21 @@
       return '<svg aria-hidden="true" width="100" height="24" viewBox="0 0 100 24" style="justify-self:end"><path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></path></svg>';
     }
 
-    function filtrarVariedades(vars) {
-      const q = String(SL.busqueda || '').trim().toUpperCase();
-      return vars.filter(v => {
-        if (SL.filtroModo === 'sacar' && !v.aviso_antiguedad) return false;
+    function filtrarVariedades(vars, opciones) {
+      const filtroModo = (opciones && opciones.filtroModo !== undefined) ? opciones.filtroModo : SL.filtroModo;
+      const busqueda = (opciones && opciones.busqueda !== undefined) ? opciones.busqueda : SL.busqueda;
+      const q = normalizarBusqueda(busqueda);
+      return (Array.isArray(vars) ? vars : []).filter(v => {
+        if (filtroModo === 'sacar' && !v.aviso_antiguedad) return false;
         if (!q) return true;
-        if (String(v.grupo || '').toUpperCase().includes(q)) return true;
+        if (normalizarBusqueda(v.grupo).includes(q)) return true;
+        if (normalizarBusqueda(nombreLegible(v.grupo)).includes(q)) return true;
         return (v.partidas || []).some(p =>
-          String(p.articulo || '').toUpperCase().includes(q) ||
-          String(p.envase || '').toUpperCase().includes(q) ||
-          String(p.proveedor || '').toUpperCase().includes(q)
+          normalizarBusqueda(p.articulo).includes(q) ||
+          normalizarBusqueda(nombreLegible(p.articulo)).includes(q) ||
+          normalizarBusqueda(p.envase).includes(q) ||
+          normalizarBusqueda(nombreLegible(p.envase)).includes(q) ||
+          normalizarBusqueda(p.proveedor).includes(q)
         );
       });
     }
@@ -417,11 +574,11 @@
               '<span style="display:flex;align-items:center;gap:12px;min-width:0">' +
               '<span style="width:32px;height:32px;border-radius:8px;background:' + esc(tint) + ';display:flex;align-items:center;justify-content:center;flex:none">' +
               '<span style="width:14px;height:14px;border-radius:50%;background:' + esc(v.color) + '"></span></span>' +
-              '<span style="min-width:0"><span style="display:block;font-weight:500">' + esc(v.grupo) + '</span>' +
+              '<span style="min-width:0"><span style="display:block;font-weight:500">' + esc(nombreLegible(v.grupo)) + '</span>' +
               '<span style="display:block;font-size:12px;color:var(--sl-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(resumenVariedad(v)) + '</span></span></span>' +
               '<span class="sl-mono" style="text-align:right;font-size:15px;font-weight:500">' + fmt(v.cajas) + '</span>' +
               renderBarraPartidasHtml(v, maxCajas, 10, idx) +
-              '<span style="font-size:13px;color:' + edadCol + ';display:inline-flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:' + edadCol + '"></span>' + esc(fmtFechaDdMm(v.sale_primero)) + ' · ' + Number(v.dias || 0) + ' d</span>' +
+              '<span style="font-size:13px;color:' + edadCol + ';display:inline-flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:' + edadCol + '"></span>' + esc(fmtFechaDdMm(v.sale_primero)) + ' · ' + esc(fmtDias(v.dias)) + '</span>' +
               renderSparkSvg(v);
             btn.addEventListener('click', function () {
               abrirVariedad(v);
@@ -431,40 +588,47 @@
         }
       }
 
-      // Móvil
+      // Móvil (usa la misma lista filtrada por buscador)
+      const filtradasMob = filtrarVariedades(vars, { filtroModo: 'todas', busqueda: SL.busqueda });
       const mobBody = document.getElementById('mobVariedadesBody');
       if (mobBody) {
         mobBody.innerHTML = '';
-        vars.forEach((v, idx) => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'sl-mobile-var-row';
-          const edadCol = v.aviso_antiguedad ? '#FBBF24' : '#8A8F98';
-          const tint = hexAlpha(v.color, 0.16);
-          const primeroTxt = (v.aviso_antiguedad ? 'Sacar · ' : '') + fmtFechaDdMm(v.sale_primero);
-          btn.innerHTML =
-            '<span style="width:36px;height:36px;border-radius:50%;background:' + esc(tint) + ';display:flex;align-items:center;justify-content:center">' +
-            '<span style="width:14px;height:14px;border-radius:50%;background:' + esc(v.color) + '"></span></span>' +
-            '<span style="min-width:0">' +
-            '<span style="display:block;font-weight:500;font-size:15px">' + esc(v.grupo) + '</span>' +
-            '<span style="display:block;margin-top:6px">' + renderBarraPartidasHtml(v, maxCajas, 5, idx) + '</span>' +
-            '</span>' +
-            '<span style="text-align:right">' +
-            '<span class="sl-mono" style="display:block;font-weight:500">' + fmt(v.cajas) + '</span>' +
-            '<span style="display:block;font-size:12px;color:' + edadCol + '">' + esc(primeroTxt) + '</span>' +
-            '</span>';
-          btn.addEventListener('click', function () {
-            abrirVariedad(v);
+        if (filtradasMob.length === 0) {
+          mobBody.innerHTML = '<div style="padding:16px;font-size:13px;color:var(--sl-text-secondary)">Ninguna variedad coincide con la búsqueda.</div>';
+        } else {
+          filtradasMob.forEach((v, idx) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sl-mobile-var-row';
+            const edadCol = v.aviso_antiguedad ? '#FBBF24' : '#8A8F98';
+            const tint = hexAlpha(v.color, 0.16);
+            const primeroTxt = (v.aviso_antiguedad ? 'Sacar · ' : '') + fmtFechaDdMm(v.sale_primero);
+            btn.innerHTML =
+              '<span style="width:36px;height:36px;border-radius:50%;background:' + esc(tint) + ';display:flex;align-items:center;justify-content:center">' +
+              '<span style="width:14px;height:14px;border-radius:50%;background:' + esc(v.color) + '"></span></span>' +
+              '<span style="min-width:0">' +
+              '<span style="display:block;font-weight:500;font-size:15px">' + esc(nombreLegible(v.grupo)) + '</span>' +
+              '<span style="display:block;margin-top:6px">' + renderBarraPartidasHtml(v, maxCajas, 5, idx) + '</span>' +
+              '</span>' +
+              '<span style="text-align:right">' +
+              '<span class="sl-mono" style="display:block;font-weight:500">' + fmt(v.cajas) + '</span>' +
+              '<span style="display:block;font-size:12px;color:' + edadCol + '">' + esc(primeroTxt) + '</span>' +
+              '</span>';
+            btn.addEventListener('click', function () {
+              abrirVariedad(v);
+            });
+            mobBody.appendChild(btn);
           });
-          mobBody.appendChild(btn);
-        });
+        }
       }
     }
 
     function iconoMovimiento(m) {
-      if (m.tipo === 'REPROCESO') return { sym: '⇄', color: '#F59ABF' };
-      if (m.tipo === 'DESTRIO') return { sym: '×', color: '#F87171' };
-      if (m.tipo === 'ENTRADA' || Number(m.cajas || 0) > 0) return { sym: '↑', color: '#4ADE80' };
+      const t = String((m && m.tipo) || '').trim().toLowerCase();
+      if (t === 'cambio' || t === 'reproceso') return { sym: '⇄', color: '#F59ABF' };
+      if (t === 'destrio' || t === 'destrío') return { sym: '×', color: '#F87171' };
+      if (t === 'anulacion' || t === 'anulación') return { sym: '↩', color: '#8A8F98' };
+      if (t === 'entrada' || t === 'stock inicial' || Number(m.cajas || 0) > 0) return { sym: '↑', color: '#4ADE80' };
       return { sym: '↓', color: '#EDEDEF' };
     }
 
@@ -488,7 +652,7 @@
             row.innerHTML =
               '<span class="sl-mov-sym" style="color:' + ic.color + '">' + ic.sym + '</span>' +
               '<span style="min-width:0">' +
-              '<span style="display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(m.texto) + '</span>' +
+              '<span style="display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(nombreLegible(m.texto)) + '</span>' +
               '<span style="display:block;font-size:12px;color:var(--sl-text-secondary)">' + esc(detParts.join(' · ')) + '</span>' +
               '</span>' +
               '<span class="sl-mono" style="font-weight:500;color:' + ic.color + '">' + fmtSigned(m.cajas) + '</span>';
@@ -504,11 +668,14 @@
           const row = document.createElement('div');
           row.className = 'sl-mov-row';
           row.style.borderBottom = '0';
+          const detParts = [fmtFechaDdMm(m.fecha)];
+          if (m.detalle) detParts.push(m.detalle);
+          else if (m.usuario) detParts.push(m.usuario);
           row.innerHTML =
             '<span class="sl-mov-sym" style="width:36px;height:36px;border:0;color:' + ic.color + '">' + ic.sym + '</span>' +
             '<span style="min-width:0">' +
-            '<span style="display:block;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(m.texto) + '</span>' +
-            '<span style="display:block;font-size:12px;color:var(--sl-text-secondary)">' + esc(fmtFechaDdMm(m.fecha) + (m.usuario ? ' · ' + m.usuario : '')) + '</span>' +
+            '<span style="display:block;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(nombreLegible(m.texto)) + '</span>' +
+            '<span style="display:block;font-size:12px;color:var(--sl-text-secondary)">' + esc(detParts.join(' · ')) + '</span>' +
             '</span>' +
             '<span class="sl-mono" style="font-weight:500;color:' + ic.color + '">' + fmtSigned(m.cajas) + '</span>';
           mobBody.appendChild(row);
@@ -516,22 +683,37 @@
       }
     }
 
+    function construirDesgloseHtml(v) {
+      const desglose = calcularDesgloseArticulos(v);
+      return desglose.map(function (item) {
+        const artLbl = etiquetaArticuloEnVariedad(item.articulo, v.grupo);
+        const envLbl = nombreLegible(item.envase);
+        const etiqueta = [artLbl, envLbl].filter(Boolean).join(' · ');
+        return (
+          '<div class="sl-desglose-row">' +
+          '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(etiqueta) + '</span>' +
+          '<span class="sl-mono" style="font-weight:600;flex:none">' + fmt(item.cajas) + '</span>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
     function construirListaPartidasHtml(v, esMovil) {
       const partidas = Array.isArray(v.partidas) ? v.partidas : [];
       return partidas.map((p, j) => {
         const bg = hexAlpha(v.color, opacidadPartida(j, partidas.length));
-        const infoParts = ['Entrada ' + fmtFechaDdMm(p.fecha), Number(p.dias || 0) + ' días'];
-        if (p.proveedor) infoParts.push(p.proveedor);
+        const infoParts = ['Entrada ' + fmtFechaDdMm(p.fecha), fmtDias(p.dias)];
+        if (p.proveedor) infoParts.push(nombreLegible(p.proveedor));
         let vieneHtml = '';
         if (p.viene_de && Array.isArray(p.viene_de.origenes) && p.viene_de.origenes.length > 0) {
-          const origResumen = p.viene_de.origenes.map(o => o.articulo + ' · ' + fmtFechaDdMm(o.fecha_capa)).slice(0, 2).join(', ');
+          const origResumen = p.viene_de.origenes.map(o => nombreLegible(o.articulo) + ' · ' + fmtFechaDdMm(o.fecha_capa)).slice(0, 2).join(', ');
           vieneHtml = '<span style="display:inline-block;margin-top:4px;font-size:12px;color:var(--sl-pink)">⇄ Viene de ' + esc(origResumen) + '</span>';
         }
         return (
           '<button type="button" class="sl-partida-row" data-id-capa="' + esc(p.id_capa) + '"' + (esMovil ? ' style="padding:10px 0"' : '') + '>' +
           '<span style="align-self:stretch;border-radius:2px;background:' + esc(bg) + '"></span>' +
           '<span style="min-width:0">' +
-          '<span style="display:block;font-weight:500;font-size:14px">' + esc(p.articulo) + ' · ' + esc(p.envase) + '</span>' +
+          '<span style="display:block;font-weight:500;font-size:14px">' + esc(nombreLegible(p.articulo)) + ' · ' + esc(nombreLegible(p.envase)) + '</span>' +
           '<span style="display:block;font-size:12px;color:var(--sl-text-secondary)">' + esc(infoParts.join(' · ')) + '</span>' +
           vieneHtml +
           '</span>' +
@@ -552,9 +734,11 @@
         setVisibilidad('hojaVariedad', false);
         setVisibilidad('panelVariedad', true);
         document.getElementById('panelColorDot').style.background = v.color;
-        document.getElementById('panelTitulo').textContent = v.grupo;
+        document.getElementById('panelTitulo').textContent = nombreLegible(v.grupo);
         document.getElementById('panelSubtitulo').textContent = resumenVariedad(v);
         document.getElementById('panelCajas').textContent = fmt(v.cajas);
+        const desg = document.getElementById('panelDesgloseList');
+        if (desg) desg.innerHTML = construirDesgloseHtml(v);
         const list = document.getElementById('panelPartidasList');
         list.innerHTML = construirListaPartidasHtml(v, false);
         list.querySelectorAll('[data-id-capa]').forEach(btn => {
@@ -565,9 +749,11 @@
       } else {
         setVisibilidad('panelVariedad', false);
         setVisibilidad('hojaVariedad', true);
-        document.getElementById('hojaTitulo').textContent = v.grupo;
+        document.getElementById('hojaTitulo').textContent = nombreLegible(v.grupo);
         document.getElementById('hojaSubtitulo').textContent = resumenVariedad(v);
         document.getElementById('hojaCajas').textContent = fmt(v.cajas);
+        const desg = document.getElementById('hojaDesgloseList');
+        if (desg) desg.innerHTML = construirDesgloseHtml(v);
         const list = document.getElementById('hojaPartidasList');
         list.innerHTML = construirListaPartidasHtml(v, true);
         list.querySelectorAll('[data-id-capa]').forEach(btn => {
@@ -621,13 +807,15 @@
 
     function renderPartida(p) {
       setVisibilidad('partidaContenido', true);
-      document.getElementById('partidaBreadcrumb').textContent = (p.articulo || 'Partida') + ' · partida';
+      const artLeg = nombreLegible(p.articulo || 'Partida');
+      const envLeg = nombreLegible(p.envase || '');
+      document.getElementById('partidaBreadcrumb').textContent = artLeg + ' · partida';
 
       const color = p.color || '#EC4899';
       document.getElementById('partidaColorBox').style.background = hexAlpha(color, 0.14);
       document.getElementById('partidaColorDot').style.background = color;
-      document.getElementById('partidaArticulo').textContent = p.articulo || '';
-      document.getElementById('partidaEnvase').textContent = p.envase || '';
+      document.getElementById('partidaArticulo').textContent = artLeg;
+      document.getElementById('partidaEnvase').textContent = envLeg;
       document.getElementById('partidaCajasRestantes').textContent = fmt(p.cajas_restantes);
       document.getElementById('partidaCajasUnidad').textContent =
         Number(p.cajas_consumidas || 0) > 0
@@ -650,7 +838,7 @@
 
       document.getElementById('partidaFechaFifo').textContent =
         fmtFechaDdMm(p.fecha_capa) + (esReproceso ? ' · heredada' : '');
-      document.getElementById('partidaAgricultor').textContent = p.proveedor || '—';
+      document.getElementById('partidaAgricultor').textContent = p.proveedor ? nombreLegible(p.proveedor) : '—';
 
       const secBtn = document.getElementById('btnPartidaSecundario');
       if (secBtn) {
@@ -671,9 +859,9 @@
             '<span style="width:14px;height:14px;border-radius:50%;background:#F5A3B5"></span></div>' +
             '<div style="flex:1;background:var(--sl-line);border:1px solid var(--sl-line-strong);border-radius:14px;padding:12px 14px">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
-            '<span style="font-weight:700;font-size:15px">Viene de · ' + esc(o.articulo) + '</span>' +
+            '<span style="font-weight:700;font-size:15px">Viene de · ' + esc(nombreLegible(o.articulo)) + '</span>' +
             '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A4ACB9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"></path></svg></div>' +
-            '<div style="font-size:13px;color:#A4ACB9;margin-top:2px">' + esc(o.envase) + (o.proveedor ? ' · ' + esc(o.proveedor) : '') + ' · entrada ' + esc(fmtFechaDdMm(o.fecha_capa)) + '</div>' +
+            '<div style="font-size:13px;color:#A4ACB9;margin-top:2px">' + esc(nombreLegible(o.envase)) + (o.proveedor ? ' · ' + esc(nombreLegible(o.proveedor)) : '') + ' · entrada ' + esc(fmtFechaDdMm(o.fecha_capa)) + '</div>' +
             '<div style="font-size:13px;margin-top:6px">Se cogieron <b>' + fmt(o.cajas) + ' cj</b>' + esc(quedan) + '</div>' +
             '</div></button>'
           );
@@ -685,7 +873,7 @@
           '<span style="width:14px;height:14px;border-radius:50%;background:' + esc(color) + ';box-shadow:0 0 0 4px ' + esc(hexAlpha(color, 0.22)) + '"></span>' +
           '<span class="sl-draw" style="width:2px;flex:1;background:linear-gradient(' + esc(color) + ',#F5A3B5);margin:4px 0"></span></div>' +
           '<div style="padding-bottom:16px">' +
-          '<div style="font-weight:700;font-size:15px">Esta partida · ' + esc(p.articulo) + '</div>' +
+          '<div style="font-weight:700;font-size:15px">Esta partida · ' + esc(artLeg) + '</div>' +
           '<div style="font-size:13px;color:#A4ACB9;margin-top:2px">Creada en el cambio del ' + esc(fmtFechaDdMm(vd.fecha)) + (vd.usuario ? ' · ' + esc(vd.usuario) : '') + '</div>' +
           '<div style="display:inline-flex;gap:6px;margin-top:8px;font-size:12px;flex-wrap:wrap">' +
           '<span style="background:var(--sl-line);border-radius:8px;padding:4px 8px">' + fmt(p.cajas_iniciales) + ' cj salieron</span>' +
@@ -725,14 +913,14 @@
             : (c.tipo === 'VENTA' ? 'Venta' : ('Ajuste · ' + c.tipo));
           html +=
             '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:10px;background:var(--sl-elevated);font-size:13px">' +
-            '<span><b>' + esc(titulo) + '</b> · ' + esc(fmtFechaDdMm(c.fecha)) + (c.entidad ? ' · ' + esc(c.entidad) : (c.documento_ref ? ' · ' + esc(c.documento_ref) : '')) + '</span>' +
+            '<span><b>' + esc(titulo) + '</b> · ' + esc(fmtFechaDdMm(c.fecha)) + (c.entidad ? ' · ' + esc(nombreLegible(c.entidad)) : (c.documento_ref ? ' · ' + esc(c.documento_ref) : '')) + '</span>' +
             '<span class="sl-mono">−' + fmt(c.cajas) + ' cj</span>' +
             '</div>';
         });
         destinos.forEach(d => {
           html +=
             '<button type="button" data-dest-capa="' + esc(d.id_capa) + '" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;background:rgba(230,75,155,.10);border:1px solid rgba(230,75,155,.25);color:var(--sl-text);font-size:13px;cursor:pointer;width:100%;text-align:left">' +
-            '<span><span style="color:var(--sl-pink);font-weight:600">⇄ Se convirtió en ' + esc(d.articulo) + '</span> · ' + esc(d.envase) + ' (' + esc(fmtFechaDdMm(d.fecha)) + ')</span>' +
+            '<span><span style="color:var(--sl-pink);font-weight:600">⇄ Se convirtió en ' + esc(nombreLegible(d.articulo)) + '</span> · ' + esc(nombreLegible(d.envase)) + ' (' + esc(fmtFechaDdMm(d.fecha)) + ')</span>' +
             '<span class="sl-mono" style="color:var(--sl-pink)">+' + fmt(d.cajas) + ' cj</span>' +
             '</button>';
         });
@@ -868,6 +1056,7 @@
       const btnSacar = document.getElementById('btnFiltroSacar');
       const btnBuscar = document.getElementById('btnToggleBuscar');
       const inputBuscar = document.getElementById('inputBuscarVar');
+      const inputBuscarMob = document.getElementById('inputBuscarMob');
       if (btnTodas) {
         btnTodas.addEventListener('click', function () {
           SL.filtroModo = 'todas';
@@ -891,13 +1080,51 @@
             inputBuscar.classList.add('sl-hidden');
             btnBuscar.setAttribute('aria-pressed', 'false');
             inputBuscar.value = '';
+            if (inputBuscarMob) inputBuscarMob.value = '';
             SL.busqueda = '';
             renderVariedades();
           }
         });
         inputBuscar.addEventListener('input', function () {
           SL.busqueda = inputBuscar.value;
+          if (inputBuscarMob && inputBuscarMob.value !== inputBuscar.value) {
+            inputBuscarMob.value = inputBuscar.value;
+          }
           renderVariedades();
+        });
+      }
+      if (inputBuscarMob) {
+        inputBuscarMob.addEventListener('input', function () {
+          SL.busqueda = inputBuscarMob.value;
+          if (inputBuscar && inputBuscar.value !== inputBuscarMob.value) {
+            inputBuscar.value = inputBuscarMob.value;
+          }
+          renderVariedades();
+        });
+      }
+
+      const btnPanelCompartir = document.getElementById('btnPanelCompartir');
+      const btnPanelCopiar = document.getElementById('btnPanelCopiar');
+      const btnHojaCompartir = document.getElementById('btnHojaCompartir');
+      const btnHojaCopiar = document.getElementById('btnHojaCopiar');
+      if (btnPanelCompartir) {
+        btnPanelCompartir.addEventListener('click', function () {
+          if (SL.variedadAbierta) compartirVariedadWhatsApp(SL.variedadAbierta);
+        });
+      }
+      if (btnPanelCopiar) {
+        btnPanelCopiar.addEventListener('click', function () {
+          if (SL.variedadAbierta) copiarVariedad(SL.variedadAbierta);
+        });
+      }
+      if (btnHojaCompartir) {
+        btnHojaCompartir.addEventListener('click', function () {
+          if (SL.variedadAbierta) compartirVariedadWhatsApp(SL.variedadAbierta);
+        });
+      }
+      if (btnHojaCopiar) {
+        btnHojaCopiar.addEventListener('click', function () {
+          if (SL.variedadAbierta) copiarVariedad(SL.variedadAbierta);
         });
       }
 
@@ -953,8 +1180,16 @@
       cerrarDetalleVariedad,
       volverAExistencias,
       aplicarEstadoPreview,
+      aplicarRol,
       mostrarAviso,
-      proximaVersion
+      proximaVersion,
+      nombreLegible,
+      fmtDias,
+      normalizarBusqueda,
+      filtrarVariedades,
+      calcularDeltaSemanal,
+      calcularDesgloseArticulos,
+      construirTextoWhatsApp
     };
   })();
 </script>

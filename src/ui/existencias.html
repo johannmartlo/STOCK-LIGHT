@@ -36,8 +36,8 @@
       <div style="font-size:14px;color:var(--sl-text-secondary);line-height:1.5;max-width:340px">
         Carga el stock inicial desde el Excel y después importa las compras y ventas de Hispatec.
       </div>
-      <button type="button" data-proxima-version="1" class="sl-btn" style="height:48px;padding:0 20px;border-radius:14px;font-size:14px;font-weight:700;margin-top:6px">Cargar stock inicial</button>
-      <button type="button" data-proxima-version="1" class="sl-ghost" style="height:44px;padding:0 16px;border-radius:12px;font-size:14px;font-weight:600">Importar CSV</button>
+      <button type="button" data-proxima-version="1" data-solo-escritura="1" class="sl-btn" style="height:48px;padding:0 20px;border-radius:14px;font-size:14px;font-weight:700;margin-top:6px">Cargar stock inicial</button>
+      <button type="button" data-proxima-version="1" data-solo-escritura="1" class="sl-ghost" style="height:44px;padding:0 16px;border-radius:12px;font-size:14px;font-weight:600">Importar CSV</button>
     </div>
   </div>
 
@@ -99,7 +99,7 @@
                 <button type="button" data-periodo="30" aria-pressed="true">30 d</button>
                 <button type="button" data-periodo="campana" aria-pressed="false">Campaña</button>
               </div>
-              <button type="button" data-proxima-version="1" class="sl-btn">Importar CSV</button>
+              <button type="button" data-proxima-version="1" data-solo-escritura="1" class="sl-btn">Importar CSV</button>
             </div>
           </div>
 
@@ -193,15 +193,15 @@
         <svg id="mobCurveSvg" aria-hidden="true" width="100%" height="110" viewBox="0 0 390 110" preserveAspectRatio="none" style="display:block;margin-top:10px"></svg>
 
         <div class="sl-up sl-mobile-actions" style="animation-delay:80ms">
-          <button type="button" class="sl-round-action" data-proxima-version="1">
+          <button type="button" class="sl-round-action" data-proxima-version="1" data-solo-escritura="1">
             <span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3"></path><path d="M20 17H7l3 3"></path></svg></span>
             Cambiar
           </button>
-          <button type="button" class="sl-round-action" data-proxima-version="1">
+          <button type="button" class="sl-round-action" data-proxima-version="1" data-solo-escritura="1">
             <span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M4 21h16"></path></svg></span>
             Importar
           </button>
-          <button type="button" class="sl-round-action" data-proxima-version="1">
+          <button type="button" class="sl-round-action" data-proxima-version="1" data-solo-escritura="1">
             <span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
             Destrío
           </button>
@@ -209,6 +209,13 @@
             <span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg></span>
             Movimientos
           </button>
+        </div>
+
+        <div class="sl-up sl-mobile-search-wrap" style="animation-delay:110ms">
+          <div class="sl-mobile-search-box">
+            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--sl-text-secondary)" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+            <input id="inputBuscarMob" type="search" class="sl-mobile-search-input" placeholder="Buscar variedad o artículo…" aria-label="Buscar variedad o artículo">
+          </div>
         </div>
 
         <div class="sl-up sl-card" style="animation-delay:140ms">
@@ -247,10 +254,18 @@
       <div style="font-size:40px;font-weight:600;letter-spacing:-.03em;margin-top:4px;font-variant-numeric:tabular-nums">
         <span id="panelCajas">0</span><span style="margin-left:8px;font-size:14px;color:var(--sl-text-secondary);letter-spacing:0;font-weight:400">cajas</span>
       </div>
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button type="button" data-proxima-version="1" class="sl-btn" style="flex:1">⇄ Cambiar</button>
-        <button type="button" data-proxima-version="1" class="sl-ghost" style="flex:1">Destrío</button>
+      <div style="display:flex;gap:8px;margin-top:14px" data-solo-escritura="1">
+        <button type="button" data-proxima-version="1" data-solo-escritura="1" class="sl-btn" style="flex:1">⇄ Cambiar</button>
+        <button type="button" data-proxima-version="1" data-solo-escritura="1" class="sl-ghost" style="flex:1">Destrío</button>
       </div>
+      <div class="sl-share-row">
+        <button type="button" id="btnPanelCompartir" class="sl-ghost" style="flex:1">Compartir</button>
+        <button type="button" id="btnPanelCopiar" class="sl-ghost" style="flex:1">Copiar</button>
+      </div>
+    </div>
+    <div id="panelDesgloseWrap" class="sl-desglose-wrap">
+      <div style="font-size:12px;color:var(--sl-text-label)">Desglose por artículo y envase</div>
+      <div id="panelDesgloseList" class="sl-desglose-list"></div>
     </div>
     <div style="padding:0 18px;font-size:12px;color:var(--sl-text-label);margin-bottom:6px">Partidas · sale primero la de arriba</div>
     <div id="panelPartidasList" style="border-top:1px solid var(--sl-line-subtle);overflow-y:auto;flex:1"></div>
@@ -269,7 +284,15 @@
         <button type="button" id="btnCerrarHoja" aria-label="Cerrar" style="width:32px;height:32px;border-radius:50%;border:0;background:var(--sl-elevated);color:var(--sl-text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
       </div>
     </div>
-    <div style="font-size:12px;color:var(--sl-text-label);margin:14px 0 4px">Sale primero la de arriba</div>
+    <div class="sl-share-row">
+      <button type="button" id="btnHojaCompartir" class="sl-ghost" style="flex:1;height:40px">Compartir</button>
+      <button type="button" id="btnHojaCopiar" class="sl-ghost" style="flex:1;height:40px">Copiar</button>
+    </div>
+    <div id="hojaDesgloseWrap" class="sl-desglose-wrap mobile">
+      <div style="font-size:12px;color:var(--sl-text-label)">Desglose por artículo y envase</div>
+      <div id="hojaDesgloseList" class="sl-desglose-list"></div>
+    </div>
+    <div style="font-size:12px;color:var(--sl-text-label);margin:10px 0 4px">Sale primero la de arriba</div>
     <div id="hojaPartidasList"></div>
   </div>
 </section>

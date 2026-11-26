@@ -39,7 +39,7 @@
     font-size: 15px;
     line-height: 1.4;
     -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   @media (min-width: 1024px) {
@@ -348,6 +348,8 @@
       position: sticky;
       top: 0;
       height: 100vh;
+      align-self: flex-start;
+      overflow-y: auto;
     }
 
     .sl-mobile-topbar { display: none; }
@@ -666,6 +668,77 @@
     transition: background .1s ease;
   }
   .sl-mobile-var-row:active { background: var(--sl-hover); }
+
+  /* Buscador móvil arriba de Variedades */
+  .sl-mobile-search-wrap {
+    padding: 14px 14px 0;
+    position: relative;
+  }
+  .sl-mobile-search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--sl-panel);
+    border: 1px solid var(--sl-line);
+    border-radius: 12px;
+    padding: 0 12px;
+    height: 44px;
+  }
+  .sl-mobile-search-box:focus-within {
+    border-color: var(--sl-line-strong);
+  }
+  .sl-mobile-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--sl-text);
+    font-family: var(--sl-font);
+    font-size: 14px;
+    outline: none;
+  }
+  .sl-mobile-search-input::placeholder {
+    color: var(--sl-text-label);
+  }
+
+  /* Desglose por artículo + envase y botones Compartir / Copiar */
+  .sl-share-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .sl-desglose-wrap {
+    padding: 0 18px 12px;
+  }
+  .sl-desglose-wrap.mobile {
+    padding: 12px 0 6px;
+  }
+  .sl-desglose-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .sl-desglose-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 10px;
+    border-radius: var(--sl-radius-md);
+    background: var(--sl-elevated);
+    font-size: 13px;
+  }
+
+  /* Rol CONSULTA: oculta botones de acción */
+  body.sl-rol-consulta [data-solo-escritura="1"] {
+    display: none !important;
+  }
+  body.sl-rol-consulta .sl-mobile-actions {
+    display: flex;
+    justify-content: center;
+  }
 
   /* Movimientos comunes */
   .sl-mov-list {

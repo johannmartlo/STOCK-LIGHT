@@ -141,7 +141,20 @@ class InicioService {
       : null);
 
     this.pendientesService = options.pendientesService || null;
+    this.operacionesService = options.operacionesService || null;
     this.reloj = options.reloj !== undefined ? options.reloj : null;
+  }
+
+  _resolverOperacionesService_() {
+    if (this.operacionesService) return this.operacionesService;
+    const OpsClass = (typeof OperacionesService !== 'undefined')
+      ? OperacionesService
+      : (typeof require !== 'undefined' ? require('./OperacionesService').OperacionesService : null);
+    if (!OpsClass) return null;
+    return new OpsClass({
+      repository: this.repo,
+      catalogoService: this.catalogoService
+    });
   }
 
   _resolverPendientesService_() {
@@ -650,55 +663,72 @@ class InicioService {
       ventas: maxVentasCsv || null
     };
 
-    // 8. Últimos 12 movimientos
-    const ordenadosDesc = movsConfirmados.slice().sort((a, b) => {
-      const sa = Number(a.raw.secuencia);
-      const sb = Number(b.raw.secuencia);
-      const ha = Number.isFinite(sa) && sa > 0;
-      const hb = Number.isFinite(sb) && sb > 0;
-      if (ha && hb && sa !== sb) return sb - sa;
-      return b.idx - a.idx;
-    });
+    // 8. Últimos 12 movimientos vía OperacionesService.listarMovimientos({ limite: 12 }) (T-025)
+    const opsSvc = this._resolverOperacionesService_();
+    const resMovs = (opsSvc && typeof opsSvc.listarMovimientos === 'function')
+      ? opsSvc.listarMovimientos({ limite: 12 })
+      : { grupos: [] };
 
-    const ultimos = ordenadosDesc.slice(0, 12).map(item => {
-      const m = item.raw;
-      const tipoRaw = String(m.tipo_movimiento || '').trim().toUpperCase();
-      const motivoRaw = String(m.motivo_ajuste || '').trim().toUpperCase();
-      const cajasSigned = Number(m.signo || 0) * Math.abs(Number(m.cajas || 0));
-      const art = String(m.codigo_articulo || '').trim();
-      const env = String(m.codigo_envase || '').trim();
+    const reprocesosTodos = new Map();
+    for (const r of reprocesos) {
+      if (r && r.id_reproceso) {
+        reprocesosTodos.set(String(r.id_reproceso).trim(), r);
+      }
+    }
+    const lineasPorRepTodos = new Map();
+    for (const l of reprocesoLineas) {
+      if (!l || !l.id_reproceso) continue;
+      const idRep = String(l.id_reproceso).trim();
+      if (!lineasPorRepTodos.has(idRep)) lineasPorRepTodos.set(idRep, []);
+      lineasPorRepTodos.get(idRep).push(l);
+    }
 
-      let tipo = tipoRaw;
-      let texto = `${art} · ${env}`;
-      if (tipoRaw === 'AJUSTE') {
-        if (motivoRaw === 'REPROCESO_ORIGEN' || motivoRaw === 'REPROCESO_DESTINO') {
-          tipo = 'REPROCESO';
-          texto = `Cambio · ${art} · ${env}`;
-        } else if (MOTIVOS_DESTRIO_INICIO_.has(motivoRaw)) {
-          tipo = 'DESTRIO';
-          texto = `Destrío · ${art} · ${env}`;
-        } else {
-          texto = `${motivoRaw || 'Ajuste'} · ${art} · ${env}`;
+    const aplanados = [];
+    for (const grupo of (resMovs && Array.isArray(resMovs.grupos) ? resMovs.grupos : [])) {
+      for (const el of (grupo && Array.isArray(grupo.elementos) ? grupo.elementos : [])) {
+        aplanados.push(el);
+      }
+    }
+
+    const ultimos = aplanados.slice(0, 12).map(el => {
+      const tipoRaw = String(el.tipo || '').trim().toLowerCase();
+      let texto = String(el.texto || '').trim();
+      let detalle = String(el.detalle || '').trim();
+
+      if (tipoRaw === 'cambio') {
+        const idRep = String(el.id || '').trim();
+        const rep = reprocesosTodos.get(idRep);
+        const lineasRep = lineasPorRepTodos.get(idRep) || [];
+        const origenes = lineasRep.filter(l => String(l.tipo || '').trim().toUpperCase() === 'ORIGEN');
+        const destinos = lineasRep.filter(l => String(l.tipo || '').trim().toUpperCase() === 'DESTINO');
+        if (origenes.length > 0 || destinos.length > 0) {
+          const origArt = String((origenes[0] && origenes[0].codigo_articulo) || '').trim();
+          const destArt = String((destinos[0] && destinos[0].codigo_articulo) || '').trim();
+          const origLabel = origArt + (origenes.length > 1 ? ` (+${origenes.length - 1})` : '');
+          const destLabel = destArt + (destinos.length > 1 ? ` (+${destinos.length - 1})` : '');
+          texto = `${origLabel || 'Origen'} → ${destLabel || 'Destino'}`;
+
+          const totalRet = origenes.reduce((s, l) => s + Number(l.cajas || 0), 0)
+            || Number((rep && rep.total_retirado) || 0);
+          const totalDest = destinos.reduce((s, l) => s + Number(l.cajas || 0), 0)
+            || Number((rep && rep.total_destinos) || 0);
+          const destrio = Number((rep && rep.destrio_cajas) || 0);
+          detalle = `${totalRet} → ${totalDest}` + (destrio > 0 ? ` · destrío ${destrio}` : '');
         }
-      } else if (tipoRaw === 'ENTRADA') {
-        const ent = String(m.entidad_nombre || '').trim();
-        texto = ent ? `Compra · ${art} · ${ent}` : `Compra · ${art} · ${env}`;
-      } else if (tipoRaw === 'SALIDA') {
-        const ent = String(m.entidad_nombre || '').trim();
-        texto = ent ? `Venta · ${art} · ${ent}` : `Venta · ${art} · ${env}`;
-      } else if (tipoRaw === 'ANULACION') {
-        texto = `Anulación · ${art} · ${env}`;
       }
 
       return {
-        id_movimiento: String(m.id_movimiento || '').trim(),
-        fecha: item.fechaNeg,
-        fecha_hora: m.fecha_hora || '',
-        tipo,
+        id: String(el.id || '').trim(),
+        id_movimiento: String(el.id || '').trim(),
+        fecha: el.fecha_negocio || _normFechaInicio_(el.fecha_hora),
+        fecha_hora: el.fecha_hora || '',
+        tipo: tipoRaw,
         texto,
-        cajas: cajasSigned,
-        usuario: String(m.usuario || 'SISTEMA').trim(),
-        detalle: String(m.documento_ref || m.entidad_nombre || m.motivo_ajuste || '').trim()
+        detalle,
+        cajas: Number(el.cajas || 0),
+        usuario: String(el.usuario || 'SISTEMA').trim(),
+        documento: String(el.documento || '').trim(),
+        anulado: Boolean(el.anulado)
       };
     });
 

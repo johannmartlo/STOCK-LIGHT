@@ -1,6 +1,6 @@
 /**
  * Servidor local de vista previa para T-024 (sin dependencias externas).
- * - Sirve `src/Index.html` montando todos los `<?!= include('ui/...') ?>`
+ * - Sirve `src/Index.html` montando todos los `<?!= include_('ui/...') ?>`
  * - Simula `google.script.run` conectado al `InicioService` real sobre datos ficticios
  * - Incluye selector interactivo de estados (normal, cargando, vacío, sin conexión, error, PIN)
  *
@@ -26,10 +26,15 @@ function incluirParcial(nombre) {
 function renderIndexHtml(query) {
   const estado = query.get('estado') || 'normal';
   const mostrarToolbar = query.get('toolbar') !== '0';
+  const rolQuery = String(query.get('rol') || '').trim().toUpperCase();
+  const rolEfectivo = ['CONSULTA', 'ENCARGADO', 'ADMIN'].includes(rolQuery)
+    ? rolQuery
+    : ctx.sesionInicial.rol;
+  const nombreEfectivo = rolEfectivo === 'CONSULTA' ? 'Lucía Consulta' : ctx.sesionInicial.nombre;
   const esPin = estado === 'pin';
 
   let html = fs.readFileSync(path.join(SRC_DIR, 'Index.html'), 'utf8');
-  html = html.replace(/<\?!?=\s*include\(['"]([^'"]+)['"]\)\s*\?>/g, (_, nombre) => incluirParcial(nombre));
+  html = html.replace(/<\?!?=\s*include_\(['"]([^'"]+)['"]\)\s*\?>/g, (_, nombre) => incluirParcial(nombre));
   html = html.replace(/<\?!?=\s*k\s*\?>/g, esPin ? ctx.tokenPreview : '');
   html = html.replace(/<\?!?=\s*tienePin\s*\?\s*'1'\s*:\s*'0'\s*\?>/g, esPin ? '1' : '0');
 
@@ -37,8 +42,8 @@ function renderIndexHtml(query) {
     ? ''
     : `window.__SL_PREVIEW_AUTO_LOGIN__ = ${JSON.stringify({
         sesion: ctx.sesionInicial.sesion,
-        nombre: ctx.sesionInicial.nombre,
-        rol: ctx.sesionInicial.rol
+        nombre: nombreEfectivo,
+        rol: rolEfectivo
       })};`;
 
   const puenteSimulado = `

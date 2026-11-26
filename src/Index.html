@@ -10,7 +10,7 @@
     /* Garantía mínima en armazón para área táctil del teclado PIN (T-020 7.5) */
     .entrada-tecla { min-height: 56px; }
   </style>
-  <?!= include('ui/estilos') ?>
+  <?!= include_('ui/estilos') ?>
 </head>
 <body>
   <!-- PANTALLA DE ENTRADA (T-020): enlace personal + PIN -->
@@ -66,11 +66,11 @@
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"></path><path d="M9 21v-8h6v8"></path></svg>
           Existencias
         </button>
-        <button type="button" class="sl-nav" data-proxima-version="1">
+        <button type="button" class="sl-nav" data-proxima-version="1" data-solo-escritura="1">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3"></path><path d="M20 17H7l3 3"></path></svg>
           Cambios
         </button>
-        <button type="button" class="sl-nav" data-proxima-version="1">
+        <button type="button" class="sl-nav" data-proxima-version="1" data-solo-escritura="1">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M4 21h16"></path></svg>
           Importar
           <span id="navPendientesBadge" class="sl-nav-badge sl-hidden">0</span>
@@ -104,8 +104,8 @@
         </div>
       </header>
 
-      <?!= include('ui/existencias') ?>
-      <?!= include('ui/partida') ?>
+      <?!= include_('ui/existencias') ?>
+      <?!= include_('ui/partida') ?>
     </main>
   </div>
 
@@ -333,6 +333,12 @@
         pinConfirmadoOk = false;
         mostrarErrorEntrada('');
 
+        if (window.SLApp && typeof window.SLApp.aplicarRol === 'function') {
+          window.SLApp.aplicarRol(datos.rol);
+        } else if (document.body) {
+          document.body.classList.toggle('sl-rol-consulta', String(datos.rol || '').trim().toUpperCase() === 'CONSULTA');
+        }
+
         if (window.SLApp && typeof window.SLApp.cargarInicio === 'function') {
           window.SLApp.cargarInicio();
         }
@@ -490,6 +496,6 @@
       }
     })();
   </script>
-  <?!= include('ui/app') ?>
+  <?!= include_('ui/app') ?>
 </body>
 </html>

@@ -1844,16 +1844,16 @@ function apiEjecutarPruebaAisladaInicializacion(testSpreadsheetId, options = {})
 }
 
 /**
- * Incluye un parcial HTML desde `src/` para plantillas HtmlService (`<?!= include('ui/estilos') ?>`) (T-024).
- * Clasificada INTERNA: solo sirve plantillas de la interfaz.
+ * Incluye un parcial HTML desde `src/` para plantillas HtmlService (`<?!= include_('ui/estilos') ?>`) (T-024).
+ * Función interna (termina en `_`): no se expone al navegador por google.script.run.
  *
  * @param {string} nombre
  * @returns {string}
  */
-function include(nombre) {
+function include_(nombre) {
   const limpio = String(nombre || '').trim().replace(/^\/+/, '');
   if (!limpio || limpio.includes('..') || !/^[a-zA-Z0-9_/-]+$/.test(limpio)) {
-    throw new Error(`include: nombre de parcial inválido '${nombre}'.`);
+    throw new Error(`include_: nombre de parcial inválido '${nombre}'.`);
   }
   if (typeof HtmlService !== 'undefined' && HtmlService && typeof HtmlService.createHtmlOutputFromFile === 'function') {
     return HtmlService.createHtmlOutputFromFile(limpio).getContent();
@@ -1997,7 +1997,7 @@ if (typeof module !== 'undefined' && module.exports) {
       : (instalacionMod ? instalacionMod.adminInstalarStockLight : null),
     copiaDiariaProgramada,
     doGet,
-    include,
+    include_,
     apiObtenerInicio,
     apiObtenerPartida,
     apiGetMaestroArticulos,
