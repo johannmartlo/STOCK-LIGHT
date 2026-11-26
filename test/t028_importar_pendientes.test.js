@@ -478,6 +478,59 @@ runTest('12. Archivo de RECEPCIONES con cabecera NroEnvases se clasifica como CO
   assert.strictEqual(ordenados[1].nombre, 'ventas_t007.csv');
 });
 
+// --------------------------------------------------------------------------
+// 13. REBASE T-031: lineasClienteExcluido en previsualización (fila gris)
+// --------------------------------------------------------------------------
+runTest('13. Previsualización muestra fila gris para lineasClienteExcluido (singular y plural) y la omite si es 0', () => {
+  const { SLApp } = cargarSLAppEnVm();
+  const basePreview = {
+    tipoCsv: 'VENTAS',
+    resumen: { totalLineas: 3, porEstado: { OK: 1, CLIENTE_EXCLUIDO: 2 } },
+    documentos: [
+      { serie: 'AVT27', numero: '900', fecha: '2026-11-05', estado: 'NUEVO', resumen: { cajasOk: 10 } }
+    ],
+    lineasClienteExcluido: 2
+  };
+  const resPlural = SLApp.construirHtmlPrevisualizacionImportacion([
+    { nombre: 'ventas_excl.csv', texto: '', codificacion: 'utf-8', preview: basePreview, error: null }
+  ]);
+  assert.ok(resPlural.html.includes('2 líneas de clientes excluidos</b> · no cuentan'), 'Debe mostrar plural «2 líneas de clientes excluidos · no cuentan»');
+  assert.ok(!resPlural.html.includes('class="sl-imp-details danger"'), 'La fila de clientes excluidos debe ser gris, no danger');
+
+  const resSingular = SLApp.construirHtmlPrevisualizacionImportacion([
+    {
+      nombre: 'ventas_excl_1.csv',
+      texto: '',
+      codificacion: 'utf-8',
+      preview: {
+        tipoCsv: 'VENTAS',
+        resumen: { totalLineas: 1, porEstado: { CLIENTE_EXCLUIDO: 1 } },
+        documentos: [],
+        lineasClienteExcluido: 1
+      },
+      error: null
+    }
+  ]);
+  assert.ok(resSingular.html.includes('1 línea de cliente excluido</b> · no cuenta'), 'Debe mostrar singular «1 línea de cliente excluido · no cuenta»');
+  assert.ok(!resSingular.html.includes('−0') && !resSingular.html.includes('+0'), 'No debe mostrar −0 ni +0');
+
+  const resCero = SLApp.construirHtmlPrevisualizacionImportacion([
+    {
+      nombre: 'ventas_sin_excl.csv',
+      texto: '',
+      codificacion: 'utf-8',
+      preview: {
+        tipoCsv: 'VENTAS',
+        resumen: { totalLineas: 1, porEstado: { OK: 1 } },
+        documentos: [{ serie: 'AVT27', numero: '901', fecha: '2026-11-05', estado: 'NUEVO', resumen: { cajasOk: 5 } }],
+        lineasClienteExcluido: 0
+      },
+      error: null
+    }
+  ]);
+  assert.ok(!resCero.html.includes('cliente excluido') && !resCero.html.includes('clientes excluidos'), 'No debe mostrar fila si lineasClienteExcluido es 0');
+});
+
 console.log('\n================================================================');
 console.log(` RESULTADOS T-028 (IMPORTAR/PENDIENTES): ${passed} SUPERADAS | ${failed} FALLIDAS`);
 console.log('================================================================\n');
