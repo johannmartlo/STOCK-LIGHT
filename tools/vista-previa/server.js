@@ -14,8 +14,9 @@ const { crearEntornoVistaPrevia } = require('./datosFicticios');
 
 const PORT = Number(process.argv[2] || process.env.PORT || 3099);
 const SRC_DIR = path.resolve(__dirname, '../../src');
+const FIXTURES_CSV_DIR = path.resolve(__dirname, '../../test/fixtures/csv');
 
-const ctx = crearEntornoVistaPrevia();
+let ctx = crearEntornoVistaPrevia();
 
 function incluirParcial(nombre) {
   const limpio = String(nombre || '').trim().replace(/^\/+/, '');
@@ -25,6 +26,7 @@ function incluirParcial(nombre) {
 
 function renderIndexHtml(query) {
   const estado = query.get('estado') || 'normal';
+  const vista = query.get('vista') || '';
   const mostrarToolbar = query.get('toolbar') !== '0';
   const rolQuery = String(query.get('rol') || '').trim().toUpperCase();
   const rolEfectivo = ['CONSULTA', 'ENCARGADO', 'ADMIN'].includes(rolQuery)
@@ -51,6 +53,7 @@ function renderIndexHtml(query) {
 (function () {
   ${autoLoginScript}
   var previewEstado = ${JSON.stringify(estado)};
+  var previewVista = ${JSON.stringify(vista)};
 
   function makeRunner(okCb, errCb) {
     function callBackend(fnName, args) {
@@ -95,6 +98,12 @@ function renderIndexHtml(query) {
       setTimeout(function () {
         window.SLApp.aplicarEstadoPreview(previewEstado);
       }, 80);
+    } else if (previewVista && window.SLApp) {
+      setTimeout(function () {
+        if (previewVista === 'importar') window.SLApp.abrirImportar('csv');
+        else if (previewVista === 'stock_inicial') window.SLApp.abrirImportar('stock_inicial');
+        else if (previewVista === 'pendientes') window.SLApp.abrirPendientes();
+      }, 150);
     }
 
     if (${mostrarToolbar ? 'true' : 'false'}) {
@@ -149,11 +158,36 @@ function despacharApi(fnName, args) {
   if (fnName === 'apiLlamar') {
     const targetFn = args[1];
     const targetArgs = Array.isArray(args[2]) ? args[2] : [];
+    const usuario = ctx.sesionInicial.nombre || 'Juan Alberto';
     if (targetFn === 'apiObtenerInicio') {
       return ctx.inicioSvc.obtenerInicio();
     }
     if (targetFn === 'apiObtenerPartida') {
       return ctx.inicioSvc.obtenerPartida(targetArgs[0]);
+    }
+    if (targetFn === 'apiPrevisualizarImportacionCsv') {
+      return ctx.importacionSvc.previsualizar(targetArgs[0]);
+    }
+    if (targetFn === 'apiConfirmarImportacionCsv') {
+      return ctx.importacionSvc.confirmar(targetArgs[0], targetArgs[1], usuario);
+    }
+    if (targetFn === 'apiListarPendientes') {
+      return ctx.pendientesSvc.listarPendientes(targetArgs[0] || {});
+    }
+    if (targetFn === 'apiReintentarPendientes') {
+      return ctx.pendientesSvc.reintentarPendientes(usuario, targetArgs[0] || {});
+    }
+    if (targetFn === 'apiMarcarPendienteResuelto') {
+      return ctx.pendientesSvc.marcarPendienteResuelto(targetArgs[0], targetArgs[1] || '', usuario);
+    }
+    if (targetFn === 'apiDecidirSeguimiento') {
+      return ctx.seguimientoSvc.decidirSeguimiento(targetArgs[0], targetArgs[1], targetArgs[2], usuario);
+    }
+    if (targetFn === 'apiPrevisualizarStockInicial') {
+      return ctx.stockInicialSvc.previsualizar(targetArgs[0]);
+    }
+    if (targetFn === 'apiConfirmarStockInicial') {
+      return ctx.stockInicialSvc.confirmar(targetArgs[0], targetArgs[1], usuario, { anadir: targetArgs[2] === true });
     }
     if (targetFn === 'apiSalir') {
       return { success: true };
@@ -192,6 +226,23 @@ const server = http.createServer((req, res) => {
       }
     });
     return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/reset') {
+    ctx = crearEntornoVistaPrevia();
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/fixtures/')) {
+    const nombre = path.basename(url.pathname);
+    const archivo = path.join(FIXTURES_CSV_DIR, nombre);
+    if (fs.existsSync(archivo) && nombre.endsWith('.csv')) {
+      res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8' });
+      res.end(fs.readFileSync(archivo));
+      return;
+    }
   }
 
   res.writeHead(404);

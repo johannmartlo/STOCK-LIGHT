@@ -1,0 +1,91 @@
+================================================================
+ EJECUTOR ÚNICO DE PRUEBAS — STOCK-LIGHT
+================================================================
+
+Suites detectadas (35):
+  1. articulo_envase_persistence.test.js
+  2. commercial_group_resolver.test.js
+  3. compra_packaging_resolution.test.js
+  4. fase5_configuracion_persistencia.test.js
+  5. fase6_1_correcciones_historicas.test.js
+  6. fase6_seguridad_operativa.test.js
+  7. fase8_1_prueba_real_aislada.test.js
+  8. fase8_2_apps_script_v8_loading.test.js
+  9. fase8_auditoria_maestros_inicializacion.test.js
+  10. helpers_mock.test.js
+  11. inventory_engine.test.js
+  12. maestro_envases_import.test.js
+  13. movement_service.test.js
+  14. persistence_runtime.test.js
+  15. stock_query.test.js
+  16. t002_fecha_negocio.test.js
+  17. t003_consumos_fifo.test.js
+  18. t004_clave_nombre.test.js
+  19. t005_catalogo.test.js
+  20. t006_parser_csv.test.js
+  21. t006b_clasificador.test.js
+  22. t007_importacion_lote.test.js
+  23. t008_pendientes.test.js
+  24. t009_reproceso.test.js
+  25. t011_puesta_en_marcha.test.js
+  26. t018_copias.test.js
+  27. t020_acceso.test.js
+  28. t022_libro.test.js
+  29. t022_propiedades.test.js
+  30. t023_superficie.test.js
+  31. t024_inicio.test.js
+  32. t024_interfaz.test.js
+  33. t025_operaciones.test.js
+  34. t026_deuda_menor.test.js
+  35. t028_importar_pendientes.test.js
+
+----------------------------------------------------------------
+
+[1/35] Ejecutando articulo_envase_persistence.test.js... ✅ OK (20 pruebas, 0.14s)
+[2/35] Ejecutando commercial_group_resolver.test.js... ✅ OK (23 pruebas, 0.13s)
+[3/35] Ejecutando compra_packaging_resolution.test.js... ✅ OK (9 pruebas, 0.08s)
+[4/35] Ejecutando fase5_configuracion_persistencia.test.js... ✅ OK (18 pruebas, 0.15s)
+[5/35] Ejecutando fase6_1_correcciones_historicas.test.js... ✅ OK (21 pruebas, 0.17s)
+[6/35] Ejecutando fase6_seguridad_operativa.test.js... ✅ OK (20 pruebas, 0.16s)
+[7/35] Ejecutando fase8_1_prueba_real_aislada.test.js... ✅ OK (8 pruebas, 0.14s)
+[8/35] Ejecutando fase8_2_apps_script_v8_loading.test.js... ✅ OK (7 pruebas, 0.24s)
+[9/35] Ejecutando fase8_auditoria_maestros_inicializacion.test.js... ✅ OK (10 pruebas, 0.14s)
+[10/35] Ejecutando helpers_mock.test.js... ✅ OK (2 pruebas, 0.08s)
+[11/35] Ejecutando inventory_engine.test.js... ✅ OK (11 pruebas, 0.07s)
+[12/35] Ejecutando maestro_envases_import.test.js... ✅ OK (22 pruebas, 0.06s)
+[13/35] Ejecutando movement_service.test.js... ✅ OK (4 pruebas, 0.08s)
+[14/35] Ejecutando persistence_runtime.test.js... ✅ OK (9 pruebas, 0.10s)
+[15/35] Ejecutando stock_query.test.js... ✅ OK (10 pruebas, 0.09s)
+[16/35] Ejecutando t002_fecha_negocio.test.js... ✅ OK (9 pruebas, 0.10s)
+[17/35] Ejecutando t003_consumos_fifo.test.js... ✅ OK (9 pruebas, 0.10s)
+[18/35] Ejecutando t004_clave_nombre.test.js... ✅ OK (6 pruebas, 0.16s)
+[19/35] Ejecutando t005_catalogo.test.js... ✅ OK (8 pruebas, 0.14s)
+[20/35] Ejecutando t006_parser_csv.test.js... ✅ OK (5 pruebas, 0.05s)
+[21/35] Ejecutando t006b_clasificador.test.js... ✅ OK (5 pruebas, 0.06s)
+[22/35] Ejecutando t007_importacion_lote.test.js... ✅ OK (13 pruebas, 0.15s)
+[23/35] Ejecutando t008_pendientes.test.js... ✅ OK (12 pruebas, 0.13s)
+[24/35] Ejecutando t009_reproceso.test.js... ✅ OK (10 pruebas, 0.12s)
+[25/35] Ejecutando t011_puesta_en_marcha.test.js... ✅ OK (10 pruebas, 0.13s)
+[26/35] Ejecutando t018_copias.test.js... ✅ OK (12 pruebas, 0.11s)
+[27/35] Ejecutando t020_acceso.test.js... ✅ OK (18 pruebas, 0.13s)
+[28/35] Ejecutando t022_libro.test.js... ✅ OK (5 pruebas, 0.08s)
+[29/35] Ejecutando t022_propiedades.test.js... ✅ OK (1 pruebas, 0.49s)
+[30/35] Ejecutando t023_superficie.test.js... ✅ OK (8 pruebas, 0.15s)
+[31/35] Ejecutando t024_inicio.test.js... ✅ OK (5 pruebas, 0.20s)
+[32/35] Ejecutando t024_interfaz.test.js... ✅ OK (11 pruebas, 0.15s)
+[33/35] Ejecutando t025_operaciones.test.js... ✅ OK (8 pruebas, 0.21s)
+[34/35] Ejecutando t026_deuda_menor.test.js... ✅ OK (3 pruebas, 0.13s)
+[35/35] Ejecutando t028_importar_pendientes.test.js... ✅ OK (7 pruebas, 0.11s)
+
+================================================================
+ RESUMEN GLOBAL DE EJECUCIÓN
+================================================================
+ Suites ejecutadas:  35
+ Suites superadas:   35
+ Suites fallidas:    0
+ Pruebas superadas:  359
+ Tiempo total:       4.74s
+================================================================
+
+RESULTADO FINAL: TODO EN VERDE (0 fallos)
+

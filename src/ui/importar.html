@@ -1,0 +1,122 @@
+<section id="viewImportar" class="sl-page-wrap sl-hidden" aria-label="Importar de Hispatec">
+  <div class="sl-page-header">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+      <button type="button" id="btnVolverImportar" class="sl-icon-btn" aria-label="Volver a existencias">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+      </button>
+      <div style="min-width:0">
+        <h1 class="sl-page-title">Importar de Hispatec</h1>
+        <p class="sl-page-sub">Suelta compras y ventas del día. Compras siempre entran primero.</p>
+      </div>
+    </div>
+
+    <div class="sl-tabs" role="tablist" aria-label="Secciones de importación">
+      <button type="button" id="tabImpCsv" class="sl-tab" role="tab" aria-selected="true" data-solo-escritura="1">CSV de Hispatec</button>
+      <button type="button" id="tabImpPendientes" class="sl-tab" role="tab" aria-selected="false">
+        Pendientes
+        <span id="tabPendientesBadge" class="sl-nav-badge sl-hidden">0</span>
+      </button>
+      <button type="button" id="tabImpStockInicial" class="sl-tab" role="tab" aria-selected="false" data-solo-admin="1">Stock inicial</button>
+    </div>
+  </div>
+
+  <!-- PESTAÑA 1: CSV DE HISPATEC -->
+  <div id="panelImpCsv" class="sl-imp-panel">
+    <!-- Zona drop / selección múltiple -->
+    <div id="impDropZone" class="sl-dropzone" tabindex="0" role="button" aria-label="Soltar o elegir archivos CSV de Hispatec">
+      <input id="impFileInput" type="file" accept=".csv,text/csv" multiple class="sl-hidden">
+      <div class="sl-dropzone-icon" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <path d="M12 18v-6"></path>
+          <path d="M9 15l3-3 3 3"></path>
+        </svg>
+      </div>
+      <div style="font-weight:600;font-size:15px">Suelta aquí los CSV de compras y ventas</div>
+      <div style="font-size:13px;color:var(--sl-text-secondary);margin-top:4px">O pulsa para elegir uno o varios archivos a la vez</div>
+      <div style="margin-top:12px">
+        <span class="sl-ghost" style="pointer-events:none">Elegir archivos CSV</span>
+      </div>
+      <div style="font-size:12px;color:var(--sl-text-label);margin-top:12px">Orden automático: compras antes que ventas · UTF-8 y Windows-1252</div>
+    </div>
+
+    <!-- Error de lectura / previsualización -->
+    <div id="impErrorBox" class="sl-alert-box error sl-hidden" role="alert"></div>
+
+    <!-- Previsualización de archivos -->
+    <div id="impPreviewWrap" class="sl-hidden">
+      <div id="impPreviewList" class="sl-imp-files"></div>
+
+      <!-- Barra de progreso durante confirmación -->
+      <div id="impProgressWrap" class="sl-progress-card sl-hidden" role="status" aria-live="polite">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px">
+          <span id="impProgressLabel" style="font-weight:600">Importando…</span>
+          <span id="impProgressPct" class="sl-mono" style="color:var(--sl-text-secondary)">0%</span>
+        </div>
+        <div class="sl-progress-track">
+          <div id="impProgressFill" class="sl-progress-fill" style="width:0%"></div>
+        </div>
+        <div style="font-size:12px;color:var(--sl-text-secondary)">No cierres esta ventana hasta terminar.</div>
+      </div>
+
+      <!-- Barra de confirmación -->
+      <div id="impConfirmBar" class="sl-imp-confirm-bar" data-solo-escritura="1">
+        <button type="button" id="btnConfirmarImportacion" class="sl-btn sl-btn-lg" data-solo-escritura="1">Confirmar importación</button>
+        <button type="button" id="btnLimpiarImportacion" class="sl-ghost sl-btn-lg">Limpiar</button>
+      </div>
+      <div id="impConfirmHint" style="text-align:center;font-size:12px;color:var(--sl-text-secondary);margin-top:8px">
+        Importa primero compras y después ventas
+      </div>
+    </div>
+
+    <!-- Resultado tras confirmar -->
+    <div id="impResultadoWrap" class="sl-hidden" aria-live="polite"></div>
+  </div>
+
+  <!-- PESTAÑA 2: STOCK INICIAL (SOLO ADMIN) -->
+  <div id="panelStockInicial" class="sl-imp-panel sl-hidden" data-solo-admin="1">
+    <div class="sl-card-flat">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <h2 style="margin:0;font-size:16px;font-weight:600">Carga de stock inicial (solo administrador)</h2>
+          <p style="margin:4px 0 0;font-size:13px;color:var(--sl-text-secondary)">
+            Formato CSV separado por punto y coma: <code class="sl-mono">Fecha;Proveedor;Articulo;Envase;Cajas[;Kg]</code>
+          </p>
+        </div>
+        <label class="sl-ghost" style="cursor:pointer">
+          Elegir CSV
+          <input id="siFileInput" type="file" accept=".csv,text/csv" class="sl-hidden">
+        </label>
+      </div>
+
+      <textarea id="siCsvInput" class="sl-textarea" rows="6" placeholder="Fecha;Proveedor;Articulo;Envase;Cajas;Kg&#10;20/11/2026;FINCA SOLANA;TOMATE MORESCO I G;CARTON 40X30;120;600"></textarea>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <button type="button" id="btnSiPrevisualizar" class="sl-btn" data-solo-admin="1">Previsualizar stock inicial</button>
+        <button type="button" id="btnSiLimpiar" class="sl-ghost">Limpiar</button>
+      </div>
+    </div>
+
+    <div id="siErrorBox" class="sl-alert-box error sl-hidden" role="alert"></div>
+
+    <div id="siPreviewWrap" class="sl-hidden">
+      <div id="siPreviewBody"></div>
+
+      <div class="sl-alert-box amber" style="margin-top:14px">
+        <b>Copia de seguridad automática:</b> antes de cargar el stock inicial se guardará una copia previa (<code>PRE_STOCK_INICIAL</code>) en Drive.
+      </div>
+
+      <label id="siAnadirWrap" class="sl-checkbox-row sl-hidden">
+        <input type="checkbox" id="chkSiAnadir">
+        <span><b>Añadir al stock existente</b> (ya hay movimientos confirmados; úsalo solo si quieres sumar esta carga).</span>
+      </label>
+
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap" data-solo-admin="1">
+        <button type="button" id="btnSiConfirmar" class="sl-btn sl-btn-lg" data-solo-admin="1">Confirmar stock inicial</button>
+      </div>
+    </div>
+
+    <div id="siResultadoWrap" class="sl-hidden" aria-live="polite"></div>
+  </div>
+</section>

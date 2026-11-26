@@ -66,6 +66,7 @@ no las expone.
 | `apiClasificarCombinacion` | `src/Código.js` | LECTURA | Devuelve la explicación de la clasificación de una combinación (D-029). |
 | `apiUpsertReglaClasificacion` | `src/Código.js` | ESCRITURA | Añade o actualiza una regla en REGLAS_CLASIFICACION; usuario del servidor; rol ADMIN (D-029, T-020). |
 | `apiUpsertExcepcionCatalogo` | `src/Código.js` | ESCRITURA | Añade o actualiza una excepción en CATALOGO; usuario del servidor; rol ADMIN (D-029, T-020). |
+| `apiDecidirSeguimiento` | `src/Código.js` | ESCRITURA | Decide el seguimiento (SEGUIR/IGNORAR) de una combinación y reintenta pendientes; usuario del servidor; rol ENCARGADO (T-028). |
 | `_resolveOperationalSafetyService` | `src/Código.js` | INTERNA | Resuelve el servicio de seguridad operativa. |
 | `apiValidarDocumento` | `src/Código.js` | LECTURA | Valida un documento sin mutar datos. |
 | `apiPrevisualizarDocumento` | `src/Código.js` | LECTURA | Previsualización con semáforo. |

@@ -45,6 +45,8 @@ if (typeof require !== 'undefined') {
   try { correccionMod = require('./CorreccionService'); } catch (e) {}
   let exclusionesMod = null;
   try { exclusionesMod = require('./Exclusiones'); } catch (e) {}
+  let seguimientoMod = null;
+  try { seguimientoMod = require('./SeguimientoService'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -77,6 +79,7 @@ if (typeof require !== 'undefined') {
     global.leerClientesExcluidos_ = global.leerClientesExcluidos_ || exclusionesMod.leerClientesExcluidos_;
     global.esClienteExcluido_ = global.esClienteExcluido_ || exclusionesMod.esClienteExcluido_;
   }
+  if (seguimientoMod) global.SeguimientoService = global.SeguimientoService || seguimientoMod.SeguimientoService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -875,25 +878,17 @@ function apiUpsertReglaClasificacion(regla, options = {}) {
 }
 
 /**
- * Añade o actualiza una excepción en CATALOGO para (articulo, envase, atributo) (T-005, D-029).
- * Categoría: ESCRITURA.
- * @param {Object} excepcion
- * @param {Object} [options]
- * @returns {Object}
+ * Guarda una excepción en CATALOGO validando atributo y valor contra ATRIBUTOS (D-029).
+ * Compartida por apiUpsertExcepcionCatalogo y SeguimientoService (T-028).
+ * @private
  */
-function apiUpsertExcepcionCatalogo(excepcion, options = {}) {
-  exigirSesionApi_();
-  if (!excepcion || typeof excepcion !== 'object') {
-    throw new Error('apiUpsertExcepcionCatalogo: Se requiere un objeto excepción.');
-  }
+function guardarExcepcionCatalogo_(repo, excepcion, user) {
   const art = String(excepcion.articulo !== undefined ? excepcion.articulo : (excepcion.codigo_articulo || '')).trim();
   const env = String(excepcion.envase !== undefined ? excepcion.envase : (excepcion.codigo_envase || '')).trim();
   if (!art || !env) {
     throw new Error('apiUpsertExcepcionCatalogo: articulo y envase son obligatorios y no pueden estar vacíos.');
   }
 
-  const repo = options.repository || new SheetsRepository();
-  const user = usuarioActual_(options && options.session);
   const { atributo, valor } = validarAtributoYValorCatalogo_(repo, excepcion.atributo, excepcion.valor);
 
   const guardada = repo.upsertExcepcionCatalogo({
@@ -919,6 +914,51 @@ function apiUpsertExcepcionCatalogo(excepcion, options = {}) {
   }
 
   return guardada;
+}
+
+/**
+ * Añade o actualiza una excepción en CATALOGO para (articulo, envase, atributo) (T-005, D-029).
+ * Categoría: ESCRITURA.
+ * @param {Object} excepcion
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiUpsertExcepcionCatalogo(excepcion, options = {}) {
+  exigirSesionApi_();
+  if (!excepcion || typeof excepcion !== 'object') {
+    throw new Error('apiUpsertExcepcionCatalogo: Se requiere un objeto excepción.');
+  }
+  const repo = options.repository || new SheetsRepository();
+  const user = usuarioActual_(options && options.session);
+  return guardarExcepcionCatalogo_(repo, excepcion, user);
+}
+
+/**
+ * Decide el seguimiento (SEGUIR o IGNORAR) de una combinación artículo + envase desconocida
+ * y reintenta pendientes (T-028). Categoría: ESCRITURA; rol mínimo ENCARGADO.
+ * @param {string} articulo
+ * @param {string} envase
+ * @param {'SEGUIR'|'IGNORAR'} decision
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiDecidirSeguimiento(articulo, envase, decision, options = {}) {
+  exigirSesionApi_();
+  const user = usuarioActual_(options && options.session);
+  const SvcClass = (typeof SeguimientoService !== 'undefined')
+    ? SeguimientoService
+    : (typeof require !== 'undefined' ? require('./SeguimientoService').SeguimientoService : null);
+  if (!SvcClass) throw new Error('SeguimientoService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || new SheetsRepository();
+  const service = new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    pendientesService: options.pendientesService,
+    lockService: options.lockService,
+    configCatalogo: options.configCatalogo
+  });
+  return service.decidirSeguimiento(articulo, envase, decision, user);
 }
 
 function _resolveOperationalSafetyService(options = {}) {
@@ -2184,6 +2224,7 @@ if (typeof module !== 'undefined' && module.exports) {
     apiClasificarCombinacion,
     apiUpsertReglaClasificacion,
     apiUpsertExcepcionCatalogo,
+    apiDecidirSeguimiento,
     apiValidarDocumento,
     apiPrevisualizarDocumento,
     apiProcesarEntradaDocumento,

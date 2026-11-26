@@ -11,6 +11,10 @@
 const { crearEntorno } = require('../../test/helpers/mockSheets');
 const { CatalogoService } = require('../../src/CatalogoService');
 const { InicioService } = require('../../src/InicioService');
+const { ImportacionService } = require('../../src/importacion/ImportacionService');
+const { PendientesService } = require('../../src/importacion/PendientesService');
+const { StockInicialService } = require('../../src/importacion/StockInicialService');
+const { SeguimientoService } = require('../../src/SeguimientoService');
 const { hoyMadrid } = require('../../src/Fechas');
 const { crearServicioAcceso_ } = require('../../src/Seguridad');
 
@@ -224,7 +228,7 @@ function crearEntornoVistaPrevia() {
     }, 'Ana');
   }
 
-  // 4. Dos pendientes por stock insuficiente
+  // 4. Pendientes con los tres bloques poblados (STOCK_INSUFICIENTE, SEGUIMIENTO_DESCONOCIDO, MODIFICADO_EN_ERP)
   env.repo.appendPendientes([
     {
       id_pendiente: 'PEND-PREV-1',
@@ -261,6 +265,42 @@ function crearEntornoVistaPrevia() {
       estado: 'PENDIENTE',
       fecha_alta: new Date().toISOString(),
       fecha_resolucion: ''
+    },
+    {
+      id_pendiente: 'PEND-PREV-3',
+      id_importacion: 'IMP-PREV-2',
+      tipo_doc: 'ENTRADA',
+      serie: 'ACT27',
+      numero: '910',
+      linea: 1,
+      fecha_negocio: hoy,
+      entidad: 'FINCA SOLANA',
+      articulo: 'ALBARICOQUE FICTICIO G',
+      envase: 'CARTON 40X30',
+      cajas: 24,
+      kg: 120,
+      motivo: 'SEGUIMIENTO_DESCONOCIDO',
+      estado: 'PENDIENTE',
+      fecha_alta: new Date().toISOString(),
+      fecha_resolucion: ''
+    },
+    {
+      id_pendiente: 'PEND-PREV-4',
+      id_importacion: 'IMP-PREV-2',
+      tipo_doc: 'SALIDA',
+      serie: 'AVT27',
+      numero: '701',
+      linea: '',
+      fecha_negocio: sumarDias(hoy, -1),
+      entidad: 'FRUTAS DEL NORTE',
+      articulo: '',
+      envase: '',
+      cajas: 15,
+      kg: '',
+      motivo: 'MODIFICADO_EN_ERP',
+      estado: 'PENDIENTE',
+      fecha_alta: new Date().toISOString(),
+      fecha_resolucion: ''
     }
   ]);
 
@@ -281,15 +321,48 @@ function crearEntornoVistaPrevia() {
   const sesionInicial = accesoSvc.establecerPin(tokenPreview, '1234');
 
   const catalogoSvc = new CatalogoService({ repository: env.repo });
+  const pendientesSvc = new PendientesService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: catalogoSvc,
+    lockService: env.lock
+  });
+  const importacionSvc = new ImportacionService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: catalogoSvc,
+    pendientesService: pendientesSvc,
+    lockService: env.lock
+  });
+  const seguimientoSvc = new SeguimientoService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: catalogoSvc,
+    pendientesService: pendientesSvc,
+    lockService: env.lock
+  });
+  const stockInicialSvc = new StockInicialService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: catalogoSvc,
+    pendientesService: pendientesSvc,
+    lockService: env.lock,
+    crearCopiaSeguridad: () => ({ id: 'COPIA-PREV-1', nombre: 'PRE_STOCK_INICIAL_preview' })
+  });
   const inicioSvc = new InicioService({
     repository: env.repo,
     catalogoService: catalogoSvc,
+    pendientesService: pendientesSvc,
     reloj: () => hoy
   });
 
   return {
     env,
     inicioSvc,
+    importacionSvc,
+    pendientesSvc,
+    seguimientoSvc,
+    stockInicialSvc,
     accesoSvc,
     tokenPreview,
     sesionInicial

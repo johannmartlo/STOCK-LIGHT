@@ -166,13 +166,1092 @@
       const rolNorm = String(rol || '').trim().toUpperCase();
       SL.rol = rolNorm;
       const esConsulta = rolNorm === 'CONSULTA';
+      const esAdmin = rolNorm === 'ADMIN';
       if (typeof document !== 'undefined' && document.body) {
         document.body.classList.toggle('sl-rol-consulta', esConsulta);
+        document.body.classList.toggle('sl-rol-admin', esAdmin);
         document.querySelectorAll('[data-solo-escritura="1"]').forEach(function (el) {
           if (esConsulta) el.setAttribute('hidden', 'hidden');
           else el.removeAttribute('hidden');
         });
+        document.querySelectorAll('[data-solo-admin="1"]').forEach(function (el) {
+          if (!esAdmin) el.setAttribute('hidden', 'hidden');
+          else el.removeAttribute('hidden');
+        });
       }
+    }
+
+    // --- T-028: Codificación CSV, orden automático y pantallas Importar / Pendientes ---
+
+    const SLImp = {
+      archivos: [], // { id, nombre, texto, codificacion, preview, tipoOrden, error }
+      confirmando: false,
+      stockInicialTexto: '',
+      stockInicialPreview: null,
+      pendientesData: null,
+      confirmarDecisionClave: null
+    };
+
+    /**
+     * Decodifica bytes de un CSV probando primero UTF-8; si aparecen caracteres de
+     * reemplazo (U+FFFD, «»), vuelve a decodificar en windows-1252 (T-028 regla 2).
+     * Los fixtures de test/fixtures/csv/ están en UTF-8 sin BOM; los CSV reales de
+     * Hispatec en Windows suelen venir en windows-1252.
+     */
+    function decodificarBytesCsv(bufferOrBytes) {
+      const bytes = bufferOrBytes instanceof Uint8Array
+        ? bufferOrBytes
+        : new Uint8Array(bufferOrBytes || []);
+      let textoUtf8 = '';
+      if (typeof TextDecoder !== 'undefined') {
+        textoUtf8 = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      } else {
+        for (let i = 0; i < bytes.length; i++) textoUtf8 += String.fromCharCode(bytes[i]);
+      }
+      if (textoUtf8.indexOf('\uFFFD') >= 0) {
+        if (typeof TextDecoder !== 'undefined') {
+          try {
+            const textoWin = new TextDecoder('windows-1252').decode(bytes);
+            return { texto: textoWin, codificacion: 'windows-1252' };
+          } catch (e) {
+            // Fallback Latin-1 si el runtime no tiene tabla windows-1252
+          }
+        }
+        let latin = '';
+        for (let i = 0; i < bytes.length; i++) latin += String.fromCharCode(bytes[i]);
+        return { texto: latin, codificacion: 'windows-1252' };
+      }
+      return { texto: textoUtf8, codificacion: 'utf-8' };
+    }
+
+    function leerArchivoCsvConCodificacion(file) {
+      return new Promise(function (resolve, reject) {
+        if (typeof FileReader === 'undefined') {
+          reject(new Error('FileReader no disponible en este navegador.'));
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function () {
+          try {
+            if (reader.result instanceof ArrayBuffer) {
+              resolve(decodificarBytesCsv(new Uint8Array(reader.result)));
+              return;
+            }
+            const textoUtf8 = String(reader.result || '');
+            if (textoUtf8.indexOf('\uFFFD') >= 0) {
+              const readerWin = new FileReader();
+              readerWin.onload = function () {
+                resolve({ texto: String(readerWin.result || ''), codificacion: 'windows-1252' });
+              };
+              readerWin.onerror = function () {
+                reject(new Error('No se pudo leer el archivo en windows-1252.'));
+              };
+              readerWin.readAsText(file, 'windows-1252');
+            } else {
+              resolve({ texto: textoUtf8, codificacion: 'utf-8' });
+            }
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = function () {
+          reject(new Error('No se pudo leer el archivo ' + (file && file.name ? file.name : '')));
+        };
+        if (typeof reader.readAsArrayBuffer === 'function' && typeof TextDecoder !== 'undefined') {
+          reader.readAsArrayBuffer(file);
+        } else {
+          reader.readAsText(file, 'UTF-8');
+        }
+      });
+    }
+
+    function detectarTipoArchivoCsv(item) {
+      const tipoPrev = item && item.preview && item.preview.tipoCsv
+        ? String(item.preview.tipoCsv).trim().toUpperCase()
+        : (item && item.tipoCsv ? String(item.tipoCsv).trim().toUpperCase() : '');
+      if (tipoPrev === 'COMPRA' || tipoPrev === 'COMPRAS' || tipoPrev === 'ENTRADA') return 'COMPRA';
+      if (tipoPrev === 'SALIDA' || tipoPrev === 'VENTA' || tipoPrev === 'VENTAS') return 'SALIDA';
+      const texto = String((item && item.texto) || '');
+      const primera = texto.split(/\r?\n/)[0] || '';
+      if (/NombreEmisor|CantidadEnvasesAC|FechaAlbaran/i.test(primera)) return 'COMPRA';
+      if (/NombreCliente|NroEnvases|RefAV/i.test(primera)) return 'SALIDA';
+      const nombre = String((item && item.nombre) || '');
+      if (/compra/i.test(nombre)) return 'COMPRA';
+      if (/venta/i.test(nombre)) return 'SALIDA';
+      return 'DESCONOCIDO';
+    }
+
+    function prioridadTipoCsv(tipo) {
+      if (tipo === 'COMPRA') return 0;
+      if (tipo === 'SALIDA') return 1;
+      return 2;
+    }
+
+    function ordenarArchivosImportacion(archivos) {
+      const lista = Array.isArray(archivos) ? archivos : [];
+      return lista
+        .map(function (item, idx) {
+          const tipo = detectarTipoArchivoCsv(item);
+          return { item: item, idx: idx, prio: prioridadTipoCsv(tipo) };
+        })
+        .sort(function (a, b) {
+          if (a.prio !== b.prio) return a.prio - b.prio;
+          return a.idx - b.idx;
+        })
+        .map(function (w) { return w.item; });
+    }
+
+    function agruparSeguimientoDesconocido(bloque) {
+      const docs = (bloque && Array.isArray(bloque.documentos)) ? bloque.documentos : [];
+      const mapa = new Map();
+      docs.forEach(function (doc) {
+        (doc.lineas || []).forEach(function (l) {
+          const art = String(l.articulo || '').trim();
+          const env = String(l.envase || '').trim();
+          const clave = art + '|' + env;
+          if (!mapa.has(clave)) {
+            mapa.set(clave, {
+              clave: clave,
+              articulo: art,
+              envase: env,
+              lineas: 0,
+              cajas: 0,
+              documentos: new Set()
+            });
+          }
+          const grp = mapa.get(clave);
+          grp.lineas += 1;
+          grp.cajas += Math.abs(Number(l.cajas || 0));
+          grp.documentos.add((doc.serie || '') + '/' + (doc.numero || ''));
+        });
+      });
+      return Array.from(mapa.values())
+        .map(function (g) {
+          return {
+            clave: g.clave,
+            articulo: g.articulo,
+            envase: g.envase,
+            lineas: g.lineas,
+            cajas: g.cajas,
+            documentos: Array.from(g.documentos)
+          };
+        })
+        .sort(function (a, b) { return b.cajas - a.cajas; });
+    }
+
+    function actualizarBadgesPendientes(total) {
+      const n = Math.max(0, Number(total || 0));
+      ['navPendientesBadge', 'navPendientesConsultaBadge', 'tabPendientesBadge'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (n > 0) {
+          el.textContent = String(n);
+          el.classList.remove('sl-hidden');
+        } else {
+          el.classList.add('sl-hidden');
+        }
+      });
+      const pill = document.getElementById('pendTotalBadge');
+      if (pill) pill.textContent = String(n);
+    }
+
+    function actualizarNavActivo(vista) {
+      const mapa = {
+        existencias: 'navExistencias',
+        partida: 'navExistencias',
+        importar: 'navImportar',
+        pendientes: SL.rol === 'CONSULTA' ? 'navPendientes' : 'navImportar'
+      };
+      const activoId = mapa[vista] || 'navExistencias';
+      ['navExistencias', 'navImportar', 'navPendientes'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (id === activoId) el.setAttribute('aria-current', 'page');
+        else el.removeAttribute('aria-current');
+      });
+    }
+
+    function mostrarVista(vista) {
+      cerrarDetalleVariedadSilencioso();
+      setVisibilidad('viewExistencias', vista === 'existencias');
+      setVisibilidad('viewPartida', vista === 'partida');
+      setVisibilidad('viewImportar', vista === 'importar');
+      setVisibilidad('viewPendientes', vista === 'pendientes');
+      actualizarNavActivo(vista);
+    }
+
+    function cerrarDetalleVariedadSilencioso() {
+      SL.variedadAbierta = null;
+      setVisibilidad('panelBackdrop', false);
+      setVisibilidad('panelVariedad', false);
+      setVisibilidad('hojaVariedad', false);
+    }
+
+    function activarPestanaImportar(tab) {
+      const esStock = tab === 'stock_inicial' && SL.rol === 'ADMIN';
+      setVisibilidad('panelImpCsv', !esStock);
+      setVisibilidad('panelStockInicial', esStock);
+      const tCsv = document.getElementById('tabImpCsv');
+      const tSi = document.getElementById('tabImpStockInicial');
+      if (tCsv) tCsv.setAttribute('aria-selected', esStock ? 'false' : 'true');
+      if (tSi) tSi.setAttribute('aria-selected', esStock ? 'true' : 'false');
+    }
+
+    function abrirImportar(tabInicial) {
+      if (SL.rol === 'CONSULTA') {
+        abrirPendientes();
+        return;
+      }
+      mostrarVista('importar');
+      activarPestanaImportar(tabInicial === 'stock_inicial' ? 'stock_inicial' : 'csv');
+    }
+
+    function abrirPendientes() {
+      mostrarVista('pendientes');
+      cargarPendientes();
+    }
+
+    function rangoFechasDocumentos(docs) {
+      const fechas = (Array.isArray(docs) ? docs : [])
+        .map(function (d) { return d && d.fecha ? String(d.fecha) : ''; })
+        .filter(Boolean)
+        .sort();
+      if (fechas.length === 0) return '';
+      if (fechas[0] === fechas[fechas.length - 1]) return fmtFechaDdMm(fechas[0]);
+      return fmtFechaDdMm(fechas[0]) + ' – ' + fmtFechaDdMm(fechas[fechas.length - 1]);
+    }
+
+    function parseNumEsSimple(v) {
+      const s = String(v === null || v === undefined ? '' : v).trim().replace(/\./g, '').replace(',', '.');
+      const n = Number(s);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    /**
+     * Calcula cajas informativas por albarán (serie/numero) a partir del texto CSV
+     * para mostrar cifras en la previsualización y el resultado (sin recalcular stock).
+     */
+    function resumirCajasPorAlbaranCsv(textoCsv) {
+      const mapa = new Map();
+      const lineas = String(textoCsv || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
+      if (lineas.length < 2) return mapa;
+      const cab = lineas[0].split(';').map(function (h) { return normalizarBusqueda(h); });
+      const idxSerie = cab.indexOf('seriealbaran');
+      const idxNum = cab.indexOf('numeroalbaran') >= 0 ? cab.indexOf('numeroalbaran') : cab.indexOf('numero');
+      const idxAlb = cab.indexOf('albaran');
+      const idxCajas = cab.indexOf('cantidadenvasesac') >= 0 ? cab.indexOf('cantidadenvasesac') : cab.indexOf('nroenvases');
+      if (idxCajas < 0) return mapa;
+
+      for (let i = 1; i < lineas.length; i++) {
+        const cols = lineas[i].split(';');
+        let serie = idxSerie >= 0 ? String(cols[idxSerie] || '').trim() : '';
+        let numero = idxNum >= 0 ? String(cols[idxNum] || '').trim() : '';
+        if (!serie && idxAlb >= 0) {
+          const m = String(cols[idxAlb] || '').trim().match(/^([A-Za-z0-9]+)\/(\d+)/);
+          if (m) {
+            serie = m[1];
+            if (!numero) numero = m[2];
+          }
+        }
+        const clave = (serie + '/' + numero).toUpperCase();
+        const cj = parseNumEsSimple(cols[idxCajas]);
+        if (cj > 0) {
+          mapa.set(clave, (mapa.get(clave) || 0) + Math.round(cj));
+        }
+      }
+      return mapa;
+    }
+
+    function renderPrevisualizacionImportacion() {
+      const wrap = document.getElementById('impPreviewWrap');
+      const list = document.getElementById('impPreviewList');
+      const btnConf = document.getElementById('btnConfirmarImportacion');
+      if (!wrap || !list) return;
+
+      if (SLImp.archivos.length === 0) {
+        setVisibilidad('impPreviewWrap', false);
+        list.innerHTML = '';
+        return;
+      }
+
+      setVisibilidad('impPreviewWrap', true);
+      SLImp.archivos = ordenarArchivosImportacion(SLImp.archivos);
+
+      let hayAlgoConfirmable = false;
+      list.innerHTML = SLImp.archivos.map(function (archivo, idx) {
+        if (archivo.error) {
+          return (
+            '<div class="sl-imp-file-card">' +
+            '<div class="sl-imp-file-head">' +
+            '<div class="sl-file-icon-box" style="background:rgba(248,113,113,.14);color:var(--sl-red)">!</div>' +
+            '<div style="min-width:0;flex:1">' +
+            '<div style="font-weight:600;word-break:break-word">' + esc(archivo.nombre) + '</div>' +
+            '<div style="font-size:12px;color:var(--sl-red)">' + esc(archivo.error) + '</div>' +
+            '</div></div></div>'
+          );
+        }
+
+        const prev = archivo.preview || {};
+        const tipo = detectarTipoArchivoCsv(archivo);
+        const esCompra = tipo === 'COMPRA';
+        const tipoLabel = esCompra ? 'Compras' : (tipo === 'SALIDA' ? 'Ventas' : 'CSV');
+        const docs = Array.isArray(prev.documentos) ? prev.documentos : [];
+        const tot = prev.totales || {};
+        const porEstado = (prev.resumen && prev.resumen.porEstado) || {};
+        const totalLineas = (prev.resumen && prev.resumen.totalLineas) || 0;
+        const rango = rangoFechasDocumentos(docs);
+
+        const docsNuevos = docs.filter(function (d) { return d.estado === 'NUEVO'; });
+        const docsYa = docs.filter(function (d) { return d.estado === 'YA_IMPORTADO'; });
+        const docsMod = docs.filter(function (d) { return d.estado === 'MODIFICADO_EN_ERP'; });
+        const docsSinStock = docs.filter(function (d) { return d.estado === 'STOCK_INSUFICIENTE'; });
+
+        const todoYaImportado = docs.length > 0 && docsYa.length === docs.length;
+        if (!todoYaImportado && (docsNuevos.length > 0 || docsSinStock.length > 0 || docsMod.length > 0 || Number(porEstado.PENDIENTE || 0) > 0)) {
+          hayAlgoConfirmable = true;
+        }
+
+        const cajasPorAlb = resumirCajasPorAlbaranCsv(archivo.texto);
+        const cajasDeDoc = function (d) {
+          const claveAlb = (String(d.serie || '') + '/' + String(d.numero || '')).toUpperCase();
+          return Number((d.resumen && d.resumen.cajasOk) || cajasPorAlb.get(claveAlb) || 0);
+        };
+
+        const cajasNuevas = docsNuevos.reduce(function (acc, d) {
+          return acc + cajasDeDoc(d);
+        }, 0);
+        const signoStr = esCompra ? ('+' + fmt(cajasNuevas)) : ('−' + fmt(cajasNuevas));
+        const accionStock = esCompra ? 'cajas entran al stock' : 'cajas salen del stock';
+
+        const nOk = Number(porEstado.OK || 0);
+        const nYa = docsYa.length;
+        const nIgn = Number(porEstado.NO_SEGUIDA || 0) + Number(porEstado.ABONO || 0) + Number(porEstado.SERIE_IGNORADA || 0);
+        const nProb = docsSinStock.length + docsMod.length + Number(porEstado.PENDIENTE || 0) + Number(porEstado.ERROR_DATOS || 0);
+        const segTotal = Math.max(1, nOk + nYa + nIgn + nProb);
+
+        const renderDocItems = function (arr) {
+          return arr.map(function (d) {
+            const cOk = cajasDeDoc(d);
+            return '<div class="sl-pend-line-row"><span>' + esc((d.serie || '') + '/' + (d.numero || '')) + ' · ' + esc(fmtFechaDdMm(d.fecha)) + '</span><span class="sl-mono">' + fmt(cOk) + ' cj</span></div>';
+          }).join('');
+        };
+
+        let filasDetalle = '';
+        if (docsNuevos.length > 0) {
+          filasDetalle +=
+            '<details class="sl-imp-details"><summary>' +
+            '<span class="sl-dot-ind" style="background:var(--sl-green)"></span>' +
+            '<span style="flex:1"><b>' + fmt(docsNuevos.length) + ' ' + (docsNuevos.length === 1 ? 'albarán nuevo' : 'albaranes nuevos') + '</b> · ' + fmt(nOk) + ' líneas listas</span>' +
+            '<span class="sl-mono" style="color:var(--sl-text-secondary)">' + fmt(cajasNuevas) + ' cj</span>' +
+            '</summary><div class="sl-imp-details-body">' + renderDocItems(docsNuevos) + '</div></details>';
+        }
+        if (docsYa.length > 0) {
+          filasDetalle +=
+            '<details class="sl-imp-details"><summary>' +
+            '<span class="sl-dot-ind" style="background:var(--sl-text-secondary)"></span>' +
+            '<span style="flex:1"><b>' + fmt(docsYa.length) + ' ya importados</b> · se saltan</span>' +
+            '<span class="sl-mono" style="color:var(--sl-text-label)">—</span>' +
+            '</summary><div class="sl-imp-details-body">' + renderDocItems(docsYa) + '</div></details>';
+        }
+        if (docsMod.length > 0) {
+          filasDetalle +=
+            '<details class="sl-imp-details danger"><summary>' +
+            '<span class="sl-dot-ind" style="background:var(--sl-amber)"></span>' +
+            '<span style="flex:1"><b>' + fmt(docsMod.length) + ' modificados en Hispatec</b> · pasarán a Pendientes para revisión</span>' +
+            '<span class="sl-mono" style="color:var(--sl-amber)">Revisar</span>' +
+            '</summary><div class="sl-imp-details-body">' + renderDocItems(docsMod) + '</div></details>';
+        }
+        if (docsSinStock.length > 0) {
+          filasDetalle +=
+            '<details class="sl-imp-details danger" open><summary>' +
+            '<span class="sl-dot-ind" style="background:var(--sl-red)"></span>' +
+            '<span style="flex:1;color:#FCA5A5"><b>' + fmt(docsSinStock.length) + ' sin stock</b> · quedan pendientes y se aplican solos cuando haya</span>' +
+            '</summary><div class="sl-imp-details-body">' + renderDocItems(docsSinStock) + '</div></details>';
+        }
+        if (Number(porEstado.PENDIENTE || 0) > 0) {
+          filasDetalle +=
+            '<details class="sl-imp-details"><summary>' +
+            '<span class="sl-dot-ind" style="background:var(--sl-amber)"></span>' +
+            '<span style="flex:1"><b>' + fmt(porEstado.PENDIENTE) + ' líneas de artículos sin decidir</b> · irán a Pendientes</span>' +
+            '</summary><div class="sl-imp-details-body">Podrás decidir en Pendientes si seguir o ignorar cada artículo.</div></details>';
+        }
+        if (Number(porEstado.NO_SEGUIDA || 0) > 0 || Number(porEstado.ABONO || 0) > 0 || Number(porEstado.SERIE_IGNORADA || 0) > 0) {
+          const partesIgn = [];
+          if (Number(porEstado.NO_SEGUIDA || 0) > 0) partesIgn.push(fmt(porEstado.NO_SEGUIDA) + ' no seguidas');
+          if (Number(porEstado.ABONO || 0) > 0) partesIgn.push(fmt(porEstado.ABONO) + ' abonos');
+          if (Number(porEstado.SERIE_IGNORADA || 0) > 0) partesIgn.push(fmt(porEstado.SERIE_IGNORADA) + ' series ignoradas');
+          filasDetalle +=
+            '<details class="sl-imp-details"><summary>' +
+            '<span class="sl-dot-ind" style="background:var(--sl-amber)"></span>' +
+            '<span style="flex:1"><b>' + esc(partesIgn.join(' · ')) + '</b> · no cuentan</span>' +
+            '</summary><div class="sl-imp-details-body">Líneas ignoradas según las reglas de series y catálogo.</div></details>';
+        }
+        if (Number(porEstado.ERROR_DATOS || 0) > 0) {
+          filasDetalle +=
+            '<details class="sl-imp-details danger"><summary>' +
+            '<span class="sl-dot-ind" style="background:var(--sl-red)"></span>' +
+            '<span style="flex:1;color:#FCA5A5"><b>' + fmt(porEstado.ERROR_DATOS) + ' líneas con error de datos</b></span>' +
+            '</summary><div class="sl-imp-details-body">Revisa que las cajas sean enteros positivos y las fechas válidas.</div></details>';
+        }
+
+        const estadoBadge = todoYaImportado
+          ? '<span style="font-size:12px;font-weight:600;color:var(--sl-text-secondary)">Ya importado' + (rango ? ' · ' + esc(rango) : '') + '</span>'
+          : '<span style="font-size:12px;font-weight:600;color:var(--sl-green)">#' + (idx + 1) + ' · Leído</span>';
+
+        const bannerYa = todoYaImportado
+          ? '<div class="sl-imp-summary"><div class="sl-alert-box">Ya importado entero' + (rango ? ' (' + esc(rango) + ')' : '') + '. No se importará otra vez.</div></div>'
+          : (
+            '<div class="sl-imp-summary">' +
+            '<div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--sl-text-label)">QUÉ VA A PASAR</div>' +
+            '<div style="display:flex;align-items:baseline;gap:8px;margin-top:6px;flex-wrap:wrap">' +
+            '<span class="sl-imp-big-num">' + esc(signoStr) + '</span>' +
+            '<span style="font-size:14px;color:var(--sl-text-secondary)">' + esc(accionStock) + '</span>' +
+            '</div>' +
+            '<div class="sl-imp-segbar" aria-hidden="true">' +
+            (nOk > 0 ? '<span style="flex:' + nOk + ';background:var(--sl-green)"></span>' : '') +
+            (nYa > 0 ? '<span style="flex:' + nYa + ';background:#71717A"></span>' : '') +
+            (nIgn > 0 ? '<span style="flex:' + nIgn + ';background:var(--sl-amber)"></span>' : '') +
+            (nProb > 0 ? '<span style="flex:' + nProb + ';background:var(--sl-red)"></span>' : '') +
+            '</div></div>'
+          );
+
+        return (
+          '<article class="sl-imp-file-card">' +
+          '<div class="sl-imp-file-head">' +
+          '<div class="sl-file-icon-box" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></div>' +
+          '<div style="min-width:0;flex:1">' +
+          '<div style="font-weight:600;word-break:break-word">' + esc(archivo.nombre) + '</div>' +
+          '<div style="font-size:12px;color:var(--sl-text-secondary)">' + esc(tipoLabel) + ' · ' + fmt(totalLineas) + ' líneas' + (rango ? ' · ' + esc(rango) : '') + ' · ' + esc(archivo.codificacion) + '</div>' +
+          '</div>' +
+          estadoBadge +
+          '</div>' +
+          bannerYa +
+          filasDetalle +
+          '</article>'
+        );
+      }).join('');
+
+      if (btnConf) {
+        btnConf.disabled = !hayAlgoConfirmable || SLImp.confirmando;
+      }
+    }
+
+    function procesarArchivosCsv(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+
+      setVisibilidad('impErrorBox', false);
+      setVisibilidad('impResultadoWrap', false);
+
+      Promise.all(files.map(function (file) {
+        return leerArchivoCsvConCodificacion(file).then(function (dec) {
+          return {
+            nombre: file.name || 'archivo.csv',
+            texto: dec.texto,
+            codificacion: dec.codificacion
+          };
+        });
+      }))
+      .then(function (leidos) {
+        const ordenados = ordenarArchivosImportacion(leidos);
+        return Promise.all(ordenados.map(function (item) {
+          return window.SLBridge.call('apiPrevisualizarImportacionCsv', item.texto)
+            .then(function (preview) {
+              return {
+                nombre: item.nombre,
+                texto: item.texto,
+                codificacion: item.codificacion,
+                preview: preview,
+                error: null
+              };
+            })
+            .catch(function (err) {
+              return {
+                nombre: item.nombre,
+                texto: item.texto,
+                codificacion: item.codificacion,
+                preview: null,
+                error: err && err.message ? err.message : String(err)
+              };
+            });
+        }));
+      })
+      .then(function (resultados) {
+        SLImp.archivos = ordenarArchivosImportacion(resultados);
+        renderPrevisualizacionImportacion();
+      })
+      .catch(function (err) {
+        const box = document.getElementById('impErrorBox');
+        if (box) {
+          box.textContent = err && err.message ? err.message : String(err);
+          setVisibilidad('impErrorBox', true);
+        }
+      });
+    }
+
+    function confirmarUnArchivoPorTramos(archivo, onProgreso) {
+      const hash = archivo.preview && archivo.preview.hash ? archivo.preview.hash : '';
+      let intentos = 0;
+      function paso() {
+        intentos++;
+        return window.SLBridge.call('apiConfirmarImportacionCsv', archivo.texto, hash)
+          .then(function (res) {
+            if (typeof onProgreso === 'function') onProgreso(res, intentos);
+            if (res && res.status === 'EN_CURSO' && intentos < 25) {
+              return paso();
+            }
+            return res;
+          });
+      }
+      return paso();
+    }
+
+    function confirmarImportacionTodos() {
+      if (SLImp.confirmando || SL.rol === 'CONSULTA') return;
+      const pendientesConfirmar = ordenarArchivosImportacion(SLImp.archivos).filter(function (a) {
+        if (!a || a.error || !a.preview) return false;
+        const docs = Array.isArray(a.preview.documentos) ? a.preview.documentos : [];
+        const docsYa = docs.filter(function (d) { return d.estado === 'YA_IMPORTADO'; });
+        return !(docs.length > 0 && docsYa.length === docs.length);
+      });
+      if (pendientesConfirmar.length === 0) return;
+
+      SLImp.confirmando = true;
+      setVisibilidad('impErrorBox', false);
+      setVisibilidad('impProgressWrap', true);
+      setVisibilidad('impResultadoWrap', false);
+      const btnConf = document.getElementById('btnConfirmarImportacion');
+      if (btnConf) btnConf.disabled = true;
+
+      const onBeforeUnload = function (e) {
+        e.preventDefault();
+        e.returnValue = 'Hay una importación en curso. ¿Seguro que quieres salir?';
+        return e.returnValue;
+      };
+      window.addEventListener('beforeunload', onBeforeUnload);
+
+      const totalesRes = {
+        archivos: 0,
+        documentosAplicados: 0,
+        cajasEntran: 0,
+        cajasSalen: 0,
+        ventasSinStock: 0,
+        pendientesResueltas: 0,
+        yaImportados: 0,
+        modificados: 0
+      };
+
+      let cadena = Promise.resolve();
+      pendientesConfirmar.forEach(function (archivo, idx) {
+        cadena = cadena.then(function () {
+          const lbl = document.getElementById('impProgressLabel');
+          const pct = document.getElementById('impProgressPct');
+          const fill = document.getElementById('impProgressFill');
+          const progreso = Math.round((idx / pendientesConfirmar.length) * 100);
+          if (lbl) lbl.textContent = 'Importando ' + archivo.nombre + ' (' + (idx + 1) + '/' + pendientesConfirmar.length + ')…';
+          if (pct) pct.textContent = progreso + '%';
+          if (fill) fill.style.width = progreso + '%';
+
+          return confirmarUnArchivoPorTramos(archivo, function (resTramo, nTramo) {
+            if (resTramo && resTramo.status === 'EN_CURSO' && lbl) {
+              lbl.textContent = 'Importando ' + archivo.nombre + ' · tramo ' + nTramo + '…';
+            }
+          }).then(function (res) {
+            totalesRes.archivos++;
+            if (res && res.yaImportado) {
+              totalesRes.yaImportados++;
+              return;
+            }
+            const docsRes = Array.isArray(res && res.documentos) ? res.documentos : [];
+            const cajasPorAlb = resumirCajasPorAlbaranCsv(archivo.texto);
+            docsRes.forEach(function (d) {
+              if (d.estado === 'NUEVO' && (d.estadoProceso === 'CONFIRMADO' || d.estadoProceso === 'CONFIRMADO_PARCIAL' || !d.estadoProceso)) {
+                totalesRes.documentosAplicados++;
+                const claveAlb = (String(d.serie || '') + '/' + String(d.numero || '')).toUpperCase();
+                const cj = Number(
+                  d.totalCajas ||
+                  d.cajasAplicadas ||
+                  (d.resumen && d.resumen.cajasOk) ||
+                  cajasPorAlb.get(claveAlb) ||
+                  0
+                );
+                if (d.tipoDoc === 'ENTRADA') totalesRes.cajasEntran += cj;
+                else totalesRes.cajasSalen += cj;
+              } else if (d.estado === 'STOCK_INSUFICIENTE' || d.estadoProceso === 'PENDIENTE_REVISION') {
+                totalesRes.ventasSinStock++;
+              } else if (d.estado === 'MODIFICADO_EN_ERP') {
+                totalesRes.modificados++;
+              }
+            });
+            if (res && res.reintentoPendientes) {
+              const ap = Number((res.reintentoPendientes.aplicados && res.reintentoPendientes.aplicados.total) || 0);
+              const dc = Number(res.reintentoPendientes.documentosConfirmados || 0);
+              totalesRes.pendientesResueltas += Math.max(dc, ap);
+            }
+          });
+        });
+      });
+
+      cadena
+        .then(function () {
+          const fill = document.getElementById('impProgressFill');
+          const pct = document.getElementById('impProgressPct');
+          if (fill) fill.style.width = '100%';
+          if (pct) pct.textContent = '100%';
+
+          const resWrap = document.getElementById('impResultadoWrap');
+          if (resWrap) {
+            resWrap.innerHTML =
+              '<div class="sl-card-flat" style="border-color:rgba(74,222,128,.35)">' +
+              '<div style="font-weight:700;font-size:16px;color:var(--sl-green)">Importación completada</div>' +
+              '<div class="sl-si-grid" style="margin-top:12px">' +
+              '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Documentos aplicados</span><span class="sl-mono" style="font-size:22px;font-weight:700">' + fmt(totalesRes.documentosAplicados) + '</span></div>' +
+              '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Cajas que entran</span><span class="sl-mono" style="font-size:22px;font-weight:700;color:var(--sl-green)">+' + fmt(totalesRes.cajasEntran) + '</span></div>' +
+              '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Cajas que salen</span><span class="sl-mono" style="font-size:22px;font-weight:700">−' + fmt(totalesRes.cajasSalen) + '</span></div>' +
+              '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Ventas sin stock</span><span class="sl-mono" style="font-size:22px;font-weight:700;color:' + (totalesRes.ventasSinStock > 0 ? 'var(--sl-red)' : 'var(--sl-text-secondary)') + '">' + fmt(totalesRes.ventasSinStock) + '</span></div>' +
+              '</div>' +
+              (totalesRes.pendientesResueltas > 0
+                ? '<div class="sl-alert-box ok" style="margin-top:12px"><b>Pendientes resueltas solas:</b> ' + fmt(totalesRes.pendientesResueltas) + ' ' + (totalesRes.pendientesResueltas === 1 ? 'pendiente se ha aplicado automáticamente' : 'pendientes se han aplicado automáticamente') + ' al entrar el stock.</div>'
+                : '') +
+              '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">' +
+              '<button type="button" id="btnImpIrExistencias" class="sl-btn">Ver existencias</button>' +
+              '<button type="button" id="btnImpIrPendientes" class="sl-ghost">Ver pendientes</button>' +
+              '</div></div>';
+            setVisibilidad('impResultadoWrap', true);
+            const bEx = document.getElementById('btnImpIrExistencias');
+            const bPe = document.getElementById('btnImpIrPendientes');
+            if (bEx) bEx.addEventListener('click', volverAExistencias);
+            if (bPe) bPe.addEventListener('click', abrirPendientes);
+          }
+
+          SLImp.archivos = [];
+          renderPrevisualizacionImportacion();
+          cargarInicio({ silencioso: true });
+        })
+        .catch(function (err) {
+          const box = document.getElementById('impErrorBox');
+          if (box) {
+            box.textContent = err && err.message ? err.message : String(err);
+            setVisibilidad('impErrorBox', true);
+          }
+        })
+        .finally(function () {
+          SLImp.confirmando = false;
+          window.removeEventListener('beforeunload', onBeforeUnload);
+          setVisibilidad('impProgressWrap', false);
+          if (btnConf) btnConf.disabled = false;
+        });
+    }
+
+    // --- Stock inicial (ADMIN) ---
+
+    function hayMovimientosExistentes() {
+      if (!SL.inicio) return false;
+      if (Number(SL.inicio.total || 0) > 0) return true;
+      if (Array.isArray(SL.inicio.ultimos) && SL.inicio.ultimos.length > 0) return true;
+      return false;
+    }
+
+    function renderPrevisualizacionStockInicial(prev) {
+      const wrap = document.getElementById('siPreviewWrap');
+      const body = document.getElementById('siPreviewBody');
+      const btnConf = document.getElementById('btnSiConfirmar');
+      const anadirWrap = document.getElementById('siAnadirWrap');
+      if (!wrap || !body) return;
+
+      if (!prev || prev.status !== 'OK') {
+        setVisibilidad('siPreviewWrap', false);
+        const errBox = document.getElementById('siErrorBox');
+        if (errBox) {
+          errBox.textContent = (prev && prev.error) || 'No se pudo previsualizar el CSV de stock inicial.';
+          setVisibilidad('siErrorBox', true);
+        }
+        return;
+      }
+
+      setVisibilidad('siErrorBox', false);
+      setVisibilidad('siPreviewWrap', true);
+
+      const filas = Array.isArray(prev.filas) ? prev.filas : [];
+      const tot = prev.totales || {};
+      const gen = tot.general || { cajas: 0, filas: 0 };
+      const porArt = Array.isArray(tot.porArticuloEnvase) ? tot.porArticuloEnvase : [];
+      const porProv = Array.isArray(tot.porProveedor) ? tot.porProveedor : [];
+
+      const conteoEstados = { OK: 0, NO_SEGUIDA: 0, DESCONOCIDA: 0, ERROR_DATOS: 0 };
+      filas.forEach(function (f) {
+        conteoEstados[f.estado] = (conteoEstados[f.estado] || 0) + 1;
+      });
+
+      const artRows = porArt.map(function (r) {
+        return '<tr><td>' + esc(nombreLegible(r.articulo)) + ' · ' + esc(nombreLegible(r.envase)) + '</td><td class="num">' + fmt(r.cajas) + '</td></tr>';
+      }).join('');
+      const provRows = porProv.map(function (r) {
+        return '<tr><td>' + esc(nombreLegible(r.proveedor)) + '</td><td class="num">' + fmt(r.cajas) + '</td></tr>';
+      }).join('');
+      const filasRows = filas.map(function (f) {
+        const col = f.estado === 'OK' ? 'var(--sl-green)' : (f.estado === 'NO_SEGUIDA' ? 'var(--sl-text-secondary)' : 'var(--sl-red)');
+        return (
+          '<tr>' +
+          '<td class="num">' + esc(f.linea || '') + '</td>' +
+          '<td>' + esc(fmtFechaDdMm(f.fecha)) + '</td>' +
+          '<td>' + esc(nombreLegible(f.articulo)) + ' · ' + esc(nombreLegible(f.envase)) + '</td>' +
+          '<td class="num">' + fmt(f.cajas) + '</td>' +
+          '<td style="color:' + col + ';font-weight:600">' + esc(f.estado) + (f.motivo ? ' (' + esc(f.motivo) + ')' : '') + (f.aviso ? ' · ' + esc(f.aviso) : '') + '</td>' +
+          '</tr>'
+        );
+      }).join('');
+
+      body.innerHTML =
+        '<div class="sl-card-flat">' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px">' +
+        '<div><div style="font-size:12px;color:var(--sl-text-secondary)">Total general a cargar</div>' +
+        '<div class="sl-imp-big-num">' + fmt(gen.cajas) + ' <span style="font-size:15px;font-weight:400;color:var(--sl-text-secondary)">cajas · ' + fmt(gen.filas) + ' filas OK</span></div></div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px">' +
+        '<span class="sl-count-pill" style="color:var(--sl-green)">OK: ' + fmt(conteoEstados.OK) + '</span>' +
+        '<span class="sl-count-pill">No seguida: ' + fmt(conteoEstados.NO_SEGUIDA) + '</span>' +
+        '<span class="sl-count-pill" style="color:var(--sl-red)">Bloqueos: ' + fmt(prev.bloqueos || 0) + '</span>' +
+        '</div></div>' +
+        '<div class="sl-si-grid">' +
+        '<div><div style="font-size:12px;font-weight:600;color:var(--sl-text-secondary)">Por artículo + envase</div>' +
+        '<table class="sl-si-table"><thead><tr><th>Combinación</th><th class="num">Cajas</th></tr></thead><tbody>' + artRows + '</tbody></table></div>' +
+        '<div><div style="font-size:12px;font-weight:600;color:var(--sl-text-secondary)">Por proveedor</div>' +
+        '<table class="sl-si-table"><thead><tr><th>Proveedor</th><th class="num">Cajas</th></tr></thead><tbody>' + provRows + '</tbody></table></div>' +
+        '</div>' +
+        '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;color:var(--sl-text-secondary)">Ver detalle de las ' + fmt(filas.length) + ' filas</summary>' +
+        '<div style="overflow-x:auto"><table class="sl-si-table"><thead><tr><th class="num">#</th><th>Fecha</th><th>Artículo · Envase</th><th class="num">Cajas</th><th>Estado</th></tr></thead><tbody>' + filasRows + '</tbody></table></div>' +
+        '</details></div>';
+
+      if (anadirWrap) {
+        setVisibilidad('siAnadirWrap', hayMovimientosExistentes());
+      }
+      if (btnConf) {
+        btnConf.disabled = Boolean(prev.bloquea || gen.filas === 0);
+      }
+    }
+
+    function previsualizarStockInicial() {
+      const ta = document.getElementById('siCsvInput');
+      const texto = ta ? String(ta.value || '').trim() : '';
+      if (!texto) {
+        const errBox = document.getElementById('siErrorBox');
+        if (errBox) {
+          errBox.textContent = 'Pega o elige un archivo CSV de stock inicial primero.';
+          setVisibilidad('siErrorBox', true);
+        }
+        return;
+      }
+      SLImp.stockInicialTexto = texto;
+      setVisibilidad('siErrorBox', false);
+      setVisibilidad('siResultadoWrap', false);
+
+      window.SLBridge.call('apiPrevisualizarStockInicial', texto)
+        .then(function (prev) {
+          SLImp.stockInicialPreview = prev;
+          renderPrevisualizacionStockInicial(prev);
+        })
+        .catch(function (err) {
+          const errBox = document.getElementById('siErrorBox');
+          if (errBox) {
+            errBox.textContent = err && err.message ? err.message : String(err);
+            setVisibilidad('siErrorBox', true);
+          }
+        });
+    }
+
+    function confirmarStockInicial() {
+      if (!SLImp.stockInicialPreview || !SLImp.stockInicialTexto) return;
+      const chk = document.getElementById('chkSiAnadir');
+      const anadir = Boolean(chk && chk.checked && hayMovimientosExistentes());
+      const btn = document.getElementById('btnSiConfirmar');
+      if (btn) btn.disabled = true;
+
+      window.SLBridge.call('apiConfirmarStockInicial', SLImp.stockInicialTexto, SLImp.stockInicialPreview.hash, anadir)
+        .then(function (res) {
+          if (!res || res.success === false) {
+            const errBox = document.getElementById('siErrorBox');
+            if (errBox) {
+              errBox.textContent = (res && res.error) || 'No se pudo confirmar el stock inicial.';
+              setVisibilidad('siErrorBox', true);
+            }
+            return;
+          }
+          const wrap = document.getElementById('siResultadoWrap');
+          if (wrap) {
+            wrap.innerHTML =
+              '<div class="sl-card-flat" style="border-color:rgba(74,222,128,.35)">' +
+              '<div style="font-weight:700;font-size:16px;color:var(--sl-green)">Stock inicial cargado</div>' +
+              '<p style="margin:6px 0 0;font-size:14px">Se han cargado <b>' + fmt(res.cajasCargadas) + ' cajas</b> en ' + fmt(res.filasCargadas) + ' partidas.</p>' +
+              (res.copia && res.copia.nombre ? '<p style="margin:4px 0 0;font-size:12px;color:var(--sl-text-secondary)">Copia previa creada: ' + esc(res.copia.nombre) + '</p>' : '') +
+              '</div>';
+            setVisibilidad('siResultadoWrap', true);
+          }
+          setVisibilidad('siPreviewWrap', false);
+          cargarInicio({ silencioso: true });
+        })
+        .catch(function (err) {
+          const errBox = document.getElementById('siErrorBox');
+          if (errBox) {
+            errBox.textContent = err && err.message ? err.message : String(err);
+            setVisibilidad('siErrorBox', true);
+          }
+        })
+        .finally(function () {
+          if (btn) btn.disabled = false;
+        });
+    }
+
+    // --- Pantalla Pendientes (T-028 reglas 6 y 7) ---
+
+    function renderPendientes(data) {
+      SLImp.pendientesData = data || { totalDocumentos: 0, totalFilas: 0, porMotivo: {} };
+      const porMotivo = SLImp.pendientesData.porMotivo || {};
+      const bloqueStock = porMotivo.STOCK_INSUFICIENTE || { totalDocumentos: 0, documentos: [] };
+      const bloqueSeg = porMotivo.SEGUIMIENTO_DESCONOCIDO || { totalDocumentos: 0, documentos: [] };
+      const bloqueMod = porMotivo.MODIFICADO_EN_ERP || { totalDocumentos: 0, documentos: [] };
+
+      const gruposSeg = agruparSeguimientoDesconocido(bloqueSeg);
+      const totalDocs = Number(SLImp.pendientesData.totalDocumentos || 0);
+      actualizarBadgesPendientes(totalDocs);
+
+      const cStock = document.getElementById('pendCountStock');
+      const cSeg = document.getElementById('pendCountSeguimiento');
+      const cMod = document.getElementById('pendCountModificados');
+      if (cStock) cStock.textContent = String(bloqueStock.totalDocumentos || 0);
+      if (cSeg) cSeg.textContent = String(gruposSeg.length);
+      if (cMod) cMod.textContent = String(bloqueMod.totalDocumentos || 0);
+
+      // 1. Ventas sin stock
+      const listaStock = document.getElementById('pendListaStock');
+      if (listaStock) {
+        const docs = Array.isArray(bloqueStock.documentos) ? bloqueStock.documentos : [];
+        if (docs.length === 0) {
+          listaStock.innerHTML = '<div style="font-size:13px;color:var(--sl-text-secondary)">No hay ventas esperando stock.</div>';
+        } else {
+          listaStock.innerHTML = docs.map(function (doc) {
+            const alb = [doc.serie, doc.numero].filter(Boolean).join('/');
+            const lineasHtml = (doc.lineas || []).map(function (l) {
+              return (
+                '<div class="sl-pend-line-row">' +
+                '<span>' + esc(nombreLegible(l.articulo)) + ' · ' + esc(nombreLegible(l.envase)) + '</span>' +
+                '<span class="sl-mono" style="color:var(--sl-red)">' + fmt(l.cajas) + ' cj</span>' +
+                '</div>'
+              );
+            }).join('');
+            return (
+              '<div class="sl-pend-item">' +
+              '<div class="sl-pend-item-head">' +
+              '<span><b>' + esc(alb || 'Albarán') + '</b> · ' + esc(fmtFechaDdMm(doc.fecha_negocio)) + (doc.entidad ? ' · ' + esc(nombreLegible(doc.entidad)) : '') + '</span>' +
+              '<span class="sl-mono" style="font-weight:600">' + fmt(doc.totalCajas) + ' cj</span>' +
+              '</div>' +
+              '<div class="sl-pend-lines">' + lineasHtml + '</div>' +
+              '</div>'
+            );
+          }).join('');
+        }
+      }
+
+      // 2. Artículos nuevos sin decidir
+      const listaSeg = document.getElementById('pendListaSeguimiento');
+      if (listaSeg) {
+        if (gruposSeg.length === 0) {
+          listaSeg.innerHTML = '<div style="font-size:13px;color:var(--sl-text-secondary)">No hay artículos nuevos sin decidir.</div>';
+        } else {
+          listaSeg.innerHTML = gruposSeg.map(function (g) {
+            const confirmandoEsta = SLImp.confirmarDecisionClave && SLImp.confirmarDecisionClave.clave === g.clave;
+            const accionesHtml = confirmandoEsta
+              ? (
+                '<div class="sl-pend-actions" data-solo-escritura="1">' +
+                '<span style="font-size:13px;color:var(--sl-amber)">¿Confirmar <b>' + esc(SLImp.confirmarDecisionClave.decision === 'SEGUIR' ? 'seguir este artículo' : 'ignorarlo') + '</b>?</span>' +
+                '<button type="button" class="sl-btn" data-confirmar-decision="' + esc(SLImp.confirmarDecisionClave.decision) + '" data-art="' + esc(g.articulo) + '" data-env="' + esc(g.envase) + '" data-solo-escritura="1">Sí, confirmar</button>' +
+                '<button type="button" class="sl-ghost" data-cancelar-decision="1" data-solo-escritura="1">Cancelar</button>' +
+                '</div>'
+              )
+              : (
+                '<div class="sl-pend-actions" data-solo-escritura="1">' +
+                '<button type="button" class="sl-btn" data-pedir-decision="SEGUIR" data-clave="' + esc(g.clave) + '" data-solo-escritura="1">Seguir este artículo</button>' +
+                '<button type="button" class="sl-ghost" data-pedir-decision="IGNORAR" data-clave="' + esc(g.clave) + '" data-solo-escritura="1">Ignorarlo</button>' +
+                '</div>'
+              );
+            return (
+              '<div class="sl-pend-item">' +
+              '<div class="sl-pend-item-head">' +
+              '<span style="font-weight:600">' + esc(nombreLegible(g.articulo)) + ' · ' + esc(nombreLegible(g.envase)) + '</span>' +
+              '<span class="sl-mono">' + fmt(g.cajas) + ' cj</span>' +
+              '</div>' +
+              '<div style="font-size:12px;color:var(--sl-text-secondary)">' + fmt(g.lineas) + ' ' + (g.lineas === 1 ? 'línea esperando' : 'líneas esperando') + ' · Albaranes: ' + esc(g.documentos.join(', ')) + '</div>' +
+              accionesHtml +
+              '</div>'
+            );
+          }).join('');
+
+          listaSeg.querySelectorAll('[data-pedir-decision]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              SLImp.confirmarDecisionClave = {
+                clave: btn.getAttribute('data-clave'),
+                decision: btn.getAttribute('data-pedir-decision')
+              };
+              renderPendientes(SLImp.pendientesData);
+            });
+          });
+          listaSeg.querySelectorAll('[data-cancelar-decision]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              SLImp.confirmarDecisionClave = null;
+              renderPendientes(SLImp.pendientesData);
+            });
+          });
+          listaSeg.querySelectorAll('[data-confirmar-decision]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              const dec = btn.getAttribute('data-confirmar-decision');
+              const art = btn.getAttribute('data-art');
+              const env = btn.getAttribute('data-env');
+              ejecutarDecisionSeguimiento(art, env, dec);
+            });
+          });
+        }
+      }
+
+      // 3. Albaranes cambiados en Hispatec
+      const listaMod = document.getElementById('pendListaModificados');
+      if (listaMod) {
+        const docs = Array.isArray(bloqueMod.documentos) ? bloqueMod.documentos : [];
+        if (docs.length === 0) {
+          listaMod.innerHTML = '<div style="font-size:13px;color:var(--sl-text-secondary)">No hay albaranes cambiados en Hispatec.</div>';
+        } else {
+          listaMod.innerHTML = docs.map(function (doc) {
+            const alb = [doc.serie, doc.numero].filter(Boolean).join('/');
+            const primera = (doc.lineas && doc.lineas[0]) || {};
+            const idPend = primera.id_pendiente || '';
+            return (
+              '<div class="sl-pend-item">' +
+              '<div class="sl-pend-item-head">' +
+              '<span><b>' + esc(alb || 'Albarán') + '</b> · ' + esc(fmtFechaDdMm(doc.fecha_negocio)) + (doc.entidad ? ' · ' + esc(nombreLegible(doc.entidad)) : '') + '</span>' +
+              '<span class="sl-mono" style="color:var(--sl-amber)">Diferencia: ' + esc(fmtSigned(doc.totalCajas)) + ' cj</span>' +
+              '</div>' +
+              '<div class="sl-pend-actions" data-solo-escritura="1">' +
+              '<input type="text" class="sl-input-inline" data-nota-pend="' + esc(idPend) + '" placeholder="Motivo de revisión…" aria-label="Motivo de revisión" data-solo-escritura="1">' +
+              '<button type="button" class="sl-ghost" data-marcar-revisado="' + esc(idPend) + '" data-solo-escritura="1">Marcar revisado</button>' +
+              '<span class="sl-btn-disabled-wrap" data-solo-escritura="1"><button type="button" class="sl-ghost" disabled data-solo-escritura="1">Aplicar la versión nueva</button><span>Disponible pronto</span></span>' +
+              '</div>' +
+              '</div>'
+            );
+          }).join('');
+
+          listaMod.querySelectorAll('[data-marcar-revisado]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              const idPend = btn.getAttribute('data-marcar-revisado');
+              const inp = listaMod.querySelector('[data-nota-pend="' + idPend + '"]');
+              const nota = inp ? String(inp.value || '').trim() : '';
+              marcarPendienteRevisado(idPend, nota);
+            });
+          });
+        }
+      }
+
+      aplicarRol(SL.rol);
+    }
+
+    function cargarPendientes() {
+      setVisibilidad('pendErrorBox', false);
+      setVisibilidad('pendCargando', true);
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        setVisibilidad('pendCargando', false);
+        return Promise.resolve();
+      }
+      return window.SLBridge.call('apiListarPendientes', { estado: 'PENDIENTE' })
+        .then(function (data) {
+          setVisibilidad('pendCargando', false);
+          renderPendientes(data);
+        })
+        .catch(function (err) {
+          setVisibilidad('pendCargando', false);
+          const box = document.getElementById('pendErrorBox');
+          if (box) {
+            box.textContent = err && err.message ? err.message : String(err);
+            setVisibilidad('pendErrorBox', true);
+          }
+        });
+    }
+
+    function reintentarPendientesAhora() {
+      const btn = document.getElementById('btnReintentarPendientes');
+      if (btn) btn.disabled = true;
+      setVisibilidad('pendErrorBox', false);
+      return window.SLBridge.call('apiReintentarPendientes')
+        .then(function (res) {
+          const aplicados = Number((res && res.aplicados && res.aplicados.total) || 0);
+          const box = document.getElementById('pendFeedbackBox');
+          if (box) {
+            box.textContent = aplicados > 0
+              ? ('Reintento completado: ' + fmt(aplicados) + ' ' + (aplicados === 1 ? 'línea aplicada' : 'líneas aplicadas') + '.')
+              : 'Reintento completado: no había stock suficiente todavía para las ventas pendientes.';
+            setVisibilidad('pendFeedbackBox', true);
+          }
+          cargarInicio({ silencioso: true });
+          return cargarPendientes();
+        })
+        .catch(function (err) {
+          const box = document.getElementById('pendErrorBox');
+          if (box) {
+            box.textContent = err && err.message ? err.message : String(err);
+            setVisibilidad('pendErrorBox', true);
+          }
+        })
+        .finally(function () {
+          if (btn) btn.disabled = false;
+        });
+    }
+
+    function ejecutarDecisionSeguimiento(articulo, envase, decision) {
+      SLImp.confirmarDecisionClave = null;
+      setVisibilidad('pendErrorBox', false);
+      return window.SLBridge.call('apiDecidirSeguimiento', articulo, envase, decision)
+        .then(function (res) {
+          const box = document.getElementById('pendFeedbackBox');
+          if (box) {
+            if (decision === 'SEGUIR') {
+              const ap = Number((res && res.aplicados && res.aplicados.total) || 0);
+              box.textContent = nombreLegible(articulo) + ' · ' + nombreLegible(envase) + ' marcado como seguido. Líneas aplicadas: ' + fmt(ap) + '.';
+            } else {
+              const ig = Number((res && res.ignorados && res.ignorados.total) || 0);
+              box.textContent = nombreLegible(articulo) + ' · ' + nombreLegible(envase) + ' ignorado (' + fmt(ig) + ' líneas descartadas).';
+            }
+            setVisibilidad('pendFeedbackBox', true);
+          }
+          cargarInicio({ silencioso: true });
+          return cargarPendientes();
+        })
+        .catch(function (err) {
+          const box = document.getElementById('pendErrorBox');
+          if (box) {
+            box.textContent = err && err.message ? err.message : String(err);
+            setVisibilidad('pendErrorBox', true);
+          }
+        });
+    }
+
+    function marcarPendienteRevisado(idPendiente, nota) {
+      setVisibilidad('pendErrorBox', false);
+      return window.SLBridge.call('apiMarcarPendienteResuelto', idPendiente, nota || 'Revisado')
+        .then(function (res) {
+          if (res && res.success === false) {
+            throw new Error(res.message || 'No se pudo marcar como revisado.');
+          }
+          const box = document.getElementById('pendFeedbackBox');
+          if (box) {
+            box.textContent = 'Albarán marcado como revisado.';
+            setVisibilidad('pendFeedbackBox', true);
+          }
+          cargarInicio({ silencioso: true });
+          return cargarPendientes();
+        })
+        .catch(function (err) {
+          const box = document.getElementById('pendErrorBox');
+          if (box) {
+            box.textContent = err && err.message ? err.message : String(err);
+            setVisibilidad('pendErrorBox', true);
+          }
+        });
     }
 
     function fmtFechaDdMm(iso) {
@@ -445,15 +1524,7 @@
       // 2. Por revisar (pendientes)
       const kpiPend = document.getElementById('kpiPendientes');
       const totalPend = Number((data.pendientes && data.pendientes.total) || 0);
-      const badgeNav = document.getElementById('navPendientesBadge');
-      if (badgeNav) {
-        if (totalPend > 0) {
-          badgeNav.textContent = String(totalPend);
-          badgeNav.classList.remove('sl-hidden');
-        } else {
-          badgeNav.classList.add('sl-hidden');
-        }
-      }
+      actualizarBadgesPendientes(totalPend);
       if (kpiPend) {
         const sub = totalPend === 1 ? 'pendiente' : 'pendientes';
         const col = totalPend > 0 ? 'var(--sl-amber)' : 'var(--sl-text-secondary)';
@@ -936,21 +2007,23 @@
     }
 
     function volverAExistencias() {
-      setVisibilidad('viewPartida', false);
-      setVisibilidad('viewExistencias', true);
+      mostrarVista('existencias');
     }
 
-    function renderInicio(data) {
+    function renderInicio(data, opciones) {
       SL.inicio = data;
       SL.ultimoOkAt = new Date();
       SL.hoverIdx = null;
+      const silencioso = Boolean(opciones && opciones.silencioso);
 
       if (!data || (Number(data.total || 0) === 0 && (!data.variedades || data.variedades.length === 0))) {
-        mostrarEstadoExistencias('vacio');
+        if (!silencioso) mostrarEstadoExistencias('vacio');
         return;
       }
 
-      mostrarEstadoExistencias('datos');
+      if (!silencioso) {
+        mostrarEstadoExistencias('datos');
+      }
 
       const deskTotal = document.getElementById('deskTotalNum');
       const mobTotal = document.getElementById('mobTotalNum');
@@ -981,29 +2054,30 @@
       renderMovimientos();
     }
 
-    function cargarInicio() {
-      if (SL.estadoForzado) {
+    function cargarInicio(opciones) {
+      const silencioso = Boolean(opciones && opciones.silencioso);
+      if (SL.estadoForzado && !silencioso) {
         aplicarEstadoPreview(SL.estadoForzado);
         return Promise.resolve();
       }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        mostrarEstadoExistencias(SL.inicio ? 'sin_conexion_con_datos' : 'sin_conexion');
+        if (!silencioso) mostrarEstadoExistencias(SL.inicio ? 'sin_conexion_con_datos' : 'sin_conexion');
         return Promise.resolve();
       }
 
-      mostrarEstadoExistencias('cargando');
+      if (!silencioso) mostrarEstadoExistencias('cargando');
       if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
-        mostrarEstadoExistencias('error', 'No se encontró conexión con el servidor.');
+        if (!silencioso) mostrarEstadoExistencias('error', 'No se encontró conexión con el servidor.');
         return Promise.resolve();
       }
 
       return window.SLBridge.call('apiObtenerInicio')
         .then(function (data) {
-          renderInicio(data);
+          renderInicio(data, { silencioso: silencioso });
         })
         .catch(function (err) {
           const msg = err && err.message ? err.message : String(err);
-          if (msg === 'SESION_INVALIDA') return;
+          if (msg === 'SESION_INVALIDA' || silencioso) return;
           if (/network|fetch|conexi[oó]n|offline|failed/i.test(msg)) {
             mostrarEstadoExistencias(SL.inicio ? 'sin_conexion_con_datos' : 'sin_conexion');
           } else {
@@ -1029,6 +2103,21 @@
 
     function enlazarEventos() {
       document.querySelectorAll('[data-proxima-version]').forEach(el => {
+        const txt = String(el.textContent || '').trim();
+        if (txt === 'Importar CSV' || txt === 'Importar') {
+          el.addEventListener('click', function (e) {
+            e.preventDefault();
+            abrirImportar('csv');
+          });
+          return;
+        }
+        if (txt === 'Cargar stock inicial') {
+          el.addEventListener('click', function (e) {
+            e.preventDefault();
+            abrirImportar('stock_inicial');
+          });
+          return;
+        }
         el.addEventListener('click', function (e) {
           e.preventDefault();
           proximaVersion();
@@ -1037,6 +2126,111 @@
 
       const navExist = document.getElementById('navExistencias');
       if (navExist) navExist.addEventListener('click', volverAExistencias);
+      const navImp = document.getElementById('navImportar');
+      if (navImp) navImp.addEventListener('click', function () { abrirImportar('csv'); });
+      const navPend = document.getElementById('navPendientes');
+      if (navPend) navPend.addEventListener('click', abrirPendientes);
+
+      // Hacer clicable la tarjeta KPI "Por revisar" para abrir Pendientes
+      const kpiPend = document.getElementById('kpiPendientes');
+      if (kpiPend && kpiPend.parentElement) {
+        kpiPend.parentElement.style.cursor = 'pointer';
+        kpiPend.parentElement.addEventListener('click', abrirPendientes);
+      }
+
+      // Eventos de Importar (T-028)
+      const btnVolverImp = document.getElementById('btnVolverImportar');
+      if (btnVolverImp) btnVolverImp.addEventListener('click', volverAExistencias);
+      const tabImpCsv = document.getElementById('tabImpCsv');
+      const tabImpPend = document.getElementById('tabImpPendientes');
+      const tabImpSi = document.getElementById('tabImpStockInicial');
+      if (tabImpCsv) tabImpCsv.addEventListener('click', function () { activarPestanaImportar('csv'); });
+      if (tabImpPend) tabImpPend.addEventListener('click', abrirPendientes);
+      if (tabImpSi) tabImpSi.addEventListener('click', function () { activarPestanaImportar('stock_inicial'); });
+
+      const dropZone = document.getElementById('impDropZone');
+      const fileInput = document.getElementById('impFileInput');
+      if (dropZone && fileInput) {
+        dropZone.addEventListener('click', function () { fileInput.click(); });
+        dropZone.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            fileInput.click();
+          }
+        });
+        dropZone.addEventListener('dragover', function (e) {
+          e.preventDefault();
+          dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', function () {
+          dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', function (e) {
+          e.preventDefault();
+          dropZone.classList.remove('dragover');
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            procesarArchivosCsv(e.dataTransfer.files);
+          }
+        });
+        fileInput.addEventListener('change', function () {
+          if (fileInput.files && fileInput.files.length > 0) {
+            procesarArchivosCsv(fileInput.files);
+            fileInput.value = '';
+          }
+        });
+      }
+
+      const btnConfImp = document.getElementById('btnConfirmarImportacion');
+      const btnLimpImp = document.getElementById('btnLimpiarImportacion');
+      if (btnConfImp) btnConfImp.addEventListener('click', confirmarImportacionTodos);
+      if (btnLimpImp) {
+        btnLimpImp.addEventListener('click', function () {
+          SLImp.archivos = [];
+          setVisibilidad('impErrorBox', false);
+          setVisibilidad('impResultadoWrap', false);
+          renderPrevisualizacionImportacion();
+        });
+      }
+
+      // Eventos de Stock inicial (ADMIN)
+      const siFileInput = document.getElementById('siFileInput');
+      const siCsvInput = document.getElementById('siCsvInput');
+      if (siFileInput && siCsvInput) {
+        siFileInput.addEventListener('change', function () {
+          const f = siFileInput.files && siFileInput.files[0];
+          if (!f) return;
+          leerArchivoCsvConCodificacion(f).then(function (dec) {
+            siCsvInput.value = dec.texto;
+            previsualizarStockInicial();
+          });
+          siFileInput.value = '';
+        });
+      }
+      const btnSiPrev = document.getElementById('btnSiPrevisualizar');
+      const btnSiLimp = document.getElementById('btnSiLimpiar');
+      const btnSiConf = document.getElementById('btnSiConfirmar');
+      if (btnSiPrev) btnSiPrev.addEventListener('click', previsualizarStockInicial);
+      if (btnSiLimp) {
+        btnSiLimp.addEventListener('click', function () {
+          if (siCsvInput) siCsvInput.value = '';
+          SLImp.stockInicialTexto = '';
+          SLImp.stockInicialPreview = null;
+          setVisibilidad('siPreviewWrap', false);
+          setVisibilidad('siErrorBox', false);
+          setVisibilidad('siResultadoWrap', false);
+        });
+      }
+      if (btnSiConf) btnSiConf.addEventListener('click', confirmarStockInicial);
+
+      // Eventos de Pendientes (T-028)
+      const btnVolverPend = document.getElementById('btnVolverPendientes');
+      if (btnVolverPend) btnVolverPend.addEventListener('click', volverAExistencias);
+      const tabPendImp = document.getElementById('tabPendAImportar');
+      const tabPendSi = document.getElementById('tabPendAStockInicial');
+      if (tabPendImp) tabPendImp.addEventListener('click', function () { abrirImportar('csv'); });
+      if (tabPendSi) tabPendSi.addEventListener('click', function () { abrirImportar('stock_inicial'); });
+      const btnReint = document.getElementById('btnReintentarPendientes');
+      if (btnReint) btnReint.addEventListener('click', reintentarPendientesAhora);
 
       const deskPeriodo = document.getElementById('deskPeriodoGroup');
       if (deskPeriodo) {
@@ -1189,7 +2383,20 @@
       filtrarVariedades,
       calcularDeltaSemanal,
       calcularDesgloseArticulos,
-      construirTextoWhatsApp
+      construirTextoWhatsApp,
+      decodificarBytesCsv,
+      detectarTipoArchivoCsv,
+      ordenarArchivosImportacion,
+      agruparSeguimientoDesconocido,
+      abrirImportar,
+      abrirPendientes,
+      procesarArchivosCsv,
+      confirmarImportacionTodos,
+      previsualizarStockInicial,
+      confirmarStockInicial,
+      cargarPendientes,
+      reintentarPendientesAhora,
+      ejecutarDecisionSeguimiento
     };
   })();
 </script>

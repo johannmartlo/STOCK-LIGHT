@@ -1,0 +1,78 @@
+<section id="viewPendientes" class="sl-page-wrap sl-hidden" aria-label="Pendientes">
+  <div class="sl-page-header">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+      <button type="button" id="btnVolverPendientes" class="sl-icon-btn" aria-label="Volver a existencias">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+      </button>
+      <div style="min-width:0">
+        <h1 class="sl-page-title">Pendientes <span id="pendTotalBadge" class="sl-count-pill">0</span></h1>
+        <p class="sl-page-sub">Documentos y artículos en espera de stock, decisión o revisión.</p>
+      </div>
+    </div>
+
+    <div class="sl-tabs" role="tablist" aria-label="Cambiar a importar">
+      <button type="button" id="tabPendAImportar" class="sl-tab" role="tab" aria-selected="false" data-solo-escritura="1">Importar CSV</button>
+      <button type="button" class="sl-tab" role="tab" aria-selected="true">Pendientes</button>
+      <button type="button" id="tabPendAStockInicial" class="sl-tab" role="tab" aria-selected="false" data-solo-admin="1">Stock inicial</button>
+    </div>
+  </div>
+
+  <!-- Banner de resultado / feedback -->
+  <div id="pendFeedbackBox" class="sl-alert-box ok sl-hidden" role="status" aria-live="polite"></div>
+  <div id="pendErrorBox" class="sl-alert-box error sl-hidden" role="alert"></div>
+
+  <!-- Estado cargando -->
+  <div id="pendCargando" class="sl-hidden" style="display:flex;flex-direction:column;gap:12px">
+    <div class="sl-sk" style="height:120px;border-radius:14px"></div>
+    <div class="sl-sk" style="height:120px;border-radius:14px"></div>
+  </div>
+
+  <!-- Contenido de los tres bloques -->
+  <div id="pendContenido" class="sl-pend-blocks">
+    <!-- Bloque 1: Ventas sin stock (STOCK_INSUFICIENTE) -->
+    <section class="sl-card-flat" aria-labelledby="lblPendStock">
+      <div class="sl-pend-block-head">
+        <div>
+          <h2 id="lblPendStock" class="sl-pend-block-title">
+            <span class="sl-dot-ind" style="background:var(--sl-red)"></span>
+            Ventas sin stock
+            <span id="pendCountStock" class="sl-count-pill">0</span>
+          </h2>
+          <p class="sl-pend-help">Suele faltar una compra o un cambio por registrar. Se aplican solas cuando entra el stock.</p>
+        </div>
+        <button type="button" id="btnReintentarPendientes" class="sl-ghost" data-solo-escritura="1">Reintentar ahora</button>
+      </div>
+      <div id="pendListaStock" class="sl-pend-list"></div>
+    </section>
+
+    <!-- Bloque 2: Artículos nuevos sin decidir (SEGUIMIENTO_DESCONOCIDO) -->
+    <section class="sl-card-flat" aria-labelledby="lblPendSeguimiento">
+      <div class="sl-pend-block-head">
+        <div>
+          <h2 id="lblPendSeguimiento" class="sl-pend-block-title">
+            <span class="sl-dot-ind" style="background:var(--sl-amber)"></span>
+            Artículos nuevos sin decidir
+            <span id="pendCountSeguimiento" class="sl-count-pill">0</span>
+          </h2>
+          <p class="sl-pend-help">Indica si llevamos stock de estos artículos o si se ignoran en futuras importaciones.</p>
+        </div>
+      </div>
+      <div id="pendListaSeguimiento" class="sl-pend-list"></div>
+    </section>
+
+    <!-- Bloque 3: Albaranes cambiados en Hispatec (MODIFICADO_EN_ERP) -->
+    <section class="sl-card-flat" aria-labelledby="lblPendModificados">
+      <div class="sl-pend-block-head">
+        <div>
+          <h2 id="lblPendModificados" class="sl-pend-block-title">
+            <span class="sl-dot-ind" style="background:var(--sl-text-secondary)"></span>
+            Albaranes cambiados en Hispatec
+            <span id="pendCountModificados" class="sl-count-pill">0</span>
+          </h2>
+          <p class="sl-pend-help">Estos albaranes ya estaban importados y han vuelto con líneas o cajas distintas.</p>
+        </div>
+      </div>
+      <div id="pendListaModificados" class="sl-pend-list"></div>
+    </section>
+  </div>
+</section>

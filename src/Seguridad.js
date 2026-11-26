@@ -103,6 +103,7 @@ const PERMISOS_API = {
   apiMarcarPendienteResuelto: 'ENCARGADO',
   apiAplicarVersion: 'ENCARGADO',
   apiAnularAjuste: 'ENCARGADO',
+  apiDecidirSeguimiento: 'ENCARGADO',
   apiUpsertGrupoComercial: 'ENCARGADO',
   apiUpsertMatrizArticuloEnvase: 'ENCARGADO',
 
