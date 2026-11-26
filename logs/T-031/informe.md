@@ -13,7 +13,7 @@
    comerciales fuera se implementan como reglas `SEGUIMIENTO = NO` con prioridad 1.
 4. `apiListarExclusiones` (CONSULTA) y documentación en `BUSINESS_RULES.md`,
    `IMPORT_SPECS.md`, `DATA_MODEL.md` y `docs/API_PUBLICA.md`; sin nombres reales.
-5. `node test/run_all.js`: **38 suites, 379 pruebas, 0 fallos** (incluye T-027 y T-031).
+5. `node test/run_all.js`: **38 suites, 383 pruebas, 0 fallos** (incluye T-027 y T-031).
    Sin merge.
 
 ## git status
@@ -96,8 +96,9 @@ e788b0d docs(tickets): anadir T-031 exclusiones
 ## Rebase sobre 9c54b7b
 
 Las secciones «git status» y «git log» anteriores son del estado previo al rebase; el estado
-final es el de esta sección. Rebase realizado sobre `9c54b7b` (incluye T-027), sin tocar
-`CorreccionService.js`.
+final es el de esta sección. Rebase realizado sobre `9c54b7b` (incluye T-027). En el rebase
+no se tocó `CorreccionService.js`; se modificó después, solo para el punto B de la
+corrección exclusiones × versiones.
 
 ### Archivos con conflicto y resolución
 
@@ -119,8 +120,8 @@ intactas.
 
 ### Pruebas
 
-`node test/run_all.js`: **38 suites, 379 pruebas, 0 fallos**. Incluye las 12 pruebas de T-027
-y las 6 de T-031. Salida completa en `logs/T-031/tests.txt`.
+`node test/run_all.js`: **38 suites, 383 pruebas, 0 fallos**. Incluye las 12 pruebas de T-027
+y las 10 de T-031. Salida completa en `logs/T-031/tests.txt`.
 
 ### `git log --oneline -5`
 
@@ -131,3 +132,90 @@ c3fcc3d docs(T-031): actualizar pruebas tras rebase
 129b783 fix(T-031): registrar solo documentos totalmente excluidos
 0808fe0 docs(T-031): completar informe de entrega
 ```
+
+---
+
+## Corrección exclusiones × versiones
+
+### A. Versión con todas las líneas y su estado real
+
+- `ImportacionService._preparar_` construye `documento.lineasTodas` desde las líneas ya
+  clasificadas, no desde las líneas crudas del CSV.
+- `_lineasVersionDocumento_` guarda **todas** las líneas con su estado real (`OK`,
+  `PENDIENTE`, `CLIENTE_EXCLUIDO`, `NO_SEGUIDA`, etc.). Nunca pone `OK` por defecto.
+- La diferencia de cajas del pendiente usa solo `doc.lineasOk` (las que mueven stock).
+
+### B. Versión sin líneas OK
+
+- `CorreccionService._contextoVersion_` ya no rechaza una versión sin líneas OK. Solo rechaza
+  una versión sin líneas (`VERSION_SIN_LINEAS`).
+- La cascada de T-027 se ejecuta igual: anula lo que hubiera aplicado y no crea movimientos
+  nuevos.
+- La previsualización y el resultado de aplicar incluyen
+  `«La versión nueva no mueve stock»` en `mensaje`/`aviso` y
+  `sin_movimientos_stock: true`.
+
+### C. Albaranes totalmente excluidos
+
+- Al importar un documento con todas sus líneas `CLIENTE_EXCLUIDO`, se registra también una
+  versión de partida en `VERSIONES_DOCUMENTO` (`estado: 'BASE'`,
+  `motivo: 'VERSION_INICIAL'`).
+- Si después pasa a cliente normal, la versión nueva se aplica sobre esa base y crea la
+  salida (o el pendiente por stock, con el todo o nada de T-027).
+- Si solo cambian cajas y sigue excluido, **se aplica sin mover stock** y el pendiente queda
+  resuelto. Elegí esta opción, en vez de no crear el pendiente, porque deja el documento y su
+  versión coherentes y evita un `MODIFICADO_EN_ERP` imposible.
+- Si no hay movimientos activos, `_contextoVersion_` usa la última versión `BASE` o
+  `APLICADA` del documento para conocer la versión vigente. Así una corrección posterior de
+  un documento que sigue sin movimientos no vuelve a caer en `DOCUMENTO_SIN_VERSION_ACTIVA`.
+
+### Pruebas
+
+- Casos nuevos 5 a 9 de `test/t031_exclusiones.test.js`:
+  1. normal aplicada → excluida;
+  2. excluida entera → cliente normal;
+  3. excluida entera → cambian cajas y sigue excluida;
+  4. normal → todas las líneas con nombre fuera;
+  5. invariante de 30 semillas con lotes desordenados, reimportación, correcciones y
+     ecuación final.
+- `node test/run_all.js`: **38 suites, 383 pruebas, 0 fallos**. T-027 sigue con sus 12
+  pruebas y T-031 tiene 10. Salida en `logs/T-031/tests.txt`.
+
+### `git log --oneline -5`
+
+```text
+c70c01d fix(T-031): corregir versiones de documentos excluidos
+31259fc docs(T-031): reflejar el rebase en la aceptacion e informe
+2ff9573 docs(T-031): documentar rebase sobre 9c54b7b
+c3fcc3d docs(T-031): actualizar pruebas tras rebase
+73f4062 docs(T-031): actualizar informe con el estado final
+```
+
+### Dudas (cambios no pedidos)
+
+1. **Estado `BASE` de la versión de partida.** El ticket pide «su versión de partida» pero no
+   fija el estado. Usé `BASE` con `motivo: 'VERSION_INICIAL'` para distinguirla de
+   `PENDIENTE`/`APLICADA`/`DESCARTADA`.
+2. **Cajas que solo cambian en un excluido.** Elegí crear el pendiente normal de
+   `MODIFICADO_EN_ERP` y aplicarlo sin mover stock, en vez de no crear pendiente. El resultado
+   final no tiene pendientes activos y el stock no cambia.
+3. **Fallback a la última versión `BASE`/`APLICADA` cuando no hay movimientos.** Es un cambio
+   en `CorreccionService` más allá del rechazo de `VERSION_SIN_LINEAS_OK`, necesario para que
+   un documento siga siendo corregible después de una versión sin movimientos.
+4. **`VERSION_SIN_LINEAS`.** Para una versión vacía o corrupta mantengo un error, ahora con
+   este nombre; antes ese caso también caía en `VERSION_SIN_LINEAS_OK`.
+5. **`docFinal.total_lineas` ahora cuenta todas las líneas de la versión**, no solo las OK;
+   `total_cajas` sigue contando solo las que mueven stock. La entidad y la fecha se toman de
+   la primera línea nueva, aunque no sea OK.
+6. **Campos nuevos `mensaje`, `aviso` y `sin_movimientos_stock`** en la previsualización y en
+   el resultado de aplicar. No estaban en el contrato anterior.
+7. **`lineasTodas` ahora lleva el estado de clasificación.** Es interno, pero cambia el
+   contenido del objeto de documento que se usa para firma y versiones.
+8. **La diferencia solo usa `lineasOk`.** Una línea `PENDIENTE` no se cuenta hasta que se
+   aplique; es la interpretación de «líneas que mueven stock».
+9. **La versión de partida se crea solo para documentos con todas las líneas
+   `CLIENTE_EXCLUIDO`**, no para documentos con todas las líneas `NO_SEGUIDA` o de serie
+   ignorada. El ticket habla de albaranes totalmente excluidos por cliente.
+10. **El registro de la versión `BASE` se hace después de guardar `DOCUMENTOS` e
+    `IMPORTACIONES`**, igual que el alta de documentos excluidos que ya existía. No añadí un
+    lock nuevo.

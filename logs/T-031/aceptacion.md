@@ -4,7 +4,7 @@ Ticket: `docs/tickets/T-031-exclusiones.md`.
 Rama: `ticket/T-031-exclusiones`, creada originalmente desde `origin/main` `c1cbdbe` y
 rebasada sobre `9c54b7b` (que incluye T-027).
 Primer commit de la rama tras el rebase: `aba247a`, solo el archivo del ticket sin editar.
-Resultado de `node test/run_all.js`: **38 suites, 379 pruebas, 0 fallos** (incluye T-027 y
+Resultado de `node test/run_all.js`: **38 suites, 383 pruebas, 0 fallos** (incluye T-027 y
 T-031). Salida completa en
 `logs/T-031/tests.txt`.
 
@@ -46,28 +46,44 @@ T-031). Salida completa en
 - Un CSV con dos líneas de venta al `CLIENTE FICTICIO UNO` no crea movimientos ni
   pendientes.
 - El documento queda registrado en `DOCUMENTOS` con `estado_proceso = CONFIRMADO` y
-  `total_cajas = 0`.
+  `total_cajas = 0`, y guarda una versión de partida `BASE` (T-031 × T-027).
 - Al reimportar el mismo CSV, `confirmar` devuelve `YA_IMPORTADO`; no se crean documentos,
   movimientos, pendientes ni importaciones nuevas.
 
+## Corrección exclusiones × versiones
+
+- **Pruebas:** casos 5 a 9.
+- **Caso 5, normal → cliente excluido:** la salida aplicada se anula, el stock vuelve, no
+  aparece una salida nueva ni un pendiente `STOCK_INSUFICIENTE`; la versión guarda la línea
+  como `CLIENTE_EXCLUIDO` y el pendiente calcula solo cajas que mueven stock (−4).
+- **Caso 6, excluida entera → cliente normal:** el albarán excluido guarda su versión
+  `BASE`; al aplicar la versión nueva se crea la salida y el stock baja.
+- **Caso 7, excluida entera → cambian cajas y sigue excluida:** la versión es válida, se
+  aplica sin mover stock, no deja un pendiente imposible y el stock sigue en 0.
+- **Caso 8, normal → todas las líneas con nombre fuera:** igual que el caso 5; la versión
+  guarda `NO_SEGUIDA`, el stock vuelve y no hay salida nueva.
+- **Caso 9, 30 semillas:** compras y ventas en tres lotes desordenados, clientes normales y
+  excluidos, un nombre fuera, reimportación completa sin novedades y 1-3 correcciones por
+  semilla. Tras cada paso se comprueba `comprobarConsistencia`, consumos por capa =
+  `cajas_consumidas` y ausencia de stock del nombre fuera. Al final:
+  `(compras − stock) + pendientes por stock = ventas vigentes a clientes no excluidos`.
+
 ## Aceptación 5 — 30 semillas
 
-- **Prueba:** caso 5.
-- 30 entornos independientes mezclan compras y ventas en orden rotado, con:
-  - ventas a dos clientes excluidos;
-  - ventas de dos nombres comerciales fuera;
+- **Prueba:** caso 9.
+- 30 entornos independientes mezclan compras y ventas en lotes desordenados, con:
+  - ventas a clientes excluidos;
+  - ventas de un nombre comercial fuera;
   - ventas normales antes o después de las compras (con pendientes temporales).
 - Al final:
-  - stock de los artículos seguidos = compras − ventas normales aplicadas
-    (15 y 11 cajas);
-  - stock de los nombres fuera = 0;
-  - ningún movimiento procede de un cliente excluido ni de un nombre comercial fuera;
-  - no quedan pendientes activos;
+  - la ecuación `(compras − stock) + pendientes por stock = ventas vigentes` se cumple;
+  - no hay stock de nombres fuera;
+  - los consumos por capa coinciden con `cajas_consumidas`;
   - `comprobarConsistencia().consistente === true` en las 30 semillas.
 
 ## Aceptación 6 — API
 
-- **Prueba:** caso 6.
+- **Prueba:** caso 10.
 - `PERMISOS_API.apiListarExclusiones === 'CONSULTA'`.
 - `apiListarExclusiones()` sin sesión lanza `Acceso no autorizado`.
 - Dentro de un contexto CONSULTA devuelve `{ clientesExcluidos, articulosFuera }` con las
@@ -76,13 +92,13 @@ T-031). Salida completa en
 
 ## Aceptación 7 — pruebas
 
-- `node test/run_all.js`: **38 suites, 379 pruebas, 0 fallos** (incluye las 12 pruebas de
-  T-027 y las 6 de T-031).
+- `node test/run_all.js`: **38 suites, 383 pruebas, 0 fallos** (incluye las 12 pruebas de
+  T-027 y las 10 de T-031).
 - Salida completa en `logs/T-031/tests.txt`.
 
 ## Documentación
 
-- `BUSINESS_RULES.md`, sección 8: clientes excluidos y nombres comerciales fuera, con
+- `BUSINESS_RULES.md`, sección 9: clientes excluidos y nombres comerciales fuera, con
   ejemplos ficticios.
 - `IMPORT_SPECS.md`, sección 2.5: estados, recuento, configuración y ejemplos ficticios.
 - `DATA_MODEL.md`: hoja `CLIENTES_EXCLUIDOS` (3.13) y columna
