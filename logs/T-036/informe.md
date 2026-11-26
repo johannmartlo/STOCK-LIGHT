@@ -54,3 +54,12 @@ Se revisaron las pantallas y botones citados en `src/ui/` de `main`:
 - **Cliente excluido y modificados:** se explican en el texto, pero no se pudieron capturar con los datos ficticios actuales (no hay patrones de exclusión ni un albarán modificado en la vista previa). Si se quiere una captura real de esos dos estados, haría falta ampliar los datos ficticios en otro ticket.
 - **`logs/T-036/aceptacion.md`:** se añadió como evidencia de los puntos de aceptación; el ticket solo pedía `logs/T-036/tests.txt` y `logs/T-036/informe.md`, pero `logs/T-036/*` está en los archivos previstos.
 - **Sin cambios de código:** no se tocó `src/`, `test/` ni `tools/`; los únicos archivos nuevos son la guía, las capturas y los logs.
+
+## Corrección recepciones
+
+Se corrigió `docs/GUIA_USO.md` (commit `efb7aeb`) para que hable de **recepciones** y no de compras, porque desde T-032 las entradas se importan con el informe de recepciones de Hispatec y la app rechaza el de compras.
+
+- En el apartado 2.1 se indica ahora: «exporta el informe de **RECEPCIONES** (no el de entradas o compras) y el de **ventas**».
+- Se sustituyeron las menciones de compras por recepciones en el orden de importación, la venta sin stock, Pendientes, la corrección de errores y los recordatorios.
+- Bajo la captura 02 se añadió: «La pantalla todavía dice “compras”: es el informe de recepciones de Hispatec.»
+- No se tocó ningún otro archivo.
