@@ -93,3 +93,12 @@ nothing added to commit but untracked files present (use "git add" to track)
 - **`src/ui/app.html` (`construirHtmlPrevisualizacionImportacion` y exportación en `window.SLApp`)**: se extrajo la generación de HTML de `renderPrevisualizacionImportacion` a `construirHtmlPrevisualizacionImportacion(archivos)` y se expusieron `pluraliza`, `fmtSigned` y `construirHtmlPrevisualizacionImportacion` en `window.SLApp` para probarlos directamente en Node (`test/t028_importar_pendientes.test.js`).
 - **Barra segmentada en ventas diferidas (`src/ui/app.html`)**: cuando hay un archivo de compras en el mismo lote, los albaranes `STOCK_INSUFICIENTE` del archivo de ventas también se pintan en gris (`#71717A`) en la barra segmentada en lugar de en rojo, en coherencia con el bloque de detalle gris.
 - **Extensión de `fmtSigned` a Existencias y Partida (`src/ui/app.html`)**: para cumplir de forma estricta «Nunca `−0` ni `+0`» en toda la pantalla, también se aplicó `fmtSigned` al tooltip del gráfico de ordenador y a los consumos/destinos de la vista de Partida.
+
+## Ajuste recepciones
+- **`src/ui/app.html` (`detectarTipoArchivoCsv`)**:
+  - `tipoCsv === 'RECEPCION'` o `'RECEPCIONES'` → `'COMPRA'`.
+  - Comprobación de cabecera `/FechaRecepcion|Recepci[oó]n/i` antes de la regla de `NroEnvases` → `'COMPRA'`.
+  - Nombre de archivo `/recepci/i` → `'COMPRA'`.
+- **`test/t028_importar_pendientes.test.js` (prueba 12)**: verifica que un archivo ficticio con cabecera `Almacen;FechaRecepcion;Recepción;DescripcionArticulo;Envase;NroEnvases` soltado después de unas ventas queda primero al ordenar (`ordenarArchivosImportacion`), así como los casos de `tipoCsv` y nombre de archivo.
+- **Pruebas (`logs/T-028/tests.txt`)**: `node test/run_all.js` → **37/37 suites, 373 pruebas, 0 fallos**.
+- **Dudas**: ninguna.

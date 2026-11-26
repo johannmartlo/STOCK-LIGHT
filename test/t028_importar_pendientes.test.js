@@ -454,6 +454,30 @@ runTest('11. Estado vacío de Existencias menciona el conteo con nombres de Hisp
   assert.ok(!existenciasHtml.includes('desde el Excel'), 'No debe quedar referencia a «desde el Excel»');
 });
 
+// --------------------------------------------------------------------------
+// 12. AJUSTE RECEPCIONES: detectarTipoArchivoCsv y ordenación antes que ventas
+// --------------------------------------------------------------------------
+runTest('12. Archivo de RECEPCIONES con cabecera NroEnvases se clasifica como COMPRA y queda antes que ventas', () => {
+  const { SLApp } = cargarSLAppEnVm();
+  const ventasTxt = fs.readFileSync(path.join(FIXTURES_DIR, 'ventas_t007.csv'), 'utf8');
+  const recepcionesTxt = [
+    'Almacen;FechaRecepcion;Recepción;DescripcionArticulo;Envase;NroEnvases',
+    'ALM1;05/11/2026;REC27/301;TOMATE FICTICIO;CAJA FICTICIA;25'
+  ].join('\n');
+
+  assert.strictEqual(SLApp.detectarTipoArchivoCsv({ preview: { tipoCsv: 'RECEPCIONES' } }), 'COMPRA');
+  assert.strictEqual(SLApp.detectarTipoArchivoCsv({ preview: { tipoCsv: 'RECEPCION' } }), 'COMPRA');
+  assert.strictEqual(SLApp.detectarTipoArchivoCsv({ nombre: 'recepciones_dia.csv', texto: '' }), 'COMPRA');
+  assert.strictEqual(SLApp.detectarTipoArchivoCsv({ nombre: 'archivo_neutro.csv', texto: recepcionesTxt }), 'COMPRA');
+
+  const ordenados = SLApp.ordenarArchivosImportacion([
+    { nombre: 'ventas_t007.csv', texto: ventasTxt },
+    { nombre: 'archivo_neutro.csv', texto: recepcionesTxt }
+  ]);
+  assert.strictEqual(ordenados[0].nombre, 'archivo_neutro.csv', 'Recepciones debe quedar primero aunque se suelte después de ventas');
+  assert.strictEqual(ordenados[1].nombre, 'ventas_t007.csv');
+});
+
 console.log('\n================================================================');
 console.log(` RESULTADOS T-028 (IMPORTAR/PENDIENTES): ${passed} SUPERADAS | ${failed} FALLIDAS`);
 console.log('================================================================\n');

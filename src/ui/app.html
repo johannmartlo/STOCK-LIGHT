@@ -274,14 +274,15 @@
       const tipoPrev = item && item.preview && item.preview.tipoCsv
         ? String(item.preview.tipoCsv).trim().toUpperCase()
         : (item && item.tipoCsv ? String(item.tipoCsv).trim().toUpperCase() : '');
-      if (tipoPrev === 'COMPRA' || tipoPrev === 'COMPRAS' || tipoPrev === 'ENTRADA') return 'COMPRA';
+      if (tipoPrev === 'COMPRA' || tipoPrev === 'COMPRAS' || tipoPrev === 'ENTRADA' || tipoPrev === 'RECEPCION' || tipoPrev === 'RECEPCIONES') return 'COMPRA';
       if (tipoPrev === 'SALIDA' || tipoPrev === 'VENTA' || tipoPrev === 'VENTAS') return 'SALIDA';
       const texto = String((item && item.texto) || '');
       const primera = texto.split(/\r?\n/)[0] || '';
+      if (/FechaRecepcion|Recepci[oó]n/i.test(primera)) return 'COMPRA';
       if (/NombreEmisor|CantidadEnvasesAC|FechaAlbaran/i.test(primera)) return 'COMPRA';
       if (/NombreCliente|NroEnvases|RefAV/i.test(primera)) return 'SALIDA';
       const nombre = String((item && item.nombre) || '');
-      if (/compra/i.test(nombre)) return 'COMPRA';
+      if (/compra|recepci/i.test(nombre)) return 'COMPRA';
       if (/venta/i.test(nombre)) return 'SALIDA';
       return 'DESCONOCIDO';
     }
