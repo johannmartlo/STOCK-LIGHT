@@ -97,6 +97,11 @@ no las expone.
 | `apiPrevisualizarAnulacion` | `src/Código.js` | LECTURA | Vista previa de anulación sin escribir, con las mismas reglas que la anulación real (T-025). |
 | `apiListarMovimientos` | `src/Código.js` | LECTURA | Historial de movimientos agrupado por fecha de negocio, con filtros y paginado (T-025). |
 | `apiBuscar` | `src/Código.js` | LECTURA | Búsqueda global de variedades, partidas, albaranes y cambios (T-025). |
+| `apiListarVersionesPendientes` | `src/Código.js` | LECTURA | Lista las versiones nuevas de documentos modificados pendientes de aplicar (T-027). |
+| `apiPrevisualizarVersion` | `src/Código.js` | LECTURA | Previsualiza la aplicación de una versión nueva sin escribir (T-027). |
+| `apiAplicarVersion` | `src/Código.js` | ESCRITURA | Aplica una versión nueva en cascada; usuario del servidor (T-027). |
+| `apiPrevisualizarAnularAjuste` | `src/Código.js` | LECTURA | Previsualiza la anulación de un ajuste o destrío (T-027). |
+| `apiAnularAjuste` | `src/Código.js` | ESCRITURA | Anula un ajuste o destrío; usuario del servidor (T-027). |
 | `planificarReproceso` | `src/Reproceso.js` | INTERNA | Valida y planifica movimientos de un reproceso (función pura, T-009). |
 | `doGet` | `src/Código.js` | LECTURA | Punto de entrada HTTP que sirve la interfaz. Sin sesión por diseño. |
 | `apiObtenerInicio` | `src/Código.js` | LECTURA | Devuelve existencias, serie de 30 días, variedades, pendientes, destrío, importado hasta y últimos movimientos; rol CONSULTA (T-024). |

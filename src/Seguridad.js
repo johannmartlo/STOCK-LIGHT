@@ -72,6 +72,9 @@ const PERMISOS_API = {
   apiObtenerInicio: 'CONSULTA',
   apiObtenerParte: 'CONSULTA',
   apiObtenerPartida: 'CONSULTA',
+  apiListarVersionesPendientes: 'CONSULTA',
+  apiPrevisualizarVersion: 'ENCARGADO',
+  apiPrevisualizarAnularAjuste: 'ENCARGADO',
 
   // LECTURA de usuarios — ADMIN
   apiListarUsuarios: 'ADMIN',
@@ -97,6 +100,8 @@ const PERMISOS_API = {
   apiConfirmarImportacionCsv: 'ENCARGADO',
   apiReintentarPendientes: 'ENCARGADO',
   apiMarcarPendienteResuelto: 'ENCARGADO',
+  apiAplicarVersion: 'ENCARGADO',
+  apiAnularAjuste: 'ENCARGADO',
   apiUpsertGrupoComercial: 'ENCARGADO',
   apiUpsertMatrizArticuloEnvase: 'ENCARGADO',
 

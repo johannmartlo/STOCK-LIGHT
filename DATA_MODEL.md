@@ -240,6 +240,22 @@ Registro de cada importación de CSV, para comprobar el hash, reanudar tramos y 
 | `estado` | `ENUM` | NO | `EN_CURSO` o `CONFIRMADA`. |
 | `ultimo_tramo` | `INTEGER` | NO | Último tramo aplicado; permite reanudar sin repetir documentos. |
 
+#### 3.2.3. Tabla: `VERSIONES_DOCUMENTO`
+Versiones nuevas de documentos cuyo albarán ha cambiado en Hispatec (T-027, D-038). Una fila `PENDIENTE` por documento; las versiones anteriores se marcan `DESCARTADA` y, al aplicarse, `APLICADA`.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `id_version` | `VARCHAR(50)` | NO | Clave primaria generada con `nuevoId('VER')`. |
+| `id_pendiente` | `VARCHAR(50)` | NO | Vínculo a `PENDIENTES.id_pendiente` (`MODIFICADO_EN_ERP`). |
+| `id_documento` | `VARCHAR(50)` | NO | Documento corregido en `DOCUMENTOS`. |
+| `firma_lineas` | `VARCHAR(64)` | NO | Firma de la versión nueva. |
+| `lineas_json` | `TEXT` | NO | JSON de las líneas nuevas, con su estado de clasificación. |
+| `fecha_alta` | `DATETIME` | NO | Fecha y hora en que se guardó la versión. |
+| `estado` | `ENUM` | NO | `PENDIENTE`, `APLICADA` o `DESCARTADA`. |
+| `fecha_resolucion` | `DATETIME` | SÍ | Fecha y hora de aplicación o descarte. |
+| `usuario` | `VARCHAR(100)` | NO | Usuario que importó la versión. |
+| `motivo` | `VARCHAR(200)` | SÍ | Motivo o contexto de la versión. |
+
 ---
 
 ### 3.3. Tabla: `MOVIMIENTOS`

@@ -89,6 +89,18 @@ const SCHEMA_DEFINITIONS = {
     'estado',
     'ultimo_tramo'
   ],
+  VERSIONES_DOCUMENTO: [
+    'id_version',
+    'id_pendiente',
+    'id_documento',
+    'firma_lineas',
+    'lineas_json',
+    'fecha_alta',
+    'estado',
+    'fecha_resolucion',
+    'usuario',
+    'motivo'
+  ],
   MOVIMIENTOS: [
     'id_movimiento',
     'fecha_hora',
@@ -589,6 +601,21 @@ class SheetsRepository {
 
   saveImportaciones(records = []) {
     return this.replaceTable('IMPORTACIONES', records);
+  }
+
+  getVersionesDocumento() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('VERSIONES_DOCUMENTO')) return [];
+    return this.readTable('VERSIONES_DOCUMENTO');
+  }
+
+  appendVersionesDocumento(records = []) {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    return this.appendRecords('VERSIONES_DOCUMENTO', records);
+  }
+
+  saveVersionesDocumento(records = []) {
+    return this.replaceTable('VERSIONES_DOCUMENTO', records);
   }
 
   getMovimientos() {

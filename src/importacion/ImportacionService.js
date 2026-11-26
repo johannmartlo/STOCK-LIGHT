@@ -276,7 +276,15 @@ class ImportacionService {
     const existente = this._buscarDocumento_(documentos, documento);
     if (!existente) return { estado: 'NUEVO', existente: null };
     const firmaExistente = String(existente.firma_lineas || '').trim();
-    if (!firmaExistente || firmaExistente === documento.firma) {
+    if (!firmaExistente) {
+      return { estado: 'YA_IMPORTADO', existente };
+    }
+    if (firmaExistente === documento.firma) {
+      const entidadExistente = this._normalizar_(existente.entidad_nombre);
+      const entidadNueva = this._normalizar_(documento.entidad);
+      if (entidadNueva && entidadExistente !== entidadNueva) {
+        return { estado: 'MODIFICADO_EN_ERP', existente };
+      }
       return { estado: 'YA_IMPORTADO', existente };
     }
     return { estado: 'MODIFICADO_EN_ERP', existente };
@@ -321,8 +329,155 @@ class ImportacionService {
     };
   }
 
-  _resultadoDocumento_(documento, estado, existente) {
-    return {
+  /**
+   * Guarda la versión nueva de un documento MODIFICADO_EN_ERP y mantiene una sola
+   * fila PENDIENTES por documento (T-027 regla 1).
+   * @param {Array<Object>} items
+   * @param {Object} importacion
+   * @param {string} usuario
+   * @private
+   */
+  _registrarVersionesModificadas_(items, importacion, usuario) {
+    const repo = this.repo;
+    if (!repo) return;
+
+    const pendientes = typeof repo.getPendientes === 'function' ? repo.getPendientes() : [];
+    const versiones = typeof repo.getVersionesDocumento === 'function' ? repo.getVersionesDocumento() : [];
+    const ahoraIso = new Date().toISOString();
+
+    for (const item of items) {
+      const doc = item.documento;
+      const existente = item.existente || {};
+      const tipoDoc = doc.tipoDoc === 'ENTRADA' ? 'ENTRADA' : 'SALIDA';
+      const serie = String(doc.serie || '').trim();
+      const numero = String(doc.numero || '').trim();
+      const clave = this._claveDocumento_(tipoDoc, serie, numero);
+
+      let pendiente = pendientes.find(p =>
+        String(p.motivo || '').trim().toUpperCase() === 'MODIFICADO_EN_ERP' &&
+        String(p.estado || '').trim().toUpperCase() === 'PENDIENTE' &&
+        this._claveDocumento_(p.tipo_doc, p.serie, p.numero) === clave
+      );
+      if (!pendiente) {
+        const candidatos = pendientes
+          .filter(p =>
+            String(p.motivo || '').trim().toUpperCase() === 'MODIFICADO_EN_ERP' &&
+            this._claveDocumento_(p.tipo_doc, p.serie, p.numero) === clave
+          )
+          .sort((a, b) => String(b.fecha_alta || '').localeCompare(String(a.fecha_alta || '')));
+        pendiente = candidatos[0] || null;
+      }
+
+      const lineasBase = (Array.isArray(doc.lineasOk) && doc.lineasOk.length > 0)
+        ? doc.lineasOk
+        : (Array.isArray(doc.lineasTodas) ? doc.lineasTodas : []);
+      const cajasNuevo = lineasBase.reduce((acc, linea) => acc + Math.abs(Number(linea.cajas) || 0), 0);
+      const cajasImportado = Number(existente.total_cajas || 0);
+      const diferencia = cajasNuevo - cajasImportado;
+
+      const estadoAnteriorPendiente = pendiente ? String(pendiente.estado || '').toUpperCase() : '';
+
+      if (!pendiente) {
+        pendiente = {
+          id_pendiente: this._nuevoId_('PEND'),
+          id_importacion: importacion.id_importacion,
+          tipo_doc: tipoDoc,
+          serie,
+          numero,
+          linea: '',
+          fecha_negocio: doc.fecha || '',
+          entidad: String(doc.entidad || '').trim(),
+          articulo: '',
+          envase: '',
+          cajas: diferencia,
+          kg: '',
+          motivo: 'MODIFICADO_EN_ERP',
+          estado: 'PENDIENTE',
+          fecha_alta: ahoraIso,
+          fecha_resolucion: ''
+        };
+        pendientes.push(pendiente);
+      } else {
+        pendiente.id_importacion = importacion.id_importacion;
+        pendiente.fecha_negocio = doc.fecha || pendiente.fecha_negocio || '';
+        pendiente.entidad = String(doc.entidad || pendiente.entidad || '').trim();
+        // T-008 fija la diferencia de la primera reimportación mientras la fila
+        // siga PENDIENTE; una nueva versión no debe alterar ese dato ya mostrado.
+        if (estadoAnteriorPendiente !== 'PENDIENTE') pendiente.cajas = diferencia;
+        pendiente.estado = 'PENDIENTE';
+        pendiente.fecha_alta = ahoraIso;
+        pendiente.fecha_resolucion = '';
+      }
+
+      const lineasVersion = ((Array.isArray(doc.lineasOk) && doc.lineasOk.length > 0)
+        ? doc.lineasOk
+        : (Array.isArray(doc.lineasTodas) ? doc.lineasTodas : [])).map(linea => ({
+        tipoDoc: linea.tipoDoc || tipoDoc,
+        serie: linea.serie !== undefined ? linea.serie : serie,
+        numero: linea.numero !== undefined ? linea.numero : numero,
+        linea: linea.linea === undefined ? '' : linea.linea,
+        fecha: linea.fecha || doc.fecha || '',
+        entidad: linea.entidad || '',
+        articulo: linea.articulo || '',
+        envase: linea.envase || '',
+        cajas: linea.cajas === undefined ? '' : linea.cajas,
+        kg: linea.kg === undefined ? '' : linea.kg,
+        estado: linea.estado || 'OK',
+        seguimiento: linea.estado || 'OK',
+        origenDato: linea.origenDato || 'CSV'
+      }));
+
+      const lineasJson = JSON.stringify(lineasVersion);
+      const versionesDeEstePendiente = versiones.filter(v =>
+        String(v.id_pendiente || '') === String(pendiente.id_pendiente || '') &&
+        String(v.estado || '').trim().toUpperCase() === 'PENDIENTE'
+      );
+      const mismaVersion = versionesDeEstePendiente.find(v =>
+        String(v.firma_lineas || '').trim() === String(doc.firma || '').trim() &&
+        String(v.lineas_json || '') === lineasJson
+      );
+
+      for (const version of versionesDeEstePendiente) {
+        if (version !== mismaVersion) {
+          version.estado = 'DESCARTADA';
+          version.fecha_resolucion = ahoraIso;
+        }
+      }
+
+      if (mismaVersion) {
+        mismaVersion.lineas_json = lineasJson;
+        mismaVersion.fecha_alta = ahoraIso;
+        mismaVersion.usuario = usuario || 'SISTEMA';
+        mismaVersion.motivo = 'MODIFICADO_EN_ERP';
+      } else {
+        versiones.push({
+          id_version: this._nuevoId_('VER'),
+          id_pendiente: pendiente.id_pendiente,
+          id_documento: existente.id_documento || '',
+          firma_lineas: doc.firma || '',
+          lineas_json: lineasJson,
+          fecha_alta: ahoraIso,
+          estado: 'PENDIENTE',
+          fecha_resolucion: '',
+          usuario: usuario || 'SISTEMA',
+          motivo: 'MODIFICADO_EN_ERP'
+        });
+      }
+    }
+
+    if (typeof repo.savePendientes === 'function') {
+      repo.savePendientes(pendientes);
+    } else if (typeof repo.appendPendientes === 'function') {
+      repo.appendPendientes(pendientes);
+    }
+    if (typeof repo.saveVersionesDocumento === 'function') {
+      repo.saveVersionesDocumento(versiones);
+    } else if (typeof repo.appendVersionesDocumento === 'function') {
+      repo.appendVersionesDocumento(versiones);
+    }
+  }
+
+  _resultadoDocumento_(documento, estado, existente) {    return {
       clave: documento.clave,
       tipoDoc: documento.tipoDoc,
       serie: documento.serie,
@@ -532,60 +687,11 @@ class ImportacionService {
       return resultado || this._resultadoDocumento_(item.documento, 'SIN_LINEAS_APLICABLES', null);
     });
 
-    // Regla 4 (T-008): registrar fila MODIFICADO_EN_ERP en PENDIENTES si no existe ya una PENDIENTE para ese documento
+    // Regla 4 (T-008) y Regla 1 (T-027): una sola fila MODIFICADO_EN_ERP y una
+    // versión PENDIENTE por documento; las versiones anteriores se descartan.
     const modificadosItems = clasificados.filter(item => item.estado === 'MODIFICADO_EN_ERP');
-    if (modificadosItems.length > 0 && this.repo && typeof this.repo.appendPendientes === 'function') {
-      const pendientesExistentes = typeof this.repo.getPendientes === 'function' ? this.repo.getPendientes() : [];
-      const nuevosModificados = [];
-      const ahoraIso = new Date().toISOString();
-
-      for (const item of modificadosItems) {
-        const doc = item.documento;
-        const tipoDoc = doc.tipoDoc === 'ENTRADA' ? 'ENTRADA' : 'SALIDA';
-        const serie = String(doc.serie || '').trim();
-        const numero = String(doc.numero || '').trim();
-        const clave = this._claveDocumento_(tipoDoc, serie, numero);
-
-        const yaExistePendiente = pendientesExistentes.some(p =>
-          String(p.estado || '').trim().toUpperCase() === 'PENDIENTE' &&
-          String(p.motivo || '').trim().toUpperCase() === 'MODIFICADO_EN_ERP' &&
-          this._claveDocumento_(p.tipo_doc, p.serie, p.numero) === clave
-        ) || nuevosModificados.some(p =>
-          this._claveDocumento_(p.tipo_doc, p.serie, p.numero) === clave
-        );
-
-        if (yaExistePendiente) continue;
-
-        const lineasBase = (Array.isArray(doc.lineasOk) && doc.lineasOk.length > 0)
-          ? doc.lineasOk
-          : (Array.isArray(doc.lineasTodas) ? doc.lineasTodas : []);
-        const cajasNuevo = lineasBase.reduce((acc, l) => acc + Math.abs(Number(l.cajas) || 0), 0);
-        const cajasImportado = Number((item.existente && item.existente.total_cajas) || 0);
-        const diferencia = cajasNuevo - cajasImportado;
-
-        nuevosModificados.push({
-          id_pendiente: this._nuevoId_('PEND'),
-          id_importacion: importacion.id_importacion,
-          tipo_doc: tipoDoc,
-          serie,
-          numero,
-          linea: '',
-          fecha_negocio: doc.fecha || '',
-          entidad: String(doc.entidad || '').trim(),
-          articulo: '',
-          envase: '',
-          cajas: diferencia,
-          kg: '',
-          motivo: 'MODIFICADO_EN_ERP',
-          estado: 'PENDIENTE',
-          fecha_alta: ahoraIso,
-          fecha_resolucion: ''
-        });
-      }
-
-      if (nuevosModificados.length > 0) {
-        this.repo.appendPendientes(nuevosModificados);
-      }
+    if (modificadosItems.length > 0) {
+      this._registrarVersionesModificadas_(modificadosItems, importacion, usuario);
     }
 
     // Regla 3 (T-008): reintento automático cuando se haya creado al menos una capa

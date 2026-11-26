@@ -258,3 +258,23 @@ flowchart LR
 1. **Nivel 1 (Hash SHA-256 del Archivo):** Si el binario exacto del PDF ya fue registrado previamente en la hoja `DOCUMENTOS`, se rechaza de inmediato sin procesar.
 2. **Nivel 2 (Identidad Documental Compuesta):** Clave única `(tipo_documento, serie, numero, fecha)`. Si un usuario escaneó de nuevo el mismo documento físico con diferente resolución (cambiando el hash del archivo), el Nivel 2 detecta la coincidencia exacta de la serie y número de albarán.
 3. **Nivel 3 (Tolerancia a Períodos Solapados):** Si se importan albaranes que cubren fechas concurrentes, el sistema filtra y descarta solo aquellos documentos individuales previamente consolidados, procesando únicamente los nuevos.
+
+---
+
+## 8. Correcciones desde Hispatec
+
+Los errores de un albarán **no se corrigen a mano dentro de la app**: se corrigen en Hispatec y se reimportan. La app guarda la versión nueva y la aplica cuando el usuario lo decide, con vista previa y motivo obligatorio.
+
+La corrección de un documento de **salida** anula la salida anterior, devuelve las cajas a sus capas exactas y vuelve a aplicar las líneas nuevas por FIFO. Si no hay stock para la versión nueva, sus líneas quedan en PENDIENTES con motivo `STOCK_INSUFICIENTE`, como en una importación normal.
+
+La corrección de un documento de **entrada** se aplica en cascada, porque ya se puede haber vendido o cambiado de esa partida:
+
+1. Se identifican las operaciones confirmadas que consumieron de sus capas —ventas, cambios y ajustes negativos— y, de forma transitiva, las que consumieron de los destinos de esos cambios.
+2. Se deshacen en orden inverso al que se registraron.
+3. Se anula la entrada vieja, que ya no tiene consumos.
+4. Se aplica la entrada nueva, con su fecha y su proveedor.
+5. Se rehacen las operaciones dependientes en su orden original. Una salida que ya no cabe queda en PENDIENTES; un cambio que se queda sin su línea de origen, o un ajuste negativo que no cabe, hacen imposible toda la corrección.
+
+La operación es todo o nada y deja una anulación y movimientos nuevos, sin borrar ni editar nunca el libro de movimientos. Al terminar, el documento guarda la firma de la versión nueva, de modo que reimportar el mismo CSV da `YA_IMPORTADO`.
+
+**Ejemplo.** Una compra de 100 cajas de Moresco G se registró por error a nombre de la finca A. En realidad era de la finca B. De esa compra ya habían salido 30 cajas vendidas, se habían cambiado 20 a Rosa 500 y se habían vendido 10 de ese Rosa 500. Al corregir el proveedor en Hispatec y aplicar la versión nueva, la app deshace esas tres operaciones, sustituye la partida de la finca A por la de la finca B, y las vuelve a hacer contra la partida nueva. El total de cajas no cambia, el Rosa 500 «viene de» la partida de la finca B y no se duplica ni se pierde ninguna caja.

@@ -41,6 +41,8 @@ if (typeof require !== 'undefined') {
   try { inicioMod = require('./InicioService'); } catch (e) {}
   let parteMod = null;
   try { parteMod = require('./ParteService'); } catch (e) {}
+  let correccionMod = null;
+  try { correccionMod = require('./CorreccionService'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -65,6 +67,7 @@ if (typeof require !== 'undefined') {
     global.leerHoraParte_ = global.leerHoraParte_ || parteMod.leerHoraParte_;
     global.normalizarDestinatariosParte_ = global.normalizarDestinatariosParte_ || parteMod.normalizarDestinatariosParte_;
   }
+  if (correccionMod) global.CorreccionService = global.CorreccionService || correccionMod.CorreccionService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -1473,6 +1476,94 @@ function apiBuscar(texto, options = {}) {
 }
 
 /**
+ * Resuelve el servicio de correcciones desde Hispatec (T-027).
+ * Función interna: no se expone en docs/API_PUBLICA.md.
+ * @param {Object} [options]
+ * @returns {CorreccionService}
+ */
+function _resolveCorreccionService_(options = {}) {
+  if (options && options.correccionService) return options.correccionService;
+  const SvcClass = (typeof CorreccionService !== 'undefined')
+    ? CorreccionService
+    : (typeof require !== 'undefined' ? require('./CorreccionService').CorreccionService : null);
+  if (!SvcClass) throw new Error('CorreccionService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || (typeof SheetsRepository !== 'undefined'
+    ? new SheetsRepository()
+    : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
+  return new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    pendientesService: options.pendientesService,
+    configCatalogo: options.configCatalogo,
+    lockService: options.lockService
+  });
+}
+
+/**
+ * Lista las versiones nuevas pendientes de aplicar (T-027).
+ * LECTURA, rol mínimo CONSULTA.
+ * @param {Object} [options]
+ * @returns {Array<Object>}
+ */
+function apiListarVersionesPendientes(options = {}) {
+  exigirSesionApi_();
+  return _resolveCorreccionService_(options).listarVersionesPendientes();
+}
+
+/**
+ * Previsualiza la aplicación de una versión nueva (T-027).
+ * LECTURA, rol mínimo ENCARGADO.
+ * @param {string} idPendiente
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiPrevisualizarVersion(idPendiente, options = {}) {
+  exigirSesionApi_();
+  return _resolveCorreccionService_(options).previsualizarVersion(idPendiente);
+}
+
+/**
+ * Aplica una versión nueva de un documento (T-027).
+ * ESCRITURA, rol mínimo ENCARGADO.
+ * @param {string} idPendiente
+ * @param {string} motivo
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiAplicarVersion(idPendiente, motivo, options = {}) {
+  exigirSesionApi_();
+  const user = usuarioActual_(options && options.session);
+  return _resolveCorreccionService_(options).aplicarVersion(idPendiente, motivo, user);
+}
+
+/**
+ * Previsualiza la anulación de un ajuste o destrío (T-027).
+ * LECTURA, rol mínimo ENCARGADO.
+ * @param {string} idMovimiento
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiPrevisualizarAnularAjuste(idMovimiento, options = {}) {
+  exigirSesionApi_();
+  return _resolveCorreccionService_(options).previsualizarAnularAjuste(idMovimiento);
+}
+
+/**
+ * Anula un ajuste o destrío (T-027).
+ * ESCRITURA, rol mínimo ENCARGADO.
+ * @param {string} idMovimiento
+ * @param {string} motivo
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+function apiAnularAjuste(idMovimiento, motivo, options = {}) {
+  exigirSesionApi_();
+  const user = usuarioActual_(options && options.session);
+  return _resolveCorreccionService_(options).anularAjuste(idMovimiento, motivo, user);
+}
+
+/**
  * Resuelve una función global por nombre para el despachador.
  * En Apps Script las funciones declaradas son propiedades de globalThis; en
  * Node se resuelven desde las exportaciones de este módulo.
@@ -2101,6 +2192,11 @@ if (typeof module !== 'undefined' && module.exports) {
     apiPrevisualizarAnulacion,
     apiListarMovimientos,
     apiBuscar,
+    apiListarVersionesPendientes,
+    apiPrevisualizarVersion,
+    apiAplicarVersion,
+    apiPrevisualizarAnularAjuste,
+    apiAnularAjuste,
     apiLlamar,
     apiEntrar,
     apiEstablecerPin,
