@@ -1,0 +1,4 @@
+FechaAlbaran;NombreEmisor;SerieAlbaran;NumeroAlbaran;OrdenLinea;NumeracionProveedor;ReferenciaAC;NombreArticulo;DescripcionArticulo;UnidadesEnvase;CantidadLineaAlbaran;CantidadTotal;ReferenciaLineaAlbaran;ObservacionesLineaAlbaran;CantidadPrecioPor;Factor;PorCada;PesoBrutoLACCA;PesoNetoLACCA;NroPaletsAC;PaletAC;NombrePaletAC;CodigoEnvaseAC;NombreEnvaseAC;CantidadEnvasesAC
+02/11/2026;PROVEEDOR FICTICIO UNO;ACT26;9001;1;NUM-P-9001;REF-9001;TOMATE FICTICIO;Tomate ficticio;1;10,000;10,000;L1;Ficticio;1;1;1;52,000;50,000;1;PALET-FICTICIO;PALET FICTICIO;ENV-F;CAJA FICTICIA;10,000
+02/11/2026;PROVEEDOR FICTICIO UNO;ACT26;9001;2;NUM-P-9001;REF-9001;TOMATE FICTICIO DOS;Tomate ficticio dos;1;5,000;5,000;L2;Ficticio;1;1;1;26,000;25,000;1;PALET-FICTICIO;PALET FICTICIO;ENV-F;CAJA FICTICIA;5,000
+;;;;;;;;;;;;;;;;;;;;;;;;

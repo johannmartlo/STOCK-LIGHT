@@ -1,7 +1,27 @@
 /** Parser puro de los informes CSV de compras y ventas de Hispatec. */
-const CSV_HISPATEC_HEADERS = {
-  COMPRAS: 'FechaAlbaran;NombreEmisor;NumeroAlbaran;SerieAlbaran;OrdenLinea;NumeracionProveedor;ReferenciaAC;NombreArticulo;DescripcionArticulo;UnidadesEnvase;CantidadLineaAlbaran;CantidadTotal;ReferenciaLineaAlbaran;ObservacionesLineaAlbaran;CantidadPrecioPor;Factor;PorCada;PesoBrutoLACCA;PesoNetoLACCA;NroPaletsAC;PaletAC;NombrePaletAC;CodigoEnvaseAC;NombreEnvaseAC;CantidadEnvasesAC',
-  VENTAS: 'Fecha;RefAV;Numero;Albarán;NombreCliente;NombreArticulo;NroEnvases;Cantidad;Piezas;PesoNetoEnviado;NombreEnvase;NroPalets;Palet'
+const CSV_HISPATEC_COLUMNAS = {
+  COMPRAS: {
+    obligatorias: [
+      'FechaAlbaran',
+      'NombreEmisor',
+      'SerieAlbaran',
+      'NumeroAlbaran',
+      'OrdenLinea',
+      'NombreArticulo',
+      'NombreEnvaseAC',
+      'CantidadEnvasesAC'
+    ]
+  },
+  VENTAS: {
+    obligatorias: [
+      'Fecha',
+      'Albarán',
+      'NombreCliente',
+      'NombreArticulo',
+      'NroEnvases',
+      'NombreEnvase'
+    ]
+  }
 };
 // En Node cada archivo es un módulo; Apps Script comparte las funciones globales.
 const CSV_NORMALIZACION_NODE = typeof module !== 'undefined' && module.exports
@@ -34,12 +54,69 @@ function filaCabecera(textoCsv) {
   return (fin < 0 ? texto : texto.slice(0, fin)).replace(/\s+$/, '');
 }
 
-function detectarTipo(textoCsv) {
+/**
+ * Normaliza el nombre de una columna: sin BOM, espacios sobrantes, mayúsculas
+ * ni tildes. Así `Albarán` y `ALBARAN` son la misma columna.
+ * @param {*} nombre
+ * @returns {string}
+ */
+function normalizarColumnaCsv_(nombre) {
+  return String(nombre === null || nombre === undefined ? '' : nombre)
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .replace(/\s+/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function columnasDeCabecera_(textoCsv) {
   const cabecera = filaCabecera(textoCsv);
-  for (const tipo of Object.keys(CSV_HISPATEC_HEADERS)) {
-    if (cabecera === CSV_HISPATEC_HEADERS[tipo]) return tipo;
+  return cabecera.split(';').map(normalizarColumnaCsv_).filter(Boolean);
+}
+
+function faltanColumnas_(columnas, obligatorias) {
+  const presentes = new Set(columnas);
+  return obligatorias.filter((nombre) => !presentes.has(normalizarColumnaCsv_(nombre)));
+}
+
+/**
+ * Detecta COMPRAS o VENTAS por la presencia de sus columnas obligatorias,
+ * sin exigir un orden ni una cabecera exacta.
+ * @param {string} textoCsv
+ * @returns {'COMPRAS'|'VENTAS'}
+ */
+function detectarTipo(textoCsv) {
+  const columnas = columnasDeCabecera_(textoCsv);
+  const faltanCompras = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.COMPRAS.obligatorias);
+  let faltanVentas = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.VENTAS.obligatorias);
+
+  // Los informes antiguos traen NroPalets y Palet juntos. Si falta Palet pero
+  // sigue NroPalets en el formato antiguo (con columna Numero), el fichero está
+  // incompleto (compatibilidad T-006). En el formato real Palet es opcional.
+  const presentes = new Set(columnas);
+  const formatoVentasAntiguo = presentes.has(normalizarColumnaCsv_('Numero'));
+  if (
+    formatoVentasAntiguo
+    && presentes.has(normalizarColumnaCsv_('NroPalets'))
+    && !presentes.has(normalizarColumnaCsv_('Palet'))
+  ) {
+    faltanVentas = faltanVentas.filter((nombre) => normalizarColumnaCsv_(nombre) !== normalizarColumnaCsv_('Palet'));
+    faltanVentas.push('Palet');
   }
-  throw new Error('Cabecera CSV de Hispatec no reconocida');
+
+  if (faltanCompras.length === 0) return 'COMPRAS';
+  if (faltanVentas.length === 0) return 'VENTAS';
+
+  const candidato = faltanCompras.length <= faltanVentas.length ? 'COMPRAS' : 'VENTAS';
+  const faltan = candidato === 'COMPRAS' ? faltanCompras : faltanVentas;
+  if (candidato === 'VENTAS' && faltan.length === 1 && normalizarColumnaCsv_(faltan[0]) === normalizarColumnaCsv_('Palet')) {
+    // Compatibilidad con el formato antiguo incompleto (T-006).
+    throw new Error('Cabecera CSV de Hispatec no reconocida: falta la columna Palet.');
+  }
+  throw new Error(
+    `Cabecera CSV de Hispatec incompleta: faltan columnas obligatorias de ${candidato}: ${faltan.join(', ')}.`
+  );
 }
 
 // Lector CSV con soporte para separadores, comillas escapadas y saltos de línea entrecomillados.
@@ -89,14 +166,19 @@ function leerRegistrosCsv(textoCsv) {
 function parsear(textoCsv) {
   const tipo = detectarTipo(textoCsv);
   const registros = leerRegistrosCsv(textoCsv);
-  const cabeceras = registros[0] || [];
+  const cabeceras = (registros[0] || []).map(normalizarColumnaCsv_);
   const indices = Object.create(null);
-  cabeceras.forEach((nombre, indice) => { indices[nombre] = indice; });
+  cabeceras.forEach((nombre, indice) => {
+    if (nombre && indices[nombre] === undefined) indices[nombre] = indice;
+  });
   const errores = [];
   const lineas = [];
 
+  function tieneColumna(columna) {
+    return indices[normalizarColumnaCsv_(columna)] !== undefined;
+  }
   function valorDe(fila, columna) {
-    const indice = indices[columna];
+    const indice = indices[normalizarColumnaCsv_(columna)];
     return indice === undefined || indice >= fila.length ? '' : fila[indice];
   }
   function aviso(filaCsv, campo, valor) {
@@ -111,6 +193,12 @@ function parsear(textoCsv) {
     }
     return valor;
   }
+  function numeroOpcionalDe(fila, columna, filaCsv, campo) {
+    if (!tieneColumna(columna)) return null;
+    const bruto = valorDe(fila, columna);
+    if (String(bruto).trim() === '') return null;
+    return numeroDe(fila, columna, filaCsv, campo);
+  }
   function fechaDe(fila, columna, filaCsv) {
     const bruto = valorDe(fila, columna);
     const valor = csvParsearFecha(bruto);
@@ -121,6 +209,8 @@ function parsear(textoCsv) {
   for (let i = 1; i < registros.length; i++) {
     const fila = registros[i];
     const filaCsv = i + 1;
+    if (!fila || fila.every(valor => String(valor).trim() === '')) continue;
+
     let serie;
     let numero;
     let linea;
@@ -147,6 +237,16 @@ function parsear(textoCsv) {
         serie = numero = linea = null;
         aviso(filaCsv, 'albaran', albaran);
       }
+
+      // Si el formato trae Numero, debe coincidir con el número de Albarán.
+      if (match && tieneColumna('Numero')) {
+        const numeroColumna = String(valorDe(fila, 'Numero')).trim();
+        if (numeroColumna !== String(numero)) {
+          aviso(filaCsv, 'numero', numeroColumna);
+          numero = null;
+        }
+      }
+
       columnas = {
         fecha: 'Fecha', entidad: 'NombreCliente', articulo: 'NombreArticulo',
         envase: 'NombreEnvase', cajas: 'NroEnvases', unidades: 'Piezas', kg: 'PesoNetoEnviado'
@@ -173,9 +273,11 @@ function parsear(textoCsv) {
       articulo: articulo || null,
       envase: envase || null,
       cajas: numeroDe(fila, columnas.cajas, filaCsv, 'cajas'),
-      unidades: numeroDe(fila, columnas.unidades, filaCsv, 'unidades'),
-      kg: numeroDe(fila, columnas.kg, filaCsv, 'kg'),
-      codigoEnvaseHispatec: tipo === 'COMPRAS' ? (valorDe(fila, 'CodigoEnvaseAC').trim() || null) : null,
+      unidades: numeroOpcionalDe(fila, columnas.unidades, filaCsv, 'unidades'),
+      kg: numeroOpcionalDe(fila, columnas.kg, filaCsv, 'kg'),
+      codigoEnvaseHispatec: tipo === 'COMPRAS' && tieneColumna('CodigoEnvaseAC')
+        ? (valorDe(fila, 'CodigoEnvaseAC').trim() || null)
+        : null,
       origenDato: 'CSV',
       filaCsv
     });
@@ -184,5 +286,11 @@ function parsear(textoCsv) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { detectarTipo, parsear };
+  module.exports = {
+    CSV_HISPATEC_COLUMNAS,
+    normalizarColumnaCsv: normalizarColumnaCsv_,
+    normalizarColumnaCsv_,
+    detectarTipo,
+    parsear
+  };
 }

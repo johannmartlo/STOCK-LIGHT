@@ -66,6 +66,52 @@ flowchart TD
 
 ---
 
+### 2.4. CSV de Hispatec: formatos reales y detección por columnas (T-030)
+
+Los dos informes reales no tienen la misma cabecera que los primeros fixtures. El parser
+(`src/importacion/CsvHispatecParser.js`) **no exige una cabecera exacta**: busca las columnas
+obligatorias por nombre, en cualquier orden, sin distinguir mayúsculas, espacios sobrantes
+ni la tilde de `Albarán`.
+
+**Compras (entradas):**
+
+```text
+FechaAlbaran;NombreEmisor;SerieAlbaran;NumeroAlbaran;OrdenLinea;NumeracionProveedor;ReferenciaAC;NombreArticulo;DescripcionArticulo;UnidadesEnvase;CantidadLineaAlbaran;CantidadTotal;ReferenciaLineaAlbaran;ObservacionesLineaAlbaran;CantidadPrecioPor;Factor;PorCada;PesoBrutoLACCA;PesoNetoLACCA;NroPaletsAC;PaletAC;NombrePaletAC;CodigoEnvaseAC;NombreEnvaseAC;CantidadEnvasesAC
+```
+
+Columnas obligatorias: `FechaAlbaran`, `NombreEmisor`, `SerieAlbaran`, `NumeroAlbaran`,
+`OrdenLinea`, `NombreArticulo`, `NombreEnvaseAC`, `CantidadEnvasesAC`.
+
+**Ventas (salidas):**
+
+```text
+Fecha;Albarán;RefAV;RefLineaAV;NombreCliente;NombreArticulo;Cantidad;PesoNetoEnviado;CantidadPrecioPor;Piezas;Abreviatura;PrecioFunc;UdPrecio;ImporteNetoFunc;PesoNetoVendido;NroEnvases;NombreEnvase;NroPalets;Palet
+```
+
+Columnas obligatorias: `Fecha`, `Albarán`, `NombreCliente`, `NombreArticulo`, `NroEnvases`,
+`NombreEnvase`.
+
+Reglas de lectura:
+
+- **COMPRAS** se detecta si están todas sus obligatorias; **VENTAS**, si están las suyas.
+  Si faltan, el error nombra las columnas que faltan.
+- Las columnas opcionales (`PesoNetoLACCA`, `PesoNetoEnviado`, `NroPalets`, etc.) se usan si
+  están; si no, quedan vacías. En el formato antiguo, si viene `NroPalets` y falta `Palet`
+  la cabecera se considera incompleta; en el formato real `Palet` es opcional.
+- En ventas, serie, número y línea se extraen de `Albarán` con el formato
+  `AVT27/783 (1)`. Si además existe una columna `Numero`, debe coincidir con el número del
+  albarán; si no coincide, la línea queda en `ERROR_DATOS`.
+- Las columnas de precio o importe (`PrecioFunc`, `UdPrecio`, `ImporteNetoFunc`, etc.) se
+  ignoran y **nunca** se guardan en hojas ni en logs.
+- Las filas vacías o formadas solo por separadores (`;;;;…`) se saltan sin error.
+- Los decimales pueden venir con coma (`315,000`). Los dos informes usan CRLF y una fila
+  final de separadores; ventas puede venir en UTF-8 (con `Ñ` y tildes) y compras en ASCII.
+- La firma de líneas (`firma_lineas`, T-007) se calcula con los campos normalizados
+  (línea, artículo, envase y cajas), no con la línea cruda ni con el orden de las columnas.
+  Por eso el mismo contenido en el formato antiguo y en el real da la misma firma.
+
+---
+
 ## 3. Catálogo de Campos Dudosos o Dependientes de Formato
 
 Antes de iniciar la codificación de los parsers definitivos, deben clarificarse los siguientes puntos con documentos reales:
