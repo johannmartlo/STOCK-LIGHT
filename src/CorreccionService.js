@@ -515,7 +515,7 @@ class CorreccionService {
       codigo_envase: linea.envase,
       cajas: Number(linea.cajas),
       signo: 1,
-      partida_origen: '',
+      partida_origen: linea.partida || '',
       motivo_ajuste: '',
       usuario: usuario || 'SISTEMA',
       observaciones: `CORRECCION_VERSION:${idPendiente}`,

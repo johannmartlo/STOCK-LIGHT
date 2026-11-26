@@ -3,7 +3,7 @@
 Ticket: `docs/tickets/T-032-lector-recepciones.md`.
 Rama: `ticket/T-032-lector-recepciones`, creada desde `main` `81dc81c`.
 Primer commit de la rama: `630f1bd`, solo el archivo del ticket sin editar.
-Resultado de `node test/run_all.js`: **40 suites, 402 pruebas, 0 fallos**. Salida completa en
+Resultado de `node test/run_all.js`: **40 suites, 403 pruebas, 0 fallos**. Salida completa en
 `logs/T-032/tests.txt`.
 
 ## Aceptación 1 — fixture ficticio con formato real
@@ -39,6 +39,10 @@ Resultado de `node test/run_all.js`: **40 suites, 402 pruebas, 0 fallos**. Salid
   movimientos ni importaciones.
 - `adminConfigurarFuenteEntradas('COMPRAS')` cambia la propiedad y conserva el anterior.
 - Con `COMPRAS`, el mismo CSV se previsualiza como `COMPRAS`.
+- Con `COMPRAS`, un CSV de RECEPCIONES se rechaza con
+  `Las entradas se importan con el informe de compras`, también sin escribir.
+- `adminInstalarStockLight` fija `FUENTE_ENTRADAS = RECEPCIONES` si la propiedad está vacía
+  y no cambia un valor previo (`COMPRAS` sigue siendo `COMPRAS`).
 - Sin propietario, `adminConfigurarFuenteEntradas` lanza
   `Operación reservada al administrador`; un valor distinto de `COMPRAS`/`RECEPCIONES`
   también se rechaza.
@@ -61,7 +65,8 @@ Resultado de `node test/run_all.js`: **40 suites, 402 pruebas, 0 fallos**. Salid
 - Reimportar el mismo informe devuelve `YA_IMPORTADO`.
 - Cambiar las cajas de la recepción `/11737 (1)` da `MODIFICADO_EN_ERP` con su versión.
 - `CorreccionService.aplicarVersion` aplica la versión, deja el stock correcto (17 cajas de
-  `TOMATE FICTICIO I`) y `comprobarConsistencia().consistente === true`.
+  `TOMATE FICTICIO I`), conserva la partida `900001` en la capa activa y
+  `comprobarConsistencia().consistente === true`.
 
 ## Aceptación 6 — 30 semillas
 
@@ -83,7 +88,7 @@ Resultado de `node test/run_all.js`: **40 suites, 402 pruebas, 0 fallos**. Salid
 
 ## Aceptación 8 — pruebas
 
-- `node test/run_all.js`: **40 suites, 402 pruebas, 0 fallos**; incluye T-027, T-031 y T-032.
+- `node test/run_all.js`: **40 suites, 403 pruebas, 0 fallos**; incluye T-027, T-031 y T-032.
 - Salida completa en `logs/T-032/tests.txt`.
 
 ## Documentación

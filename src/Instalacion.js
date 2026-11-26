@@ -22,6 +22,7 @@ if (typeof require !== 'undefined') {
   global.crearServicioAcceso_ = global.crearServicioAcceso_ || segMod.crearServicioAcceso_;
   global.getSpreadsheetIdConfig = global.getSpreadsheetIdConfig || confMod.getSpreadsheetIdConfig;
   global.getDriveFolderIdConfig = global.getDriveFolderIdConfig || confMod.getDriveFolderIdConfig;
+  global.setFuenteEntradasConfig = global.setFuenteEntradasConfig || confMod.setFuenteEntradasConfig;
   global.SheetsRepository = global.SheetsRepository || repoMod.SheetsRepository;
   global.sembrarCatalogoEnRepositorio_ = global.sembrarCatalogoEnRepositorio_ || semillaMod.sembrarCatalogoEnRepositorio_;
   global.instalarCopiaDiaria_ = global.instalarCopiaDiaria_ || backupMod.instalarCopiaDiaria_;
@@ -132,7 +133,21 @@ function adminInstalarStockLight(nombre = '', options = {}) {
     yaEstaba.push('hojas');
   }
 
-  // 3. Sembrar el catálogo solo si ATRIBUTOS y REGLAS_CLASIFICACION están vacías.
+  // 3. Fuente de entradas: una instalación nueva usa RECEPCIONES. Si ya hay
+  // valor (por ejemplo COMPRAS) no se cambia.
+  const fuenteEntradasActual = _leerPropiedadInstalacion_('FUENTE_ENTRADAS', options);
+  if (!fuenteEntradasActual) {
+    try {
+      setFuenteEntradasConfig('RECEPCIONES', options);
+      hecho.push('fuente_entradas:RECEPCIONES');
+    } catch (err) {
+      falta.push(`No se pudo configurar FUENTE_ENTRADAS: ${err.message}`);
+    }
+  } else {
+    yaEstaba.push('fuente_entradas');
+  }
+
+  // 4. Sembrar el catálogo solo si ATRIBUTOS y REGLAS_CLASIFICACION están vacías.
   let atributos = [];
   let reglas = [];
   try {
@@ -155,7 +170,7 @@ function adminInstalarStockLight(nombre = '', options = {}) {
     yaEstaba.push('catalogo');
   }
 
-  // 4. Copia diaria: solo si hay carpeta de copias configurada.
+  // 5. Copia diaria: solo si hay carpeta de copias configurada.
   const backupFolderId = _leerPropiedadInstalacion_(BACKUP_FOLDER_ID_KEY_INSTALACION, options);
   if (!backupFolderId) {
     falta.push("Carpeta de copias no configurada. Ejecuta adminConfigurarCarpetaCopias('<ID_DE_LA_CARPETA>').");
@@ -184,7 +199,7 @@ function adminInstalarStockLight(nombre = '', options = {}) {
     }
   }
 
-  // 5. Primer ADMIN: solo si no hay ninguno activo.
+  // 6. Primer ADMIN: solo si no hay ninguno activo.
   let usuarios = [];
   try {
     usuarios = typeof repo.getUsuarios === 'function' ? repo.getUsuarios() : [];

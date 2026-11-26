@@ -286,6 +286,13 @@ runTest('2. Con FUENTE_ENTRADAS=RECEPCIONES se rechaza COMPRAS sin escribir; con
   const preview = conCompras.previsualizar(compras);
   assert.strictEqual(preview.tipoCsv, 'COMPRAS');
   assert.throws(
+    () => conCompras.previsualizar(RECEPCIONES_TEXTO),
+    (err) => err instanceof Error && err.message === 'Las entradas se importan con el informe de compras'
+  );
+  assert.strictEqual(env.repo.getDocumentos().length, antes.docs);
+  assert.strictEqual(env.repo.getMovimientos().length, antes.movs);
+  assert.strictEqual(env.repo.getImportaciones().length, antes.imps);
+  assert.throws(
     () => codigo.adminConfigurarFuenteEntradas('OTRA', {
       propertiesService: properties,
       session: sesionPropietario()
@@ -389,6 +396,13 @@ runTest('4. Reimportar da YA_IMPORTADO; cambiar cajas crea versión y aplicarVer
   const aplicada = correccion.aplicarVersion(pendiente.id_pendiente, 'Cambian las cajas de la recepción', 'operador@test');
   assert.strictEqual(aplicada.success, true);
   assert.strictEqual(stockDe(env, 'TOMATE FICTICIO I', 'CAJA 40X30 FICTICIA'), 17);
+  const capaCorregida = env.repo.getCapasFifo().find(capa =>
+    capa.estado_capa === 'ACTIVA'
+    && String(capa.codigo_articulo) === 'TOMATE FICTICIO I'
+    && String(capa.partida) === '900001'
+  );
+  assert.ok(capaCorregida, 'La capa nueva debe conservar la partida de la línea');
+  assert.strictEqual(Number(capaCorregida.cajas_iniciales), 12);
   comprobarSanidad(env);
 });
 
@@ -473,6 +487,33 @@ runTest('6. API y administración de equivalencias: CONSULTA, propietario e idem
   assert.deepStrictEqual(listado.equivalencias.map(e => e.nombre_articulo), ['TOMATE B']);
   assert.strictEqual(listarEquivalencias_(env.repo).equivalencias.length, 1);
   assert.ok(catalogo);
+});
+
+runTest('7. La instalación deja FUENTE_ENTRADAS=RECEPCIONES y respeta un valor previo', () => {
+  const session = sesionPropietario();
+  const propertiesNueva = crearProperties();
+  propertiesNueva.setProperty('SPREADSHEET_ID', 'TEST_SPREADSHEET_ID_123');
+  propertiesNueva.setProperty('DRIVE_FOLDER_ID', 'TEST_FOLDER_ID_123');
+  const envNueva = crearEntorno();
+  const informeNueva = codigo.adminInstalarStockLight('', {
+    repository: envNueva.repo,
+    propertiesService: propertiesNueva,
+    session
+  });
+  assert.strictEqual(propertiesNueva.getProperty('FUENTE_ENTRADAS'), 'RECEPCIONES');
+  assert.ok(informeNueva.hecho.includes('fuente_entradas:RECEPCIONES'));
+
+  const propertiesExistente = crearProperties();
+  propertiesExistente.setProperty('SPREADSHEET_ID', 'TEST_SPREADSHEET_ID_456');
+  propertiesExistente.setProperty('DRIVE_FOLDER_ID', 'TEST_FOLDER_ID_456');
+  propertiesExistente.setProperty('FUENTE_ENTRADAS', 'COMPRAS');
+  const envExistente = crearEntorno();
+  codigo.adminInstalarStockLight('', {
+    repository: envExistente.repo,
+    propertiesService: propertiesExistente,
+    session
+  });
+  assert.strictEqual(propertiesExistente.getProperty('FUENTE_ENTRADAS'), 'COMPRAS');
 });
 
 console.log('\n================================================================');

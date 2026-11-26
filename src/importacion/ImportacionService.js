@@ -315,8 +315,12 @@ class ImportacionService {
    */
   _preparar_(textoCsv) {
     const parseado = this._parsear_(textoCsv);
-    if (parseado.tipo === 'COMPRAS' && this._fuenteEntradas_() === 'RECEPCIONES') {
+    const fuenteEntradas = this._fuenteEntradas_();
+    if (parseado.tipo === 'COMPRAS' && fuenteEntradas === 'RECEPCIONES') {
       throw new Error('Las entradas se importan con el informe de recepciones');
+    }
+    if (parseado.tipo === 'RECEPCIONES' && fuenteEntradas === 'COMPRAS') {
+      throw new Error('Las entradas se importan con el informe de compras');
     }
     if (parseado.tipo === 'RECEPCIONES') this._normalizarArticulosRecepcion_(parseado.lineas);
     const clasificadas = this._clasificar_(parseado.lineas, parseado.tipo);

@@ -13,7 +13,7 @@
 4. `Equivalencias.js`, la hoja `EQUIVALENCIAS_ARTICULO`, `adminConfigurarEquivalencias`,
    `adminConfigurarFuenteEntradas`, `apiListarEquivalencias` y la documentación de puesta en
    marcha quedan añadidos; sin nombres reales.
-5. `node test/run_all.js`: **40 suites, 402 pruebas, 0 fallos**. Sin merge.
+5. `node test/run_all.js`: **40 suites, 403 pruebas, 0 fallos**. Sin merge.
 
 ## git status
 
@@ -51,18 +51,17 @@ f5b5d5e fix(T-028): clasificar CSV de RECEPCIONES como entradas antes que ventas
    `PREFIJOS_SERIES_IMPORTACION`, añadí `prefijosRecepciones` como propiedad no enumerable
    (`REC`, `NT`, `RNT`). Se puede leer como `PREFIJOS_SERIES_IMPORTACION.prefijosRecepciones`,
    pero no aparece en `Object.keys` ni en `deepStrictEqual`.
-2. **FUENTE_ENTRADAS por defecto.** Si la propiedad no existe, el servicio mantiene
-   `COMPRAS` para no romper instalaciones ni pruebas anteriores. Las instalaciones nuevas
-   deben ejecutar `adminConfigurarFuenteEntradas('RECEPCIONES')`; lo documenté en
-   `docs/PUESTA_EN_MARCHA.md`. No toqué `Instalacion.js` porque no está en «Archivos
-   previstos», así que el valor no se fija automáticamente al instalar.
+2. **FUENTE_ENTRADAS al instalar.** `adminInstalarStockLight` fija `RECEPCIONES` si la
+   propiedad está vacía y no cambia un valor ya existente. Si la propiedad no existe y se
+   llama al servicio sin pasar por la instalación, el fallback sigue siendo `COMPRAS` para
+   no romper instalaciones ni pruebas anteriores.
 3. **Forma del rechazo de COMPRAS.** `_preparar_` lanza un `Error` con el mensaje exacto
    «Las entradas se importan con el informe de recepciones». Es la misma forma que usa hoy
    un CSV no reconocido: la promesa de la API se rechaza y la pantalla Importar muestra
    `err.message`; no cambié `src/ui/`.
-4. **`RECEPCIONES` con FUENTE_ENTRADAS = COMPRAS.** El ticket solo pide rechazar COMPRAS
-   cuando la fuente es RECEPCIONES. Con la fuente en COMPRAS dejé pasar RECEPCIONES; si se
-   quiere una exclusión simétrica, habría que añadir otro rechazo.
+4. **Rechazo simétrico.** Con `FUENTE_ENTRADAS = COMPRAS`, un CSV de RECEPCIONES se rechaza
+   con «Las entradas se importan con el informe de compras». La forma del error es la misma
+   que con el rechazo inverso: un `Error` que la API rechaza y la pantalla muestra.
 5. **Campos nuevos en la previsualización.** Los resultados de cada documento incluyen ahora
    `lineas` y `avisos`; cada línea seguida sin pareja incluye `avisos:
    ['SIN_PAREJA_EN_VENTAS']` y, si es el único, `aviso: 'SIN_PAREJA_EN_VENTAS'`. La parte
@@ -75,11 +74,10 @@ f5b5d5e fix(T-028): clasificar CSV de RECEPCIONES como entradas antes que ventas
    mayúsculas y espacios colapsados, y no borra filas.
 8. **Equivalencias y envase.** Solo se transforma el nombre del artículo. No se añadió
    ninguna equivalencia de envase, tal como pide la precisión.
-9. **Partida en versiones.** Añadí `partida` al JSON de `lineasVersionDocumento_` y la
-   partida inicial llega a la capa. La corrección de una recepción de T-027 vuelve a aplicar
-   las líneas con `_crearEntradaVersion_`, que no copia `partida` a la capa nueva; no toqué
-   `CorreccionService.js` porque el ticket lo prohíbe. La prueba 5 comprueba el stock y la
-   consistencia, no la partida tras la corrección.
+9. **Partida en versiones.** Añadí `partida` al JSON de `lineasVersionDocumento_` y
+   `_crearEntradaVersion_` usa `partida_origen = linea.partida`, así que la capa nueva de una
+   recepción corregida conserva la partida. La prueba 5 comprueba la capa activa con partida
+   `900001`.
 10. **`.gitattributes`.** Añadí la excepción `binary -eol` para
     `test/fixtures/csv/recepciones_formato_real.csv`, igual que T-030, para que un clon
     limpio conserve el CRLF exigido. No estaba en «Archivos previstos».

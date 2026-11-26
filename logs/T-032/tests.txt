@@ -46,46 +46,46 @@ Suites detectadas (40):
 
 ----------------------------------------------------------------
 
-[1/40] Ejecutando articulo_envase_persistence.test.js... ✅ OK (20 pruebas, 0.12s)
-[2/40] Ejecutando commercial_group_resolver.test.js... ✅ OK (23 pruebas, 0.11s)
+[1/40] Ejecutando articulo_envase_persistence.test.js... ✅ OK (20 pruebas, 0.10s)
+[2/40] Ejecutando commercial_group_resolver.test.js... ✅ OK (23 pruebas, 0.10s)
 [3/40] Ejecutando compra_packaging_resolution.test.js... ✅ OK (9 pruebas, 0.07s)
 [4/40] Ejecutando fase5_configuracion_persistencia.test.js... ✅ OK (18 pruebas, 0.12s)
-[5/40] Ejecutando fase6_1_correcciones_historicas.test.js... ✅ OK (21 pruebas, 0.14s)
+[5/40] Ejecutando fase6_1_correcciones_historicas.test.js... ✅ OK (21 pruebas, 0.13s)
 [6/40] Ejecutando fase6_seguridad_operativa.test.js... ✅ OK (20 pruebas, 0.13s)
-[7/40] Ejecutando fase8_1_prueba_real_aislada.test.js... ✅ OK (8 pruebas, 0.11s)
-[8/40] Ejecutando fase8_2_apps_script_v8_loading.test.js... ✅ OK (7 pruebas, 0.21s)
-[9/40] Ejecutando fase8_auditoria_maestros_inicializacion.test.js... ✅ OK (10 pruebas, 0.12s)
+[7/40] Ejecutando fase8_1_prueba_real_aislada.test.js... ✅ OK (8 pruebas, 0.10s)
+[8/40] Ejecutando fase8_2_apps_script_v8_loading.test.js... ✅ OK (7 pruebas, 0.20s)
+[9/40] Ejecutando fase8_auditoria_maestros_inicializacion.test.js... ✅ OK (10 pruebas, 0.11s)
 [10/40] Ejecutando helpers_mock.test.js... ✅ OK (2 pruebas, 0.06s)
 [11/40] Ejecutando inventory_engine.test.js... ✅ OK (11 pruebas, 0.06s)
 [12/40] Ejecutando maestro_envases_import.test.js... ✅ OK (22 pruebas, 0.05s)
 [13/40] Ejecutando movement_service.test.js... ✅ OK (4 pruebas, 0.06s)
-[14/40] Ejecutando persistence_runtime.test.js... ✅ OK (9 pruebas, 0.08s)
+[14/40] Ejecutando persistence_runtime.test.js... ✅ OK (9 pruebas, 0.07s)
 [15/40] Ejecutando stock_query.test.js... ✅ OK (10 pruebas, 0.08s)
-[16/40] Ejecutando t002_fecha_negocio.test.js... ✅ OK (9 pruebas, 0.10s)
-[17/40] Ejecutando t003_consumos_fifo.test.js... ✅ OK (9 pruebas, 0.09s)
+[16/40] Ejecutando t002_fecha_negocio.test.js... ✅ OK (9 pruebas, 0.08s)
+[17/40] Ejecutando t003_consumos_fifo.test.js... ✅ OK (9 pruebas, 0.07s)
 [18/40] Ejecutando t004_clave_nombre.test.js... ✅ OK (6 pruebas, 0.13s)
-[19/40] Ejecutando t005_catalogo.test.js... ✅ OK (8 pruebas, 0.12s)
-[20/40] Ejecutando t006_parser_csv.test.js... ✅ OK (5 pruebas, 0.05s)
-[21/40] Ejecutando t006b_clasificador.test.js... ✅ OK (5 pruebas, 0.06s)
-[22/40] Ejecutando t007_importacion_lote.test.js... ✅ OK (13 pruebas, 0.14s)
-[23/40] Ejecutando t008_pendientes.test.js... ✅ OK (12 pruebas, 0.12s)
+[19/40] Ejecutando t005_catalogo.test.js... ✅ OK (8 pruebas, 0.11s)
+[20/40] Ejecutando t006_parser_csv.test.js... ✅ OK (5 pruebas, 0.04s)
+[21/40] Ejecutando t006b_clasificador.test.js... ✅ OK (5 pruebas, 0.05s)
+[22/40] Ejecutando t007_importacion_lote.test.js... ✅ OK (13 pruebas, 0.13s)
+[23/40] Ejecutando t008_pendientes.test.js... ✅ OK (12 pruebas, 0.11s)
 [24/40] Ejecutando t009_reproceso.test.js... ✅ OK (10 pruebas, 0.11s)
-[25/40] Ejecutando t011_puesta_en_marcha.test.js... ✅ OK (10 pruebas, 0.12s)
-[26/40] Ejecutando t018_copias.test.js... ✅ OK (12 pruebas, 0.12s)
-[27/40] Ejecutando t020_acceso.test.js... ✅ OK (18 pruebas, 0.12s)
+[25/40] Ejecutando t011_puesta_en_marcha.test.js... ✅ OK (10 pruebas, 0.11s)
+[26/40] Ejecutando t018_copias.test.js... ✅ OK (12 pruebas, 0.10s)
+[27/40] Ejecutando t020_acceso.test.js... ✅ OK (18 pruebas, 0.14s)
 [28/40] Ejecutando t022_libro.test.js... ✅ OK (5 pruebas, 0.07s)
-[29/40] Ejecutando t022_propiedades.test.js... ✅ OK (1 pruebas, 0.45s)
-[30/40] Ejecutando t023_superficie.test.js... ✅ OK (8 pruebas, 0.13s)
-[31/40] Ejecutando t024_inicio.test.js... ✅ OK (5 pruebas, 0.19s)
-[32/40] Ejecutando t024_interfaz.test.js... ✅ OK (11 pruebas, 0.14s)
-[33/40] Ejecutando t025_operaciones.test.js... ✅ OK (8 pruebas, 0.19s)
-[34/40] Ejecutando t026_deuda_menor.test.js... ✅ OK (3 pruebas, 0.13s)
-[35/40] Ejecutando t027_correcciones.test.js... ✅ OK (12 pruebas, 0.30s)
-[36/40] Ejecutando t028_importar_pendientes.test.js... ✅ OK (13 pruebas, 0.13s)
-[37/40] Ejecutando t029_parte_noche.test.js... ✅ OK (5 pruebas, 0.10s)
-[38/40] Ejecutando t030_lector_por_columnas.test.js... ✅ OK (4 pruebas, 0.09s)
-[39/40] Ejecutando t031_exclusiones.test.js... ✅ OK (10 pruebas, 0.19s)
-[40/40] Ejecutando t032_recepciones.test.js... ✅ OK (6 pruebas, 0.13s)
+[29/40] Ejecutando t022_propiedades.test.js... ✅ OK (1 pruebas, 0.40s)
+[30/40] Ejecutando t023_superficie.test.js... ✅ OK (8 pruebas, 0.12s)
+[31/40] Ejecutando t024_inicio.test.js... ✅ OK (5 pruebas, 0.17s)
+[32/40] Ejecutando t024_interfaz.test.js... ✅ OK (11 pruebas, 0.13s)
+[33/40] Ejecutando t025_operaciones.test.js... ✅ OK (8 pruebas, 0.20s)
+[34/40] Ejecutando t026_deuda_menor.test.js... ✅ OK (3 pruebas, 0.17s)
+[35/40] Ejecutando t027_correcciones.test.js... ✅ OK (12 pruebas, 0.28s)
+[36/40] Ejecutando t028_importar_pendientes.test.js... ✅ OK (13 pruebas, 0.11s)
+[37/40] Ejecutando t029_parte_noche.test.js... ✅ OK (5 pruebas, 0.09s)
+[38/40] Ejecutando t030_lector_por_columnas.test.js... ✅ OK (4 pruebas, 0.08s)
+[39/40] Ejecutando t031_exclusiones.test.js... ✅ OK (10 pruebas, 0.21s)
+[40/40] Ejecutando t032_recepciones.test.js... ✅ OK (7 pruebas, 0.12s)
 
 ================================================================
  RESUMEN GLOBAL DE EJECUCIÓN
@@ -93,8 +93,8 @@ Suites detectadas (40):
  Suites ejecutadas:  40
  Suites superadas:   40
  Suites fallidas:    0
- Pruebas superadas:  402
- Tiempo total:       5.06s
+ Pruebas superadas:  403
+ Tiempo total:       4.78s
 ================================================================
 
 RESULTADO FINAL: TODO EN VERDE (0 fallos)

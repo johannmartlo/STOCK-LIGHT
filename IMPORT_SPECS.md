@@ -167,8 +167,9 @@ DescripcionArticulo;Envase;NroEnvases;NroPalets;Numero;Partida;Cantidad;...
 
 **Fuente única de entradas.** La propiedad `FUENTE_ENTRADAS` vale `COMPRAS` o
 `RECEPCIONES`. Con `RECEPCIONES`, un CSV de COMPRAS se rechaza en la previsualización con
-«Las entradas se importan con el informe de recepciones». Se cambia con
-`adminConfigurarFuenteEntradas(...)`.
+«Las entradas se importan con el informe de recepciones»; con `COMPRAS`, un CSV de
+RECEPCIONES se rechaza con «Las entradas se importan con el informe de compras». Se cambia
+con `adminConfigurarFuenteEntradas(...)`.
 
 ---
 

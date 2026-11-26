@@ -101,10 +101,11 @@ Hazlo primero en DEV y repite después en PROD.
    ])
    ```
 
-   - `adminConfigurarFuenteEntradas` guarda `FUENTE_ENTRADAS` y exige ser propietario. Con
-     `RECEPCIONES`, el informe de compras se rechaza para no contar dos veces la entrada.
-     Con `COMPRAS` se mantiene el comportamiento anterior. Si una instalación anterior no
-     tiene la propiedad, sigue en `COMPRAS`; ejecuta la función para pasar a `RECEPCIONES`.
+   - `adminInstalarStockLight` fija `FUENTE_ENTRADAS = RECEPCIONES` si la propiedad está
+     vacía y no cambia un valor ya existente. Usa `adminConfigurarFuenteEntradas` para
+     cambiarla después; exige ser propietario. Con `RECEPCIONES`, el informe de compras se
+     rechaza para no contar dos veces la entrada. Con `COMPRAS` se mantiene el
+     comportamiento anterior.
    - `adminConfigurarEquivalencias` añade o actualiza la traducción de la descripción de
      recepción al nombre que usa el informe de ventas. Es idempotente. Los ejemplos son
      ficticios: los nombres reales se configuran en cada instalación y nunca se suben al
