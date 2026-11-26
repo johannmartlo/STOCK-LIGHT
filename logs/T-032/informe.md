@@ -13,7 +13,7 @@
 4. `Equivalencias.js`, la hoja `EQUIVALENCIAS_ARTICULO`, `adminConfigurarEquivalencias`,
    `adminConfigurarFuenteEntradas`, `apiListarEquivalencias` y la documentación de puesta en
    marcha quedan añadidos; sin nombres reales.
-5. `node test/run_all.js`: **40 suites, 403 pruebas, 0 fallos**. Sin merge.
+5. `node test/run_all.js`: **41 suites, 413 pruebas, 0 fallos**. Sin merge.
 
 ## git status
 
@@ -87,3 +87,54 @@ f5b5d5e fix(T-028): clasificar CSV de RECEPCIONES como entradas antes que ventas
 12. **Aviso `SIN_PAREJA_EN_VENTAS`.** Se consideran ventas previas las combinaciones de
     `CATALOGO` y los movimientos `SALIDA`; no se miran presupuestos ni otras fuentes. No
     bloquea la importación.
+
+---
+
+## Corrección y rebase
+
+### Correcciones pedidas
+
+- **Instalación.** `adminInstalarStockLight` fija `FUENTE_ENTRADAS = RECEPCIONES` si la
+  propiedad está vacía y no toca un valor existente. Solo se modificó `src/Instalacion.js`
+  para este paso, como autorizó el responsable.
+- **Simetría de fuentes.** Con `FUENTE_ENTRADAS = COMPRAS`, un CSV de RECEPCIONES se rechaza
+  en la previsualización con «Las entradas se importan con el informe de compras», sin
+  escribir nada. La forma del error es la misma que el rechazo inverso: un `Error` que la API
+  rechaza y la pantalla muestra.
+- **Partida al corregir.** En `CorreccionService._crearEntradaVersion_`, la línea nueva usa
+  `partida_origen = linea.partida`. La capa activa de una recepción corregida conserva su
+  partida. Solo se modificó esa función.
+- **Pruebas nuevas:** instalación con y sin valor previo; RECEPCIONES rechazado con COMPRAS
+  sin escribir; recepción corregida con `aplicarVersion` y capa activa con partida.
+
+### Rebase sobre `df13b95`
+
+`git fetch origin` mostró `origin/main = df13b95` (incluye T-034). `git rebase origin/main`
+terminó sin conflictos. `node test/run_all.js`: **41 suites, 413 pruebas, 0 fallos**;
+incluye T-027 (12), T-031 (10), T-032 (7) y T-034 (10). Salida completa en
+`logs/T-032/tests.txt`.
+
+### `git log --oneline -5`
+
+```text
+f0ce938 fix(T-032): instalacion, simetria de fuentes y partida en versiones
+b8942c1 docs(T-032): completar informe de entrega
+ce42675 feat(T-032): entradas desde recepciones de Hispatec
+bda2c6c docs(tickets): anadir T-032 lector de recepciones
+df13b95 docs(T-034): anadir informe de entrega
+```
+
+### Dudas de esta corrección
+
+1. `adminInstalarStockLight` anota `fuente_entradas:RECEPCIONES` en `hecho` cuando la
+   configura; si ya había valor lo deja en `yaEstaba` y no llama a `setFuenteEntradasConfig`.
+   No cambié ningún otro paso de la instalación.
+2. La instalación no valida el valor previo de `FUENTE_ENTRADAS`; si ya existe uno inválido,
+   lo conserva, tal como pide «no la cambia si ya tiene valor».
+3. El rechazo simétrico se aplica en `_preparar_`, antes de clasificar o escribir. No se
+   añadió un estado estructurado nuevo: se mantiene el `Error` con mensaje que ya usa la
+   pantalla para los CSV no reconocidos.
+4. La partida corregida se toma de `linea.partida` del JSON de la versión. El resto de
+   `CorreccionService` no se ha tocado.
+5. Las dudas anteriores de este informe siguen vigentes; esta sección solo añade lo relativo
+   a las tres correcciones y al rebase.

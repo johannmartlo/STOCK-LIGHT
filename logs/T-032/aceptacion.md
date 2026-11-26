@@ -3,7 +3,7 @@
 Ticket: `docs/tickets/T-032-lector-recepciones.md`.
 Rama: `ticket/T-032-lector-recepciones`, creada desde `main` `81dc81c`.
 Primer commit de la rama: `630f1bd`, solo el archivo del ticket sin editar.
-Resultado de `node test/run_all.js`: **40 suites, 403 pruebas, 0 fallos**. Salida completa en
+Resultado de `node test/run_all.js`: **41 suites, 413 pruebas, 0 fallos**. Salida completa en
 `logs/T-032/tests.txt`.
 
 ## Aceptación 1 — fixture ficticio con formato real
@@ -88,7 +88,8 @@ Resultado de `node test/run_all.js`: **40 suites, 403 pruebas, 0 fallos**. Salid
 
 ## Aceptación 8 — pruebas
 
-- `node test/run_all.js`: **40 suites, 403 pruebas, 0 fallos**; incluye T-027, T-031 y T-032.
+- `node test/run_all.js`: **41 suites, 413 pruebas, 0 fallos**; incluye T-027, T-031, T-032 y
+  T-034.
 - Salida completa en `logs/T-032/tests.txt`.
 
 ## Documentación
