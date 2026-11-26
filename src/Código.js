@@ -39,6 +39,8 @@ if (typeof require !== 'undefined') {
   try { operacionesMod = require('./OperacionesService'); } catch (e) {}
   let inicioMod = null;
   try { inicioMod = require('./InicioService'); } catch (e) {}
+  let parteMod = null;
+  try { parteMod = require('./ParteService'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -56,6 +58,13 @@ if (typeof require !== 'undefined') {
   if (stockInicialMod) global.StockInicialService = global.StockInicialService || stockInicialMod.StockInicialService;
   if (operacionesMod) global.OperacionesService = global.OperacionesService || operacionesMod.OperacionesService;
   if (inicioMod) global.InicioService = global.InicioService || inicioMod.InicioService;
+  if (parteMod) {
+    global.ParteService = global.ParteService || parteMod.ParteService;
+    global.enviarParteDiario_ = global.enviarParteDiario_ || parteMod.enviarParteDiario_;
+    global.leerDestinatariosParte_ = global.leerDestinatariosParte_ || parteMod.leerDestinatariosParte_;
+    global.leerHoraParte_ = global.leerHoraParte_ || parteMod.leerHoraParte_;
+    global.normalizarDestinatariosParte_ = global.normalizarDestinatariosParte_ || parteMod.normalizarDestinatariosParte_;
+  }
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -364,6 +373,85 @@ function adminInstalarCopiaDiaria() {
 function adminConfigurarCarpetaCopias(folderId) {
   exigirPropietario_();
   return configurarCarpetaCopias_(folderId);
+}
+
+/**
+ * Configura los destinatarios y la hora del parte diario (T-029).
+ * Reservada al propietario del script.
+ *
+ * @param {string|Array<string>} destinatarios - Lista separada por comas.
+ * @param {number} [hora=21] - Hora local (0-23) en Europe/Madrid.
+ * @param {Object} [options] - Inyección para pruebas.
+ * @returns {{ destinatarios: Array<string>, hora: number }}
+ */
+function adminConfigurarParte(destinatarios, hora = 21, options = {}) {
+  exigirPropietario_(options && options.session);
+
+  const lista = normalizarDestinatariosParte_(destinatarios);
+  const horaNum = hora === undefined || hora === null || String(hora).trim() === '' ? 21 : Number(hora);
+  if (!Number.isInteger(horaNum) || horaNum < 0 || horaNum > 23) {
+    throw new Error('La hora del parte debe ser un entero entre 0 y 23.');
+  }
+
+  const propService = options.propertiesService
+    || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null);
+  if (!propService || typeof propService.setProperty !== 'function') {
+    throw new Error('PropertiesService no está disponible para configurar el parte.');
+  }
+
+  propService.setProperty('PARTE_DESTINATARIOS', lista.join(','));
+  propService.setProperty('PARTE_HORA', String(horaNum));
+  return { destinatarios: lista, hora: horaNum };
+}
+
+/**
+ * Instala o reinstala el disparador diario del parte (T-029).
+ * Es idempotente: borra los disparadores anteriores de enviarParteDiario_ antes de crear uno.
+ * Reservada al propietario del script.
+ *
+ * @param {Object} [options] - Inyección para pruebas.
+ * @returns {{ ok: boolean, handler: string, hora: number }}
+ */
+function adminInstalarParteDiario(options = {}) {
+  exigirPropietario_(options && options.session);
+
+  const hora = leerHoraParte_(options);
+  const scriptApp = options.scriptApp || (typeof ScriptApp !== 'undefined' ? ScriptApp : null);
+  if (!scriptApp || typeof scriptApp.newTrigger !== 'function') {
+    throw new Error('ScriptApp no está disponible para instalar el parte diario.');
+  }
+
+  const previos = typeof scriptApp.getProjectTriggers === 'function' ? scriptApp.getProjectTriggers() : [];
+  for (const trigger of previos) {
+    if (!trigger) continue;
+    const handler = typeof trigger.getHandlerFunction === 'function' ? trigger.getHandlerFunction() : '';
+    if (handler === 'enviarParteDiario_') {
+      scriptApp.deleteTrigger(trigger);
+    }
+  }
+
+  scriptApp
+    .newTrigger('enviarParteDiario_')
+    .timeBased()
+    .atHour(hora)
+    .everyDays(1)
+    .create();
+
+  return { ok: true, handler: 'enviarParteDiario_', hora };
+}
+
+/**
+ * Envía el parte ahora, para probarlo desde el editor (T-029).
+ * Reservada al propietario del script.
+ *
+ * @param {Object} [options] - Inyección para pruebas.
+ * @returns {Object}
+ */
+function adminEnviarParteAhora(options = {}) {
+  exigirPropietario_(options && options.session);
+  const enviar = typeof enviarParteDiario_ === 'function' ? enviarParteDiario_ : null;
+  if (!enviar) throw new Error('enviarParteDiario_ no está disponible en este entorno de ejecución.');
+  return enviar(options);
 }
 
 /**
@@ -1883,6 +1971,29 @@ function _resolveInicioService_(options = {}) {
 }
 
 /**
+ * Resuelve el servicio del parte de la noche (T-029).
+ * Función interna: no se expone en docs/API_PUBLICA.md.
+ * @param {Object} [options]
+ * @returns {ParteService}
+ */
+function _resolveParteService_(options = {}) {
+  if (options && options.parteService) return options.parteService;
+  const SvcClass = (typeof ParteService !== 'undefined')
+    ? ParteService
+    : (typeof require !== 'undefined' ? require('./ParteService').ParteService : null);
+  if (!SvcClass) throw new Error('ParteService no está disponible en este entorno de ejecución.');
+  return new SvcClass({
+    repository: options.repository,
+    inicioService: options.inicioService,
+    catalogoService: options.catalogoService,
+    pendientesService: options.pendientesService,
+    configCatalogo: options.configCatalogo,
+    reloj: options.reloj,
+    clock: options.clock
+  });
+}
+
+/**
  * Devuelve el resumen agregado para la pantalla de Existencias (T-024).
  * Categoría: LECTURA (rol mínimo CONSULTA).
  *
@@ -1893,6 +2004,19 @@ function apiObtenerInicio(options = {}) {
   exigirSesionApi_();
   const service = _resolveInicioService_(options);
   return service.obtenerInicio(options);
+}
+
+/**
+ * Devuelve el parte de stock de la noche (T-029).
+ * Categoría: LECTURA (rol mínimo CONSULTA).
+ *
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiObtenerParte(options = {}) {
+  exigirSesionApi_();
+  const service = _resolveParteService_(options);
+  return service.generarParte(options);
 }
 
 /**
@@ -1992,6 +2116,12 @@ if (typeof module !== 'undefined' && module.exports) {
     adminCrearCopiaManual,
     adminInstalarCopiaDiaria,
     adminConfigurarCarpetaCopias,
+    adminConfigurarParte,
+    adminInstalarParteDiario,
+    adminEnviarParteAhora,
+    enviarParteDiario_: (typeof enviarParteDiario_ !== 'undefined')
+      ? enviarParteDiario_
+      : (parteMod ? parteMod.enviarParteDiario_ : null),
     adminInstalarStockLight: (typeof adminInstalarStockLight !== 'undefined')
       ? adminInstalarStockLight
       : (instalacionMod ? instalacionMod.adminInstalarStockLight : null),
@@ -1999,6 +2129,7 @@ if (typeof module !== 'undefined' && module.exports) {
     doGet,
     include_,
     apiObtenerInicio,
+    apiObtenerParte,
     apiObtenerPartida,
     apiGetMaestroArticulos,
     apiGetMaestroEnvases,

@@ -70,6 +70,7 @@ const PERMISOS_API = {
   apiListarMovimientos: 'CONSULTA',
   apiBuscar: 'CONSULTA',
   apiObtenerInicio: 'CONSULTA',
+  apiObtenerParte: 'CONSULTA',
   apiObtenerPartida: 'CONSULTA',
 
   // LECTURA de usuarios — ADMIN

@@ -108,6 +108,25 @@ Hazlo primero en DEV y repite después en PROD.
    Google** (la identidad real la da el enlace con PIN). Copia la URL de la implementación.
    El archivo `appsscript.json` ya lleva esa configuración.
 
+8. **Parte de la noche.** El parte se manda por correo como respaldo del texto que se copia
+   al canal. En el editor:
+
+   ```text
+   adminConfigurarParte('responsable@ejemplo.test,encargado@ejemplo.test', 21)
+   adminInstalarParteDiario()
+   adminEnviarParteAhora()
+   ```
+
+   - `adminConfigurarParte` guarda los destinatarios (separados por comas) y la hora local
+     (por defecto, 21). Usa direcciones ficticias de ejemplo; las reales se configuran en
+     cada instalación y nunca se suben al repositorio.
+   - `adminInstalarParteDiario` instala el disparador diario a esa hora en Europe/Madrid.
+     Es idempotente: ejecutarlo dos veces deja un solo disparador.
+   - `adminEnviarParteAhora` envía una prueba inmediata. Comprueba el asunto
+     `Stock DD/MM · N cajas`, el texto copiable y la tabla del correo en el móvil.
+   - Si no hay destinatarios configurados, no se envía nada y queda registrado en
+     `LOG_OPERACIONES`; un fallo de correo tampoco interrumpe la aplicación.
+
 ## 4. Cargar el stock inicial
 
 El stock inicial es una foto del almacén en un momento dado. Se carga **una sola vez** al

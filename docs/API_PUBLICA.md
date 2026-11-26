@@ -100,6 +100,7 @@ no las expone.
 | `planificarReproceso` | `src/Reproceso.js` | INTERNA | Valida y planifica movimientos de un reproceso (función pura, T-009). |
 | `doGet` | `src/Código.js` | LECTURA | Punto de entrada HTTP que sirve la interfaz. Sin sesión por diseño. |
 | `apiObtenerInicio` | `src/Código.js` | LECTURA | Devuelve existencias, serie de 30 días, variedades, pendientes, destrío, importado hasta y últimos movimientos; rol CONSULTA (T-024). |
+| `apiObtenerParte` | `src/Código.js` | LECTURA | Devuelve `{ fecha, hora, texto, html, datos }` del parte de stock de la noche; rol CONSULTA (T-029). |
 | `apiObtenerPartida` | `src/Código.js` | LECTURA | Devuelve origen, consumos y destinos de reproceso de una partida; rol CONSULTA (T-024). |
 | `apiConfirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento revisado; usuario del servidor. |
 | `apiGetMaestroArticulos` | `src/Código.js` | LECTURA | Catálogo maestro de artículos. |
@@ -197,6 +198,9 @@ no las expone.
 | `adminCrearCopiaManual` | `src/Código.js` | ADMIN | Crea una copia de seguridad MANUAL de la hoja de datos. |
 | `adminInstalarCopiaDiaria` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario de copia a las 23:00. |
 | `adminConfigurarCarpetaCopias` | `src/Código.js` | ADMIN | Persiste la carpeta de Drive de las copias (`BACKUP_FOLDER_ID`). |
+| `adminConfigurarParte` | `src/Código.js` | ADMIN | Guarda los destinatarios y la hora del parte diario en ScriptProperties (T-029). |
+| `adminInstalarParteDiario` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario del parte a la hora configurada, en Europe/Madrid (T-029). |
+| `adminEnviarParteAhora` | `src/Código.js` | ADMIN | Envía el parte ahora por correo para probarlo desde el editor (T-029). |
 | `adminInstalarStockLight` | `src/Instalacion.js` | ADMIN | Puesta en marcha idempotente: provisiona hojas, siembra el catálogo si está vacío, instala la copia diaria y crea el primer ADMIN (T-011). |
 | `adminPrevisualizarStockInicialDesdeHoja` | `src/Código.js` | ADMIN | Previsualiza la hoja `STOCK_INICIAL_ENTRADA` sin escribir (T-011). |
 | `adminConfirmarStockInicialDesdeHoja` | `src/Código.js` | ADMIN | Confirma la hoja `STOCK_INICIAL_ENTRADA` con hash; `anadir` permite una segunda carga (T-011). |
