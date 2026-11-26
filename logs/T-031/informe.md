@@ -84,7 +84,48 @@ e788b0d docs(tickets): anadir T-031 exclusiones
     `CSV` o `PDF` y `tipoDoc = SALIDA`; una línea manual de otro origen no se marca
     `CLIENTE_EXCLUIDO`. El ticket habla de líneas de venta, pero no de ese detalle técnico.
 11. **Documentación nueva.** Añadí las secciones 3.13 de `DATA_MODEL.md`, 2.5 de
-    `IMPORT_SPECS.md` y 8 de `BUSINESS_RULES.md`; el ticket pedía documentar las reglas, pero
+    `IMPORT_SPECS.md` y 9 de `BUSINESS_RULES.md`; el ticket pedía documentar las reglas, pero
     no fijaba la numeración ni la extensión.
 12. **No se añadieron nombres reales.** Todos los ejemplos y pruebas usan `CLIENTE FICTICIO`,
     `DESTINATARIO INVENTADO`, `NOMBRE COMERCIAL X/Y` y similares.
+
+---
+
+## Rebase sobre 9c54b7b
+
+Las secciones «git status» y «git log» anteriores son del estado previo al rebase; el estado
+final es el de esta sección. Rebase realizado sobre `9c54b7b` (incluye T-027), sin tocar
+`CorreccionService.js`.
+
+### Archivos con conflicto y resolución
+
+- **`BUSINESS_RULES.md`**: T-027 había añadido la sección 8 «Correcciones desde Hispatec» y
+  T-031 la sección 8 «Exclusiones de la Importación». Conservé íntegra la sección 8 de T-027
+  y moví la de T-031 a la sección 9, con sus subsecciones 9.1, 9.2 y 9.3. No cambié ningún
+  texto de T-027.
+- **`src/Código.js`**: T-027 añadía `correccionMod` y su global `CorreccionService`; T-031
+  añadía `exclusionesMod` y sus globales de exclusión. Conservé las dos declaraciones y los
+  dos bloques de globales, y mantuve `apiListarExclusiones`.
+- **`src/Seguridad.js`**: conservé los permisos de T-027
+  (`apiListarVersionesPendientes`, `apiPrevisualizarVersion`, `apiPrevisualizarAnularAjuste`)
+  y añadí `apiListarExclusiones: 'CONSULTA'`.
+
+`DATA_MODEL.md`, `docs/API_PUBLICA.md`, `src/Repository.js` y
+`src/importacion/ImportacionService.js` se fusionaron sin conflicto. Revisé el diff contra
+`origin/main`: solo aparecen las adiciones de T-031; las líneas y funciones de T-027 siguen
+intactas.
+
+### Pruebas
+
+`node test/run_all.js`: **38 suites, 379 pruebas, 0 fallos**. Incluye las 12 pruebas de T-027
+y las 6 de T-031. Salida completa en `logs/T-031/tests.txt`.
+
+### `git log --oneline -5`
+
+```text
+c3fcc3d docs(T-031): actualizar pruebas tras rebase
+73f4062 docs(T-031): actualizar informe con el estado final
+766cc43 docs(T-031): actualizar salida de pruebas
+129b783 fix(T-031): registrar solo documentos totalmente excluidos
+0808fe0 docs(T-031): completar informe de entrega
+```
