@@ -135,6 +135,8 @@ no las expone.
 | `setDriveFolderIdConfig` | `src/Config.js` | ADMIN | Persiste el DRIVE_FOLDER_ID. |
 | `getFuenteEntradasConfig` | `src/Config.js` | INTERNA | Lee la fuente de entradas (COMPRAS o RECEPCIONES); sin propiedad devuelve COMPRAS (T-032). |
 | `setFuenteEntradasConfig` | `src/Config.js` | INTERNA | Persiste FUENTE_ENTRADAS; la usa `adminConfigurarFuenteEntradas` (T-032). |
+| `getFechaCorteImportacionConfig` | `src/Config.js` | INTERNA | Lee FECHA_CORTE_IMPORTACION; vacía = sin corte (T-037). |
+| `setFechaCorteImportacionConfig` | `src/Config.js` | INTERNA | Persiste FECHA_CORTE_IMPORTACION; la usa `adminConfigurarFechaCorte` (T-037). |
 | `resolveDatabaseSpreadsheet` | `src/Config.js` | INTERNA | Resuelve la hoja de cálculo de trabajo. |
 | `normalizeCommercialText` | `src/CommercialGroupResolver.js` | INTERNA | Normaliza texto comercial. |
 | `extraerCalibreYCategoria` | `src/CalibreCategoria.js` | INTERNA | Extrae calibre y categoría de un artículo. |
@@ -215,6 +217,7 @@ no las expone.
 | `adminConfigurarArticulosFuera` | `src/Exclusiones.js` | ADMIN | Crea o actualiza reglas de seguimiento NO para nombres comerciales fuera; idempotente (T-031). |
 | `adminConfigurarEquivalencias` | `src/Equivalencias.js` | ADMIN | Añade o actualiza equivalencias descripción de recepción → nombre de artículo; idempotente (T-032). |
 | `adminConfigurarFuenteEntradas` | `src/Código.js` | ADMIN | Cambia FUENTE_ENTRADAS entre COMPRAS y RECEPCIONES (T-032). |
+| `adminConfigurarFechaCorte` | `src/FechaCorte.js` | ADMIN | Fija o quita FECHA_CORTE_IMPORTACION; devuelve el valor anterior y el nuevo (T-037). |
 | `adminInstalarParteDiario` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario del parte a la hora configurada, en Europe/Madrid (T-029). |
 | `adminEnviarParteAhora` | `src/Código.js` | ADMIN | Envía el parte ahora por correo para probarlo desde el editor (T-029). |
 | `adminInstalarStockLight` | `src/Instalacion.js` | ADMIN | Puesta en marcha idempotente: provisiona hojas, siembra el catálogo si está vacío, instala la copia diaria y crea el primer ADMIN (T-011). |

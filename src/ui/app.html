@@ -563,6 +563,7 @@
         const nYa = docsYa.length;
         const nDiferidos = diferirComprobacionStock ? docsSinStock.length : 0;
         const nClienteExcluido = Number(prev.lineasClienteExcluido || porEstado.CLIENTE_EXCLUIDO || 0);
+        const nAnteriorCorte = Number(prev.lineasAnterioresCorte || porEstado.ANTERIOR_AL_CORTE || 0);
         const nIgn = Number(porEstado.NO_SEGUIDA || 0) + Number(porEstado.ABONO || 0) + Number(porEstado.SERIE_IGNORADA || 0);
         const nProb = (diferirComprobacionStock ? 0 : docsSinStock.length) + docsMod.length + Number(porEstado.PENDIENTE || 0) + Number(porEstado.ERROR_DATOS || 0);
 
@@ -629,6 +630,14 @@
             '<span class="sl-mono" style="color:var(--sl-text-label)">—</span>' +
             '</summary><div class="sl-imp-details-body">Líneas de clientes excluidos del control de stock.</div></details>';
         }
+        if (nAnteriorCorte > 0) {
+          filasDetalle +=
+            '<details class="sl-imp-details"><summary>' +
+            '<span class="sl-dot-ind" style="background:var(--sl-text-secondary)"></span>' +
+            '<span style="flex:1;color:var(--sl-text-secondary)"><b>' + esc(pluraliza(nAnteriorCorte, 'línea anterior al stock inicial', 'líneas anteriores al stock inicial')) + '</b> · ' + (nAnteriorCorte === 1 ? 'no cuenta' : 'no cuentan') + '</span>' +
+            '<span class="sl-mono" style="color:var(--sl-text-label)">—</span>' +
+            '</summary><div class="sl-imp-details-body">Líneas con fecha anterior a la fecha de corte; ya están incluidas en el stock inicial.</div></details>';
+        }
         if (nIgn > 0) {
           const partesIgn = [];
           if (Number(porEstado.NO_SEGUIDA || 0) > 0) partesIgn.push(pluraliza(porEstado.NO_SEGUIDA, 'no seguida', 'no seguidas'));
@@ -663,7 +672,7 @@
             '</div>' +
             '<div class="sl-imp-segbar" aria-hidden="true">' +
             (nOk > 0 ? '<span style="flex:' + nOk + ';background:var(--sl-green)"></span>' : '') +
-            ((nYa + nDiferidos + nClienteExcluido) > 0 ? '<span style="flex:' + (nYa + nDiferidos + nClienteExcluido) + ';background:#71717A"></span>' : '') +
+            ((nYa + nDiferidos + nClienteExcluido + nAnteriorCorte) > 0 ? '<span style="flex:' + (nYa + nDiferidos + nClienteExcluido + nAnteriorCorte) + ';background:#71717A"></span>' : '') +
             (nIgn > 0 ? '<span style="flex:' + nIgn + ';background:var(--sl-amber)"></span>' : '') +
             (nProb > 0 ? '<span style="flex:' + nProb + ';background:var(--sl-red)"></span>' : '') +
             '</div></div>'

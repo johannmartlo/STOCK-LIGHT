@@ -240,6 +240,7 @@ Registro de cada importación de CSV, para comprobar el hash, reanudar tramos y 
 | `lineas_error` | `INTEGER` | NO | Líneas ERROR_DATOS. |
 | `estado` | `ENUM` | NO | `EN_CURSO` o `CONFIRMADA`. |
 | `ultimo_tramo` | `INTEGER` | NO | Último tramo aplicado; permite reanudar sin repetir documentos. |
+| `lineas_anteriores_corte` | `INTEGER` | NO | Líneas de documentos con fecha ≤ `FECHA_CORTE_IMPORTACION` (T-037). |
 
 #### 3.2.3. Tabla: `VERSIONES_DOCUMENTO`
 Versiones nuevas de documentos cuyo albarán ha cambiado en Hispatec (T-027, D-038). Una fila `PENDIENTE` por documento; las versiones anteriores se marcan `DESCARTADA` y, al aplicarse, `APLICADA`.
@@ -505,6 +506,10 @@ informe de ventas. Solo afecta al nombre del artículo; el envase no se transfor
 | `nombre_articulo` | `VARCHAR(300)` | NO | Nombre de artículo de venta que se usará en la línea. |
 | `activo` | `BOOLEAN` | NO | Solo las equivalencias activas se aplican. |
 | `nota` | `VARCHAR(300)` | SÍ | Nota libre para el responsable. |
+
+`FECHA_CORTE_IMPORTACION` (ScriptProperties) guarda la fecha de corte `yyyy-MM-dd` o vacía
+(sin corte). Los documentos con fecha ≤ corte no se registran en `DOCUMENTOS` y se cuentan en
+`IMPORTACIONES.lineas_anteriores_corte` (T-037).
 
 ---
 

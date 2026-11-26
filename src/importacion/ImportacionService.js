@@ -82,6 +82,7 @@ class ImportacionService {
     this.pendientesService = options.pendientesService || null;
     this.clientesExcluidos = options.clientesExcluidos !== undefined ? options.clientesExcluidos : null;
     this.fuenteEntradas = options.fuenteEntradas !== undefined ? options.fuenteEntradas : null;
+    this.fechaCorte = options.fechaCorte !== undefined ? options.fechaCorte : null;
     this.propertiesService = options.propertiesService || null;
   }
 
@@ -147,6 +148,25 @@ class ImportacionService {
       : (typeof getFuenteEntradasConfig === 'function' ? getFuenteEntradasConfig : null);
     if (getter) return getter({ propertiesService: this.propertiesService });
     return 'COMPRAS';
+  }
+
+  _fechaCorte_() {
+    const getter = (IMPORTACIONES_CONFIG_NODE && typeof IMPORTACIONES_CONFIG_NODE.getFechaCorteImportacionConfig === 'function')
+      ? IMPORTACIONES_CONFIG_NODE.getFechaCorteImportacionConfig
+      : (typeof getFechaCorteImportacionConfig === 'function' ? getFechaCorteImportacionConfig : null);
+    if (this.fechaCorte !== null && this.fechaCorte !== undefined) {
+      const normalizarFn = (IMPORTACIONES_CONFIG_NODE && typeof IMPORTACIONES_CONFIG_NODE.normalizarFechaCorteImportacion_ === 'function')
+        ? IMPORTACIONES_CONFIG_NODE.normalizarFechaCorteImportacion_
+        : (typeof normalizarFechaCorteImportacion_ === 'function' ? normalizarFechaCorteImportacion_ : null);
+      return normalizarFn ? normalizarFn(this.fechaCorte) : String(this.fechaCorte).trim();
+    }
+    if (getter) return getter({ propertiesService: this.propertiesService });
+    return '';
+  }
+
+  _documentoAnteriorCorte_(documento) {
+    const lineas = documento && Array.isArray(documento.lineasTodas) ? documento.lineasTodas : [];
+    return lineas.length > 0 && lineas.every(linea => linea.estado === 'ANTERIOR_AL_CORTE');
   }
 
   _normalizarArticulosRecepcion_(lineas) {
@@ -329,8 +349,26 @@ class ImportacionService {
     if (parseado.tipo === 'RECEPCIONES' && fuenteEntradas === 'COMPRAS') {
       throw new Error('Las entradas se importan con el informe de compras');
     }
-    if (parseado.tipo === 'RECEPCIONES') this._normalizarArticulosRecepcion_(parseado.lineas);
-    const clasificadas = this._clasificar_(parseado.lineas, parseado.tipo);
+    // T-037: el corte se aplica antes de normalizar equivalencias y clasificar.
+    const fechaCorte = this._fechaCorte_();
+    const lineasAnteriores = new Set();
+    const lineasProcesables = [];
+    for (const linea of parseado.lineas) {
+      if (fechaCorte && linea.fecha && String(linea.fecha) <= fechaCorte) {
+        linea.estado = 'ANTERIOR_AL_CORTE';
+        lineasAnteriores.add(linea);
+      } else {
+        lineasProcesables.push(linea);
+      }
+    }
+    if (parseado.tipo === 'RECEPCIONES') this._normalizarArticulosRecepcion_(lineasProcesables);
+    const clasificadasProcesables = lineasProcesables.length > 0
+      ? this._clasificar_(lineasProcesables, parseado.tipo)
+      : [];
+    let indiceClasificada = 0;
+    const clasificadas = parseado.lineas.map(linea => (
+      lineasAnteriores.has(linea) ? linea : clasificadasProcesables[indiceClasificada++]
+    ));
     const documentos = this._agrupar_(clasificadas);
 
     const lineasPorClave = new Map();
@@ -640,6 +678,9 @@ class ImportacionService {
     let secuencia = 0;
 
     const resultados = preparado.documentos.map(documento => {
+      if (this._documentoAnteriorCorte_(documento)) {
+        return this._resultadoDocumento_(documento, 'ANTERIOR_AL_CORTE', null);
+      }
       const clasificacion = this._estadoDocumento_(documento, documentosExistentes);
       let estadoDocumento = clasificacion.estado;
 
@@ -680,6 +721,7 @@ class ImportacionService {
       nuevos: resultados.filter(doc => doc.estado === 'NUEVO').length,
       yaImportados: resultados.filter(doc => doc.estado === 'YA_IMPORTADO').length,
       modificados: resultados.filter(doc => doc.estado === 'MODIFICADO_EN_ERP').length,
+      anterioresCorte: resultados.filter(doc => doc.estado === 'ANTERIOR_AL_CORTE').length,
       sinLineas: resultados.filter(doc => doc.estado === 'SIN_LINEAS_APLICABLES').length,
       stockInsuficiente: resultados.filter(doc => doc.estado === 'STOCK_INSUFICIENTE').length
     };
@@ -690,6 +732,7 @@ class ImportacionService {
       tipoCsv: preparado.tipo,
       resumen: preparado.resumen,
       lineasClienteExcluido: Number(preparado.resumen.porEstado.CLIENTE_EXCLUIDO || 0),
+      lineasAnterioresCorte: Number(preparado.resumen.porEstado.ANTERIOR_AL_CORTE || 0),
       documentos: resultados,
       totales,
       avisos,
@@ -722,21 +765,40 @@ class ImportacionService {
       String(fila.hash || '').trim().toLowerCase() === hash
     );
     if (importacionExistente && String(importacionExistente.estado || '').trim().toUpperCase() === 'CONFIRMADA') {
+      const documentosExistentes = this._documentos_();
+      const documentos = preparado.documentos.map(documento => {
+        if (this._documentoAnteriorCorte_(documento)) {
+          return this._resultadoDocumento_(documento, 'ANTERIOR_AL_CORTE', null);
+        }
+        return this._resultadoDocumento_(
+          documento,
+          'YA_IMPORTADO',
+          this._buscarDocumento_(documentosExistentes, documento)
+        );
+      });
       return {
         success: true,
         status: 'YA_IMPORTADO',
         yaImportado: true,
         hash,
         idImportacion: importacionExistente.id_importacion || '',
-        importacion: importacionExistente
+        importacion: importacionExistente,
+        resumen: preparado.resumen,
+        lineasAnterioresCorte: Number(preparado.resumen.porEstado.ANTERIOR_AL_CORTE || 0),
+        documentos
       };
     }
 
     const documentosExistentes = this._documentos_();
-    const clasificados = preparado.documentos.map(documento => ({
-      documento,
-      ...this._estadoDocumento_(documento, documentosExistentes)
-    }));
+    const clasificados = preparado.documentos.map(documento => {
+      if (this._documentoAnteriorCorte_(documento)) {
+        return { documento, estado: 'ANTERIOR_AL_CORTE', existente: null };
+      }
+      return {
+        documento,
+        ...this._estadoDocumento_(documento, documentosExistentes)
+      };
+    });
     const aplicables = clasificados
       .filter(item => !item.existente && (item.documento.lineasOk.length > 0 || item.documento.lineasPendiente.length > 0))
       .map(item => item.documento);
@@ -773,6 +835,7 @@ class ImportacionService {
       lineas_series_ignoradas: 0,
       lineas_pendientes: 0,
       lineas_cliente_excluido: 0,
+      lineas_anteriores_corte: 0,
       lineas_error: 0,
       estado: 'EN_CURSO',
       ultimo_tramo: 0
@@ -787,6 +850,7 @@ class ImportacionService {
     importacion.lineas_series_ignoradas = Number(porEstado.SERIE_IGNORADA || 0);
     importacion.lineas_pendientes = Number(porEstado.PENDIENTE || 0);
     importacion.lineas_cliente_excluido = Number(porEstado.CLIENTE_EXCLUIDO || 0);
+    importacion.lineas_anteriores_corte = Number(porEstado.ANTERIOR_AL_CORTE || 0);
     importacion.lineas_error = Number(porEstado.ERROR_DATOS || 0);
 
     if (!esReanudacion) {
@@ -967,6 +1031,7 @@ class ImportacionService {
       idImportacion: importacion.id_importacion,
       importacion,
       resumen: preparado.resumen,
+      lineasAnterioresCorte: Number(importacion.lineas_anteriores_corte || 0),
       documentos: documentosResultado,
       tramos: Number(importacion.ultimo_tramo || 0),
       conteos: {

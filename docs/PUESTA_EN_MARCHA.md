@@ -214,6 +214,23 @@ El stock inicial es el del cierre del día **D**. Desde **D+1** se importan solo
 cuyas fechas sean posteriores a **D**. Así no se cuenta dos veces lo que ya está en la
 foto inicial.
 
+5. **Fijar la fecha de corte.** Después de confirmar el stock inicial, ejecuta:
+
+   ```text
+   adminConfigurarFechaCorte('<D>')
+   ```
+
+   `<D>` es la fecha del cierre del stock inicial en formato `yyyy-MM-dd`, por ejemplo
+   `2026-11-26`. Los documentos con fecha igual o anterior a esa fecha quedan
+   `ANTERIOR_AL_CORTE` y no entran en el stock. Para quitar el corte:
+
+   ```text
+   adminConfigurarFechaCorte('')
+   ```
+
+   El corte solo afecta a la importación de CSV; no cambia el stock inicial, los reprocesos
+   ni los ajustes manuales.
+
 ## 5. Desplegar versiones sin cambiar la URL
 
 La URL de la web app no cambia si se actualiza la implementación existente:

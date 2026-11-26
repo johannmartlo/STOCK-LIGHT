@@ -10,7 +10,8 @@ const CONFIG_KEYS = {
   SPREADSHEET_ID: 'SPREADSHEET_ID',
   DRIVE_FOLDER_ID: 'DRIVE_FOLDER_ID',
   APP_ENV: 'APP_ENV',
-  FUENTE_ENTRADAS: 'FUENTE_ENTRADAS'
+  FUENTE_ENTRADAS: 'FUENTE_ENTRADAS',
+  FECHA_CORTE_IMPORTACION: 'FECHA_CORTE_IMPORTACION'
 };
 
 // Prefijos ERP que cuentan para la importación de entradas y salidas (D-002).
@@ -263,6 +264,67 @@ function setFuenteEntradasConfig(fuente, options = {}) {
   return true;
 }
 
+/**
+ * Normaliza y valida una fecha de corte en formato yyyy-MM-dd. La cadena vacía
+ * significa «sin corte».
+ * @param {*} fecha
+ * @returns {string}
+ */
+function normalizarFechaCorteImportacion_(fecha) {
+  const valor = String(fecha === null || fecha === undefined ? '' : fecha).trim();
+  if (valor === '') return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+    throw new Error('FECHA_CORTE_IMPORTACION debe estar vacía o tener formato yyyy-MM-dd.');
+  }
+  const [anio, mes, dia] = valor.split('-').map(Number);
+  const fechaUtc = new Date(Date.UTC(anio, mes - 1, dia));
+  if (
+    fechaUtc.getUTCFullYear() !== anio
+    || fechaUtc.getUTCMonth() !== mes - 1
+    || fechaUtc.getUTCDate() !== dia
+  ) {
+    throw new Error('FECHA_CORTE_IMPORTACION no es una fecha válida.');
+  }
+  return valor;
+}
+
+/**
+ * Lee FECHA_CORTE_IMPORTACION. Vacía = sin corte.
+ * @param {Object} [options]
+ * @returns {string}
+ */
+function getFechaCorteImportacionConfig(options = {}) {
+  if (options.fechaCorte !== undefined && options.fechaCorte !== null && String(options.fechaCorte).trim() !== '') {
+    return normalizarFechaCorteImportacion_(options.fechaCorte);
+  }
+  const propService = options.propertiesService
+    || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null);
+  if (propService && typeof propService.getProperty === 'function') {
+    const valor = propService.getProperty(CONFIG_KEYS.FECHA_CORTE_IMPORTACION);
+    if (valor !== null && valor !== undefined && String(valor).trim() !== '') {
+      return normalizarFechaCorteImportacion_(valor);
+    }
+  }
+  return '';
+}
+
+/**
+ * Guarda FECHA_CORTE_IMPORTACION. La cadena vacía quita el corte.
+ * @param {string} fecha
+ * @param {Object} [options]
+ * @returns {string}
+ */
+function setFechaCorteImportacionConfig(fecha, options = {}) {
+  const normalizada = normalizarFechaCorteImportacion_(fecha);
+  const propService = options.propertiesService
+    || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null);
+  if (!propService || typeof propService.setProperty !== 'function') {
+    throw new Error('PropertiesService no está disponible para guardar FECHA_CORTE_IMPORTACION.');
+  }
+  propService.setProperty(CONFIG_KEYS.FECHA_CORTE_IMPORTACION, normalizada);
+  return normalizada;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CONFIG_KEYS,
@@ -273,6 +335,9 @@ if (typeof module !== 'undefined' && module.exports) {
     normalizarFuenteEntradas_,
     getFuenteEntradasConfig,
     setFuenteEntradasConfig,
+    normalizarFechaCorteImportacion_,
+    getFechaCorteImportacionConfig,
+    setFechaCorteImportacionConfig,
     getSpreadsheetIdConfig,
     setSpreadsheetIdConfig,
     getDriveFolderIdConfig,

@@ -176,6 +176,26 @@ DescripcionArticulo;Envase;NroEnvases;NroPalets;Numero;Partida;Cantidad;...
 RECEPCIONES se rechaza con «Las entradas se importan con el informe de compras». Se cambia
 con `adminConfigurarFuenteEntradas(...)`.
 
+### 2.7. Fecha de corte de la importación (T-037, D-041)
+
+La propiedad `FECHA_CORTE_IMPORTACION` (formato `yyyy-MM-dd`) marca el cierre del stock
+inicial. Se fija con `adminConfigurarFechaCorte('yyyy-MM-dd')` y se quita con `''`.
+
+- Se aplica a **todos** los CSV de importación: recepciones, compras y ventas.
+- Un **documento** cuya fecha de negocio es **igual o anterior** al corte queda en el estado
+  `ANTERIOR_AL_CORTE`:
+  - no genera movimientos, pendientes ni versiones;
+  - **no se registra en `DOCUMENTOS`**;
+  - reimportarlo vuelve a dar `ANTERIOR_AL_CORTE`, nunca `MODIFICADO_EN_ERP`;
+  - se cuenta aparte en la previsualización y en
+    `IMPORTACIONES.lineas_anteriores_corte` (columna al final).
+- El corte se aplica **antes** de serie, seguimiento, exclusiones y equivalencias: un
+  documento anterior al corte no llega a clasificarse. Por eso una venta antigua a un cliente
+  excluido, con nombre fuera o con serie ignorada sigue siendo `ANTERIOR_AL_CORTE`.
+- Sin fecha configurada no hay corte y todo funciona como antes.
+- El stock inicial, los reprocesos y los ajustes manuales **no** se ven afectados por esta
+  propiedad; solo la importación de CSV.
+
 ---
 
 ## 3. Catálogo de Campos Dudosos o Dependientes de Formato

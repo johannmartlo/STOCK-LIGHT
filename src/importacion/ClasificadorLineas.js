@@ -141,7 +141,7 @@ function clasificadorCompararDocumentos(a, b) {
 function agruparEnDocumentos(lineasClasificadas) {
   if (!Array.isArray(lineasClasificadas)) throw new TypeError('lineasClasificadas debe ser un array');
   const grupos = new Map();
-  const estados = ['VACIA', 'SERIE_IGNORADA', 'CLIENTE_EXCLUIDO', 'ERROR_DATOS', 'NO_SEGUIDA', 'ABONO', 'PENDIENTE', 'OK'];
+  const estados = ['VACIA', 'SERIE_IGNORADA', 'CLIENTE_EXCLUIDO', 'ANTERIOR_AL_CORTE', 'ERROR_DATOS', 'NO_SEGUIDA', 'ABONO', 'PENDIENTE', 'OK'];
 
   lineasClasificadas.forEach(linea => {
     const clave = clasificadorClaveDocumento(linea);

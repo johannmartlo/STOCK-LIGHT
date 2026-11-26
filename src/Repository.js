@@ -88,7 +88,8 @@ const SCHEMA_DEFINITIONS = {
     'lineas_cliente_excluido',
     'lineas_error',
     'estado',
-    'ultimo_tramo'
+    'ultimo_tramo',
+    'lineas_anteriores_corte'
   ],
   VERSIONES_DOCUMENTO: [
     'id_version',

@@ -47,6 +47,8 @@ if (typeof require !== 'undefined') {
   try { exclusionesMod = require('./Exclusiones'); } catch (e) {}
   let equivalenciasMod = null;
   try { equivalenciasMod = require('./Equivalencias'); } catch (e) {}
+  let fechaCorteMod = null;
+  try { fechaCorteMod = require('./FechaCorte'); } catch (e) {}
   let seguimientoMod = null;
   try { seguimientoMod = require('./SeguimientoService'); } catch (e) {}
 
@@ -88,6 +90,9 @@ if (typeof require !== 'undefined') {
     global.mapaEquivalencias_ = global.mapaEquivalencias_ || equivalenciasMod.mapaEquivalencias_;
     global.normalizarDescripcionEquivalencia_ = global.normalizarDescripcionEquivalencia_ || equivalenciasMod.normalizarDescripcionEquivalencia_;
   }
+  if (fechaCorteMod) {
+    global.adminConfigurarFechaCorte = global.adminConfigurarFechaCorte || fechaCorteMod.adminConfigurarFechaCorte;
+  }
   if (seguimientoMod) global.SeguimientoService = global.SeguimientoService || seguimientoMod.SeguimientoService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
@@ -101,6 +106,9 @@ if (typeof require !== 'undefined') {
   global.getFuenteEntradasConfig = confMod.getFuenteEntradasConfig;
   global.setFuenteEntradasConfig = confMod.setFuenteEntradasConfig;
   global.normalizarFuenteEntradas_ = confMod.normalizarFuenteEntradas_;
+  global.getFechaCorteImportacionConfig = confMod.getFechaCorteImportacionConfig;
+  global.setFechaCorteImportacionConfig = confMod.setFechaCorteImportacionConfig;
+  global.normalizarFechaCorteImportacion_ = confMod.normalizarFechaCorteImportacion_;
   global.resolveDatabaseSpreadsheet = confMod.resolveDatabaseSpreadsheet;
   global.DriveService = driveMod.DriveService;
   global.StockQueryService = queryMod.StockQueryService;
@@ -2493,6 +2501,9 @@ if (typeof module !== 'undefined' && module.exports) {
       ? adminConfigurarEquivalencias
       : (equivalenciasMod ? equivalenciasMod.adminConfigurarEquivalencias : null),
     adminConfigurarFuenteEntradas,
+    adminConfigurarFechaCorte: (typeof adminConfigurarFechaCorte !== 'undefined')
+      ? adminConfigurarFechaCorte
+      : (fechaCorteMod ? fechaCorteMod.adminConfigurarFechaCorte : null),
     enviarParteDiario_: (typeof enviarParteDiario_ !== 'undefined')
       ? enviarParteDiario_
       : (parteMod ? parteMod.enviarParteDiario_ : null),
