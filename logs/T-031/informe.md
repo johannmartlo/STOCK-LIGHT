@@ -16,11 +16,12 @@
 
 ## git status
 
-Salida capturada tras el commit de trabajo `b2be5b6`, antes del commit que añade este informe.
+Salida capturada tras el commit de pruebas `9bc10a9`, antes del commit que actualiza este
+informe.
 
 ```text
 On branch ticket/T-031-exclusiones
-Your branch is ahead of 'origin/main' by 2 commits.
+Your branch is ahead of 'origin/ticket/T-031-exclusiones' by 2 commits.
   (use "git push" to publish your local commits)
 
 Untracked files:
@@ -40,11 +41,11 @@ T-031 y no se han incluido en ningún commit.
 ## git log --oneline -5
 
 ```text
+9bc10a9 docs(T-031): actualizar salida de pruebas
+dd0efdb fix(T-031): registrar solo documentos totalmente excluidos
+5b4ec16 docs(T-031): completar informe de entrega
 b2be5b6 feat(T-031): exclusiones de clientes y nombres comerciales fuera
 e788b0d docs(tickets): anadir T-031 exclusiones
-c1cbdbe docs(T-030): completar informe de entrega
-6213c2b fix(T-030): lector CSV por columnas para formatos reales
-4b01200 docs(tickets): anadir T-030 lector por columnas
 ```
 
 ## Dudas (cambios no pedidos por el ticket)
