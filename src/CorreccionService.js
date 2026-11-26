@@ -886,38 +886,45 @@ class CorreccionService {
       // 4. Rehacer dependientes en orden original.
       for (const dep of dependientesLista) {
         if (dep.tipo === 'SALIDA') {
-          let aplicadas = 0;
+          const docDep = documentos.find(d => String(d.id_documento || '') === String(dep.id || ''))
+            || documentos.find(d => `${d.serie}/${d.numero}` === String(dep.id || ''));
+          const estadoAntesSalida = this._clonarEstado_(estado);
+          const indiceMovimientos = movimientosNuevos.length;
+          let faltaStock = false;
+
           for (const mov of dep.movs) {
             const nuevo = this._crearSalidaVersion_(mov, usuario, idPendiente);
             const res = aplicar(nuevo);
             if (!res.ok) {
               if (res.errorCode === 'STOCK_INSUFICIENTE') {
-                const docDep = documentos.find(d => String(d.id_documento || '') === String(mov.id_documento_ref || ''))
-                  || documentos.find(d => `${d.serie}/${d.numero}` === String(mov.id_documento_ref || ''));
-                const pendiente = this._pendienteDeVenta_(mov, '', mov.cajas, usuario, idPendiente, docDep);
-                pendientesNuevos.push(pendiente);
-                ventasPendientes.push({
-                  id_documento: mov.id_documento_ref || '',
-                  serie: pendiente.serie,
-                  numero: pendiente.numero,
-                  linea: '',
-                  articulo: mov.codigo_articulo,
-                  envase: mov.codigo_envase,
-                  cajas: Number(mov.cajas),
-                  motivo: 'STOCK_INSUFICIENTE'
-                });
-                continue;
+                faltaStock = true;
+                break;
               }
               return fallo(res.error || `No se pudo rehacer la salida ${dep.id}`);
             }
-            aplicadas++;
           }
-          const docDep = documentos.find(d => String(d.id_documento || '') === String(dep.id || ''))
-            || documentos.find(d => `${d.serie}/${d.numero}` === String(dep.id || ''));
-          if (docDep) {
-            docDep.estado_proceso = aplicadas === dep.movs.length
-              ? 'CONFIRMADO'
-              : (aplicadas > 0 ? 'CONFIRMADO_PARCIAL' : 'PENDIENTE_REVISION');
+
+          if (faltaStock) {
+            estado = estadoAntesSalida;
+            movimientosNuevos.length = indiceMovimientos;
+            for (let i = 0; i < dep.movs.length; i++) {
+              const mov = dep.movs[i];
+              const pendiente = this._pendienteDeVenta_(mov, i + 1, mov.cajas, usuario, idPendiente, docDep);
+              pendientesNuevos.push(pendiente);
+              ventasPendientes.push({
+                id_documento: mov.id_documento_ref || '',
+                serie: pendiente.serie,
+                numero: pendiente.numero,
+                linea: i + 1,
+                articulo: mov.codigo_articulo,
+                envase: mov.codigo_envase,
+                cajas: Number(mov.cajas),
+                motivo: 'STOCK_INSUFICIENTE'
+              });
+            }
+            if (docDep) docDep.estado_proceso = 'PENDIENTE_REVISION';
+          } else if (docDep) {
+            docDep.estado_proceso = 'CONFIRMADO';
           }
         } else if (dep.tipo === 'AJUSTE') {
           const nuevo = this._crearAjusteNegativoVersion_(dep.mov, usuario, idPendiente);

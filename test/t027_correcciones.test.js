@@ -12,6 +12,7 @@ const path = require('path');
 const { crearEntorno } = require('./helpers/mockSheets');
 const { CatalogoService } = require('../src/CatalogoService');
 const { ImportacionService } = require('../src/importacion/ImportacionService');
+const { PendientesService } = require('../src/importacion/PendientesService');
 const { CorreccionService } = require('../src/CorreccionService');
 const { PERMISOS_API, conContextoDePrueba_ } = require('../src/Seguridad');
 const codigo = require('../src/Código');
@@ -729,6 +730,141 @@ runTest('10. Las cinco API de corrección existen, tienen rol ENCARGADO y rechaz
     })
   ));
   assert.deepStrictEqual(listado, []);
+});
+
+runTest('11. Todo o nada: si una línea de una venta dependiente no tiene stock, el albarán entero va a PENDIENTES y reintentar lo aplica completo', () => {
+  const entorno = crearEntorno();
+  const catalogo = crearCatalogo();
+  const importacion = crearImportacion(entorno, catalogo);
+  const correccion = crearCorreccion(entorno, catalogo);
+
+  importar(importacion, csv(HEADER_COMPRAS, [
+    filaCompra({ numero: '107', linea: 1, cajas: 10, articulo: 'TOMATE A', envase: 'CAJA', emisor: 'FINCA A' }),
+    filaCompra({ numero: '107', linea: 2, cajas: 10, articulo: 'TOMATE B', envase: 'CAJA', emisor: 'FINCA A' }),
+    filaCompra({ numero: '107', linea: 3, cajas: 10, articulo: 'TOMATE C', envase: 'CAJA', emisor: 'FINCA A' })
+  ]));
+
+  entorno.movService.registrarSalida({
+    id_documento: 'DOC-S-3LINEAS',
+    tipo_documento: 'SALIDA',
+    serie: 'AVT27',
+    numero: '300',
+    fecha_documento: '2026-11-02',
+    entidad_nombre: 'CLIENTE TRES LINEAS'
+  }, [
+    { codigo_articulo: 'TOMATE A', codigo_envase: 'CAJA', cajas: 2 },
+    { codigo_articulo: 'TOMATE B', codigo_envase: 'CAJA', cajas: 2 },
+    { codigo_articulo: 'TOMATE C', codigo_envase: 'CAJA', cajas: 2 }
+  ], 'test@user');
+
+  importar(importacion, csv(HEADER_COMPRAS, [
+    filaCompra({ numero: '107', linea: 1, cajas: 10, articulo: 'TOMATE A', envase: 'CAJA', emisor: 'FINCA A' }),
+    filaCompra({ numero: '107', linea: 2, cajas: 10, articulo: 'TOMATE B', envase: 'CAJA', emisor: 'FINCA A' })
+  ]));
+  const pendiente = pendienteModificado(entorno);
+  assert.ok(pendiente);
+
+  const preview = correccion.previsualizarVersion(pendiente.id_pendiente);
+  assert.strictEqual(preview.posible, true);
+  assert.strictEqual(preview.ventas_a_pendientes.length, 3, 'Debe listar las tres líneas del albarán');
+
+  const resultado = correccion.aplicarVersion(pendiente.id_pendiente, 'La compra ya no incluye el tomate C', 'test@user');
+  assert.strictEqual(resultado.success, true);
+  assert.strictEqual(resultado.ventas_a_pendientes.length, 3);
+
+  const pendientesStock = entorno.repo.getPendientes().filter(p =>
+    p.motivo === 'STOCK_INSUFICIENTE' &&
+    p.estado === 'PENDIENTE' &&
+    String(p.serie) === 'AVT27' &&
+    String(p.numero) === '300'
+  );
+  assert.strictEqual(pendientesStock.length, 3);
+  assert.deepStrictEqual(pendientesStock.map(p => p.articulo).sort(), ['TOMATE A', 'TOMATE B', 'TOMATE C']);
+  const docVenta = entorno.repo.getDocumentos().find(d => d.id_documento === 'DOC-S-3LINEAS');
+  assert.strictEqual(docVenta.estado_proceso, 'PENDIENTE_REVISION');
+  assert.strictEqual(stockTotal(entorno), 20);
+
+  const movimientosSalidaActivos = entorno.movService._cargarEstado().estado.consumosPorMovimiento;
+  const salidasActivas = Object.keys(movimientosSalidaActivos).filter(idMov => {
+    const consumos = movimientosSalidaActivos[idMov] || [];
+    if (!consumos.some(consumo => Number(consumo.cajas || 0) > 0)) return false;
+    const mov = entorno.repo.getMovimientos().find(m => String(m.id_movimiento) === String(idMov));
+    return mov && mov.tipo_movimiento === 'SALIDA' && mov.id_documento_ref === 'DOC-S-3LINEAS';
+  });
+  assert.strictEqual(salidasActivas.length, 0, 'Ninguna línea de la venta puede quedar aplicada');
+
+  // Entra stock del artículo que faltaba y el reintento aplica el albarán entero.
+  entorno.movService.registrarEntrada({
+    id_documento: 'DOC-C-EXTRA',
+    tipo_documento: 'COMPRA',
+    serie: 'ACT27',
+    numero: '900',
+    fecha_documento: '2026-11-05',
+    entidad_nombre: 'FINCA C'
+  }, [{ codigo_articulo: 'TOMATE C', codigo_envase: 'CAJA', cajas: 2 }], 'test@user');
+
+  const pendientesSvc = new PendientesService({
+    repository: entorno.repo,
+    movementService: entorno.movService,
+    catalogoService: catalogo
+  });
+  const reintento = pendientesSvc.reintentarPendientes('test@user');
+  assert.strictEqual(reintento.aplicados.total, 3);
+  const docVentaFinal = entorno.repo.getDocumentos().find(d => d.id_documento === 'DOC-S-3LINEAS');
+  assert.strictEqual(docVentaFinal.estado_proceso, 'CONFIRMADO');
+  assert.strictEqual(entorno.repo.getPendientes().filter(p =>
+    p.motivo === 'STOCK_INSUFICIENTE' && p.estado === 'PENDIENTE' &&
+    String(p.serie) === 'AVT27' && String(p.numero) === '300'
+  ).length, 0);
+  assert.strictEqual(stockTotal(entorno), 16); // 30 iniciales - 6 vendidas + 2 del tomate C que faltaba - 10 quitadas de la compra
+  comprobarSanidad(entorno);
+});
+
+runTest('12. La versión nueva de una venta sin stock deja el albarán entero en PENDIENTES, sin aplicar ninguna línea', () => {
+  const entorno = crearEntorno();
+  const catalogo = crearCatalogo();
+  const importacion = crearImportacion(entorno, catalogo);
+  const correccion = crearCorreccion(entorno, catalogo);
+
+  importar(importacion, csv(HEADER_COMPRAS, [
+    filaCompra({ numero: '108', linea: 1, cajas: 10, articulo: 'TOMATE A', envase: 'CAJA', emisor: 'FINCA A' }),
+    filaCompra({ numero: '108', linea: 2, cajas: 10, articulo: 'TOMATE B', envase: 'CAJA', emisor: 'FINCA A' })
+  ]));
+  importar(importacion, csv(HEADER_VENTAS, [
+    filaVenta({ numero: '400', linea: 1, cajas: 1, articulo: 'TOMATE A', envase: 'CAJA' }),
+    filaVenta({ numero: '400', linea: 2, cajas: 1, articulo: 'TOMATE B', envase: 'CAJA' })
+  ]));
+
+  importar(importacion, csv(HEADER_VENTAS, [
+    filaVenta({ numero: '400', linea: 1, cajas: 20, articulo: 'TOMATE A', envase: 'CAJA' }),
+    filaVenta({ numero: '400', linea: 2, cajas: 20, articulo: 'TOMATE B', envase: 'CAJA' })
+  ]));
+  const pendiente = pendienteModificado(entorno);
+  assert.ok(pendiente);
+
+  const preview = correccion.previsualizarVersion(pendiente.id_pendiente);
+  assert.strictEqual(preview.posible, true);
+  assert.strictEqual(preview.ventas_a_pendientes.length, 2);
+
+  const resultado = correccion.aplicarVersion(pendiente.id_pendiente, 'La venta real es mucho mayor', 'test@user');
+  assert.strictEqual(resultado.success, true);
+  const pends = entorno.repo.getPendientes().filter(p =>
+    p.motivo === 'STOCK_INSUFICIENTE' && p.estado === 'PENDIENTE' &&
+    String(p.serie) === 'AVT27' && String(p.numero) === '400'
+  );
+  assert.strictEqual(pends.length, 2);
+  const docVenta = entorno.repo.getDocumentos().find(d => d.serie === 'AVT27' && d.numero === '400');
+  assert.strictEqual(docVenta.estado_proceso, 'PENDIENTE_REVISION');
+  assert.strictEqual(stockTotal(entorno), 20);
+  const consumos = entorno.movService._cargarEstado().estado.consumosPorMovimiento;
+  const activas = Object.keys(consumos).filter(id => {
+    const lista = consumos[id] || [];
+    if (!lista.some(c => Number(c.cajas || 0) > 0)) return false;
+    const mov = entorno.repo.getMovimientos().find(m => String(m.id_movimiento) === String(id));
+    return mov && mov.tipo_movimiento === 'SALIDA' && mov.id_documento_ref === docVenta.id_documento;
+  });
+  assert.strictEqual(activas.length, 0);
+  comprobarSanidad(entorno);
 });
 
 console.log(`\nRESULTADOS T-027: ${passed} SUPERADAS | ${failed} FALLIDAS`);

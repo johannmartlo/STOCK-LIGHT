@@ -1,8 +1,8 @@
 # T-027 — Aceptación
 
-Rama: `ticket/T-027-correcciones` (desde `main` = `5eea049`).
-Comando único: `node test/run_all.js` → **34 suites, 365 pruebas, 0 fallos** (salida completa en `logs/T-027/tests.txt`).
-Suite nueva: `test/t027_correcciones.test.js` → **10 pruebas, 0 fallos**.
+Rama: `ticket/T-027-correcciones` (rebasada sobre `main` = `c1cbdbe`).
+Comando único: `node test/run_all.js` → **37 suites, 373 pruebas, 0 fallos** (salida completa en `logs/T-027/tests.txt`).
+Suite nueva: `test/t027_correcciones.test.js` → **12 pruebas, 0 fallos**.
 
 1. **Corregir una salida** — prueba 1.
    - Venta de 30 cajas corregida a 20. Tras aplicar: stock +10, la capa recupera las 30 y vuelve a consumir 20 por FIFO (quedan 80), el documento guarda la firma nueva y reimportar el mismo CSV da `YA_IMPORTADO`.
@@ -46,3 +46,10 @@ Suite nueva: `test/t027_correcciones.test.js` → **10 pruebas, 0 fallos**.
 - No se ha modificado ningún método existente de `MovementService.js`: no se añadió ningún método nuevo allí.
 - No se tocó `Libro.js`, `InventoryEngine.js`, `Reproceso.js` ni la interfaz (`src/Index.html`, `src/ui/`, `src/InicioService.js`).
 - No se borra ni edita ninguna fila de `MOVIMIENTOS`: la corrección añade anulaciones y movimientos nuevos.
+
+## Corrección de todo o nada
+
+- **Punto 1:** una salida dependiente se rehace entera o no se rehace. Si una línea no tiene stock, se revierte el estado de todo el albarán, no queda ninguna salida activa y el documento pasa a `PENDIENTE_REVISION` (nunca `CONFIRMADO_PARCIAL` por falta de stock). La versión nueva de una salida corregida ya era todo o nada.
+- **Punto 2:** `ventas_a_pendientes` de la vista previa incluye todas las líneas del albarán, no solo la que falta.
+- **Punto 3:** prueba 11. Compra de 3 artículos, venta con las 3 líneas y versión nueva que quita un artículo: las 3 líneas van a PENDIENTES, no queda ninguna salida activa, el documento queda `PENDIENTE_REVISION` y el stock es 20. Al entrar stock del artículo quitado, `reintentarPendientes` aplica la venta entera.
+- **Punto 4:** prueba 12. La versión nueva de una venta sin stock deja el albarán entero en PENDIENTES, sin aplicar ninguna línea.
