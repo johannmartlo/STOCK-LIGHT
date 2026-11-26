@@ -2,8 +2,9 @@
 
 ## Resumen (5 líneas)
 
-1. Rama `ticket/T-031-exclusiones`, creada desde `origin/main` `c1cbdbe`; el primer commit
-   (`e788b0d`) contiene solo el ticket, sin editar.
+1. Rama `ticket/T-031-exclusiones`, creada originalmente desde `origin/main` `c1cbdbe` y
+   rebasada sobre `9c54b7b`; el primer commit tras el rebase (`aba247a`) contiene solo el
+   ticket, sin editar.
 2. Nueva hoja `CLIENTES_EXCLUIDOS` y estado `CLIENTE_EXCLUIDO`: las ventas a clientes
    excluidos no generan movimientos ni pendientes y se cuentan en
    `IMPORTACIONES.lineas_cliente_excluido`.
@@ -12,7 +13,8 @@
    comerciales fuera se implementan como reglas `SEGUIMIENTO = NO` con prioridad 1.
 4. `apiListarExclusiones` (CONSULTA) y documentación en `BUSINESS_RULES.md`,
    `IMPORT_SPECS.md`, `DATA_MODEL.md` y `docs/API_PUBLICA.md`; sin nombres reales.
-5. `node test/run_all.js`: **37 suites, 367 pruebas, 0 fallos**. Sin merge.
+5. `node test/run_all.js`: **38 suites, 379 pruebas, 0 fallos** (incluye T-027 y T-031).
+   Sin merge.
 
 ## git status
 

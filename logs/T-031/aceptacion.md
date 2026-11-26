@@ -1,9 +1,11 @@
 # T-031 — Aceptación
 
 Ticket: `docs/tickets/T-031-exclusiones.md`.
-Rama: `ticket/T-031-exclusiones`, creada desde `origin/main` `c1cbdbe`.
-Primer commit de la rama: `e788b0d`, solo el archivo del ticket sin editar.
-Resultado de `node test/run_all.js`: **37 suites, 367 pruebas, 0 fallos**. Salida completa en
+Rama: `ticket/T-031-exclusiones`, creada originalmente desde `origin/main` `c1cbdbe` y
+rebasada sobre `9c54b7b` (que incluye T-027).
+Primer commit de la rama tras el rebase: `aba247a`, solo el archivo del ticket sin editar.
+Resultado de `node test/run_all.js`: **38 suites, 379 pruebas, 0 fallos** (incluye T-027 y
+T-031). Salida completa en
 `logs/T-031/tests.txt`.
 
 ## Aceptación 1 — clientes excluidos
@@ -74,7 +76,8 @@ Resultado de `node test/run_all.js`: **37 suites, 367 pruebas, 0 fallos**. Salid
 
 ## Aceptación 7 — pruebas
 
-- `node test/run_all.js`: **37 suites, 367 pruebas, 0 fallos**.
+- `node test/run_all.js`: **38 suites, 379 pruebas, 0 fallos** (incluye las 12 pruebas de
+  T-027 y las 6 de T-031).
 - Salida completa en `logs/T-031/tests.txt`.
 
 ## Documentación
