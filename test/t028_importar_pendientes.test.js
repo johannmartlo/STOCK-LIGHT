@@ -381,6 +381,79 @@ runTest('8. decidirSeguimiento(SEGUIR, ROSA) escribe atributos del filtro y obte
   assert.strictEqual(varSinAgrupar, undefined, 'No debe haber cajas en Sin agrupar');
 });
 
+// --------------------------------------------------------------------------
+// 9. CORRECCIÓN: pluraliza(n, singular, plural) y fmtSigned sin +0 ni −0
+// --------------------------------------------------------------------------
+runTest('9. pluraliza(n, singular, plural) formatea singular/plural y fmtSigned nunca devuelve +0 ni −0', () => {
+  const { SLApp } = cargarSLAppEnVm();
+  assert.strictEqual(typeof SLApp.pluraliza, 'function');
+  assert.strictEqual(SLApp.pluraliza(0, 'línea', 'líneas'), '0 líneas');
+  assert.strictEqual(SLApp.pluraliza(1, 'línea', 'líneas'), '1 línea');
+  assert.strictEqual(SLApp.pluraliza(2, 'línea', 'líneas'), '2 líneas');
+  assert.strictEqual(SLApp.pluraliza(1, 'albarán', 'albaranes'), '1 albarán');
+  assert.strictEqual(SLApp.pluraliza(3, 'albarán', 'albaranes'), '3 albaranes');
+  assert.strictEqual(SLApp.pluraliza(1, 'serie ignorada', 'series ignoradas'), '1 serie ignorada');
+  assert.strictEqual(SLApp.pluraliza(2, 'serie ignorada', 'series ignoradas'), '2 series ignoradas');
+  assert.strictEqual(SLApp.pluraliza(1, 'ya importado', 'ya importados'), '1 ya importado');
+  assert.strictEqual(SLApp.pluraliza(1200, 'caja', 'cajas'), '1.200 cajas');
+
+  assert.strictEqual(SLApp.fmtSigned(0), '0');
+  assert.strictEqual(SLApp.fmtSigned(-0), '0');
+  assert.strictEqual(SLApp.fmtSigned(15), '+15');
+  assert.strictEqual(SLApp.fmtSigned(-15), '−15');
+});
+
+// --------------------------------------------------------------------------
+// 10. CORRECCIÓN: Previsualización multiarchivo (compras + ventas vs ventas solas)
+// --------------------------------------------------------------------------
+runTest('10. Previsualización con compras y ventas juntas difiere stock en gris y muestra «hasta N cajas salen»', () => {
+  const { SLApp } = cargarSLAppEnVm();
+  const env = crearEntorno();
+  configurarCatalogoBase(env.repo);
+  const catalogoSvc = new CatalogoService({ repository: env.repo });
+  const pendSvc = new PendientesService({ repository: env.repo, movementService: env.movService, catalogoService: catalogoSvc, lockService: env.lock });
+  const impSvc = new ImportacionService({ repository: env.repo, movementService: env.movService, catalogoService: catalogoSvc, pendientesService: pendSvc, lockService: env.lock });
+
+  const comprasTxt = fs.readFileSync(path.join(FIXTURES_DIR, 'compras_t007.csv'), 'utf8');
+  const ventasTxt = fs.readFileSync(path.join(FIXTURES_DIR, 'ventas_t007.csv'), 'utf8');
+
+  const prevCompras = impSvc.previsualizar(comprasTxt);
+  const prevVentas = impSvc.previsualizar(ventasTxt);
+
+  const itemCompras = { nombre: 'compras_t007.csv', texto: comprasTxt, codificacion: 'utf-8', preview: prevCompras, error: null };
+  const itemVentas = { nombre: 'ventas_t007.csv', texto: ventasTxt, codificacion: 'utf-8', preview: prevVentas, error: null };
+
+  // Caso A: ventas + compras juntas
+  const resJuntos = SLApp.construirHtmlPrevisualizacionImportacion([itemVentas, itemCompras]);
+  assert.strictEqual(resJuntos.hayAlgoConfirmable, true);
+  assert.ok(resJuntos.html.includes('Se comprueba al aplicar las compras de esta importación'), 'Debe mostrar mensaje gris al haber compras en el lote');
+  assert.ok(!resJuntos.html.includes('sin stock</b>'), 'No debe mostrar bloque rojo «X sin stock» cuando hay compras en el lote');
+  assert.ok(!resJuntos.html.includes('class="sl-imp-details danger"'), 'No debe pintar bloque danger en rojo para ventas diferidas');
+  assert.ok(resJuntos.html.includes('hasta 18') && resJuntos.html.includes('cajas salen'), 'Debe mostrar «hasta 18 cajas salen»');
+  assert.ok(!resJuntos.html.includes('−0') && !resJuntos.html.includes('+0'), 'Nunca debe mostrar −0 ni +0');
+  assert.ok(resJuntos.html.includes('1 serie ignorada'), 'Debe usar singular «1 serie ignorada»');
+  assert.ok(resJuntos.html.includes('1 línea de artículo sin decidir'), 'Debe usar singular «1 línea de artículo sin decidir»');
+
+  // Caso B: ventas solas (sin archivo de compras)
+  const resSoloVentas = SLApp.construirHtmlPrevisualizacionImportacion([itemVentas]);
+  assert.ok(resSoloVentas.html.includes('2 sin stock</b>'), 'Sin compras en el lote debe mostrar «2 sin stock»');
+  assert.ok(resSoloVentas.html.includes('class="sl-imp-details danger"'), 'Sin compras en el lote debe marcar el bloque como danger');
+  assert.ok(!resSoloVentas.html.includes('Se comprueba al aplicar las compras de esta importación'));
+  assert.ok(!resSoloVentas.html.includes('−0') && !resSoloVentas.html.includes('+0'), 'Nunca debe mostrar −0 ni +0');
+});
+
+// --------------------------------------------------------------------------
+// 11. CORRECCIÓN: Estado vacío de Existencias
+// --------------------------------------------------------------------------
+runTest('11. Estado vacío de Existencias menciona el conteo con nombres de Hispatec y no «desde el Excel»', () => {
+  const existenciasHtml = fs.readFileSync(path.join(SRC_DIR, 'ui', 'existencias.html'), 'utf8');
+  assert.ok(
+    existenciasHtml.includes('Carga el stock inicial (conteo con los nombres de Hispatec) y después importa'),
+    'Debe mostrar el texto corregido en el estado vacío de Existencias'
+  );
+  assert.ok(!existenciasHtml.includes('desde el Excel'), 'No debe quedar referencia a «desde el Excel»');
+});
+
 console.log('\n================================================================');
 console.log(` RESULTADOS T-028 (IMPORTAR/PENDIENTES): ${passed} SUPERADAS | ${failed} FALLIDAS`);
 console.log('================================================================\n');

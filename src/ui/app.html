@@ -27,6 +27,11 @@
       return '0';
     }
 
+    function pluraliza(n, singular, plural) {
+      const val = Math.round(Number(n) || 0);
+      return fmt(val) + ' ' + (Math.abs(val) === 1 ? singular : plural);
+    }
+
     function fmtDias(n) {
       const val = Math.max(0, Math.round(Number(n) || 0));
       if (val === 0) return 'hoy';
@@ -107,8 +112,7 @@
       if (!v) return '';
       const fecha = fmtFechaDdMm(fechaReferencia || (SL.inicio && SL.inicio.fecha_referencia) || '');
       const cajasNum = Number(v.cajas || 0);
-      const unidad = cajasNum === 1 ? 'caja' : 'cajas';
-      const linea1 = nombreLegible(v.grupo) + ' · ' + fecha + ' · ' + fmt(cajasNum) + ' ' + unidad;
+      const linea1 = nombreLegible(v.grupo) + ' · ' + fecha + ' · ' + pluraliza(cajasNum, 'caja', 'cajas');
 
       const desglose = calcularDesgloseArticulos(v);
       const linea2 = desglose.map(function (item) {
@@ -463,23 +467,14 @@
       return mapa;
     }
 
-    function renderPrevisualizacionImportacion() {
-      const wrap = document.getElementById('impPreviewWrap');
-      const list = document.getElementById('impPreviewList');
-      const btnConf = document.getElementById('btnConfirmarImportacion');
-      if (!wrap || !list) return;
-
-      if (SLImp.archivos.length === 0) {
-        setVisibilidad('impPreviewWrap', false);
-        list.innerHTML = '';
-        return;
-      }
-
-      setVisibilidad('impPreviewWrap', true);
-      SLImp.archivos = ordenarArchivosImportacion(SLImp.archivos);
+    function construirHtmlPrevisualizacionImportacion(archivos) {
+      const ordenados = ordenarArchivosImportacion(archivos);
+      const hayComprasEnLote = ordenados.some(function (a) {
+        return a && !a.error && detectarTipoArchivoCsv(a) === 'COMPRA';
+      });
 
       let hayAlgoConfirmable = false;
-      list.innerHTML = SLImp.archivos.map(function (archivo, idx) {
+      const html = ordenados.map(function (archivo, idx) {
         if (archivo.error) {
           return (
             '<div class="sl-imp-file-card">' +
@@ -495,9 +490,10 @@
         const prev = archivo.preview || {};
         const tipo = detectarTipoArchivoCsv(archivo);
         const esCompra = tipo === 'COMPRA';
-        const tipoLabel = esCompra ? 'Compras' : (tipo === 'SALIDA' ? 'Ventas' : 'CSV');
+        const esVenta = tipo === 'SALIDA';
+        const diferirComprobacionStock = esVenta && hayComprasEnLote;
+        const tipoLabel = esCompra ? 'Compras' : (esVenta ? 'Ventas' : 'CSV');
         const docs = Array.isArray(prev.documentos) ? prev.documentos : [];
-        const tot = prev.totales || {};
         const porEstado = (prev.resumen && prev.resumen.porEstado) || {};
         const totalLineas = (prev.resumen && prev.resumen.totalLineas) || 0;
         const rango = rangoFechasDocumentos(docs);
@@ -521,14 +517,32 @@
         const cajasNuevas = docsNuevos.reduce(function (acc, d) {
           return acc + cajasDeDoc(d);
         }, 0);
-        const signoStr = esCompra ? ('+' + fmt(cajasNuevas)) : ('−' + fmt(cajasNuevas));
-        const accionStock = esCompra ? 'cajas entran al stock' : 'cajas salen del stock';
+        const cajasVentasNuevas = docsNuevos.concat(docsSinStock).reduce(function (acc, d) {
+          return acc + cajasDeDoc(d);
+        }, 0);
+
+        let signoStr = '';
+        let accionStock = '';
+        if (diferirComprobacionStock) {
+          if (cajasVentasNuevas > 0) {
+            signoStr = 'hasta ' + fmt(cajasVentasNuevas);
+            accionStock = Math.round(cajasVentasNuevas) === 1 ? 'caja sale' : 'cajas salen';
+          } else {
+            signoStr = '0';
+            accionStock = 'cajas salen';
+          }
+        } else {
+          signoStr = fmtSigned(esCompra ? Math.abs(cajasNuevas) : -Math.abs(cajasNuevas));
+          accionStock = esCompra
+            ? (Math.round(Math.abs(cajasNuevas)) === 1 ? 'caja entra al stock' : 'cajas entran al stock')
+            : (Math.round(Math.abs(cajasNuevas)) === 1 ? 'caja sale del stock' : 'cajas salen del stock');
+        }
 
         const nOk = Number(porEstado.OK || 0);
         const nYa = docsYa.length;
+        const nDiferidos = diferirComprobacionStock ? docsSinStock.length : 0;
         const nIgn = Number(porEstado.NO_SEGUIDA || 0) + Number(porEstado.ABONO || 0) + Number(porEstado.SERIE_IGNORADA || 0);
-        const nProb = docsSinStock.length + docsMod.length + Number(porEstado.PENDIENTE || 0) + Number(porEstado.ERROR_DATOS || 0);
-        const segTotal = Math.max(1, nOk + nYa + nIgn + nProb);
+        const nProb = (diferirComprobacionStock ? 0 : docsSinStock.length) + docsMod.length + Number(porEstado.PENDIENTE || 0) + Number(porEstado.ERROR_DATOS || 0);
 
         const renderDocItems = function (arr) {
           return arr.map(function (d) {
@@ -542,7 +556,7 @@
           filasDetalle +=
             '<details class="sl-imp-details"><summary>' +
             '<span class="sl-dot-ind" style="background:var(--sl-green)"></span>' +
-            '<span style="flex:1"><b>' + fmt(docsNuevos.length) + ' ' + (docsNuevos.length === 1 ? 'albarán nuevo' : 'albaranes nuevos') + '</b> · ' + fmt(nOk) + ' líneas listas</span>' +
+            '<span style="flex:1"><b>' + esc(pluraliza(docsNuevos.length, 'albarán nuevo', 'albaranes nuevos')) + '</b> · ' + esc(pluraliza(nOk, 'línea lista', 'líneas listas')) + '</span>' +
             '<span class="sl-mono" style="color:var(--sl-text-secondary)">' + fmt(cajasNuevas) + ' cj</span>' +
             '</summary><div class="sl-imp-details-body">' + renderDocItems(docsNuevos) + '</div></details>';
         }
@@ -550,7 +564,7 @@
           filasDetalle +=
             '<details class="sl-imp-details"><summary>' +
             '<span class="sl-dot-ind" style="background:var(--sl-text-secondary)"></span>' +
-            '<span style="flex:1"><b>' + fmt(docsYa.length) + ' ya importados</b> · se saltan</span>' +
+            '<span style="flex:1"><b>' + esc(pluraliza(docsYa.length, 'ya importado', 'ya importados')) + '</b> · ' + (docsYa.length === 1 ? 'se salta' : 'se saltan') + '</span>' +
             '<span class="sl-mono" style="color:var(--sl-text-label)">—</span>' +
             '</summary><div class="sl-imp-details-body">' + renderDocItems(docsYa) + '</div></details>';
         }
@@ -558,40 +572,49 @@
           filasDetalle +=
             '<details class="sl-imp-details danger"><summary>' +
             '<span class="sl-dot-ind" style="background:var(--sl-amber)"></span>' +
-            '<span style="flex:1"><b>' + fmt(docsMod.length) + ' modificados en Hispatec</b> · pasarán a Pendientes para revisión</span>' +
+            '<span style="flex:1"><b>' + esc(pluraliza(docsMod.length, 'modificado en Hispatec', 'modificados en Hispatec')) + '</b> · ' + (docsMod.length === 1 ? 'pasará a Pendientes para revisión' : 'pasarán a Pendientes para revisión') + '</span>' +
             '<span class="sl-mono" style="color:var(--sl-amber)">Revisar</span>' +
             '</summary><div class="sl-imp-details-body">' + renderDocItems(docsMod) + '</div></details>';
         }
         if (docsSinStock.length > 0) {
-          filasDetalle +=
-            '<details class="sl-imp-details danger" open><summary>' +
-            '<span class="sl-dot-ind" style="background:var(--sl-red)"></span>' +
-            '<span style="flex:1;color:#FCA5A5"><b>' + fmt(docsSinStock.length) + ' sin stock</b> · quedan pendientes y se aplican solos cuando haya</span>' +
-            '</summary><div class="sl-imp-details-body">' + renderDocItems(docsSinStock) + '</div></details>';
+          if (diferirComprobacionStock) {
+            filasDetalle +=
+              '<details class="sl-imp-details" open><summary>' +
+              '<span class="sl-dot-ind" style="background:var(--sl-text-secondary)"></span>' +
+              '<span style="flex:1;color:var(--sl-text-secondary)"><b>Se comprueba al aplicar las compras de esta importación</b> · ' + esc(pluraliza(docsSinStock.length, 'albarán', 'albaranes')) + '</span>' +
+              '</summary><div class="sl-imp-details-body">' + renderDocItems(docsSinStock) + '</div></details>';
+          } else {
+            filasDetalle +=
+              '<details class="sl-imp-details danger" open><summary>' +
+              '<span class="sl-dot-ind" style="background:var(--sl-red)"></span>' +
+              '<span style="flex:1;color:#FCA5A5"><b>' + fmt(docsSinStock.length) + ' sin stock</b> · ' + (docsSinStock.length === 1 ? 'queda pendiente y se aplica solo cuando haya' : 'quedan pendientes y se aplican solos cuando haya') + '</span>' +
+              '</summary><div class="sl-imp-details-body">' + renderDocItems(docsSinStock) + '</div></details>';
+          }
         }
         if (Number(porEstado.PENDIENTE || 0) > 0) {
+          const nPend = Number(porEstado.PENDIENTE || 0);
           filasDetalle +=
             '<details class="sl-imp-details"><summary>' +
             '<span class="sl-dot-ind" style="background:var(--sl-amber)"></span>' +
-            '<span style="flex:1"><b>' + fmt(porEstado.PENDIENTE) + ' líneas de artículos sin decidir</b> · irán a Pendientes</span>' +
+            '<span style="flex:1"><b>' + esc(pluraliza(nPend, 'línea de artículo sin decidir', 'líneas de artículos sin decidir')) + '</b> · ' + (nPend === 1 ? 'irá a Pendientes' : 'irán a Pendientes') + '</span>' +
             '</summary><div class="sl-imp-details-body">Podrás decidir en Pendientes si seguir o ignorar cada artículo.</div></details>';
         }
-        if (Number(porEstado.NO_SEGUIDA || 0) > 0 || Number(porEstado.ABONO || 0) > 0 || Number(porEstado.SERIE_IGNORADA || 0) > 0) {
+        if (nIgn > 0) {
           const partesIgn = [];
-          if (Number(porEstado.NO_SEGUIDA || 0) > 0) partesIgn.push(fmt(porEstado.NO_SEGUIDA) + ' no seguidas');
-          if (Number(porEstado.ABONO || 0) > 0) partesIgn.push(fmt(porEstado.ABONO) + ' abonos');
-          if (Number(porEstado.SERIE_IGNORADA || 0) > 0) partesIgn.push(fmt(porEstado.SERIE_IGNORADA) + ' series ignoradas');
+          if (Number(porEstado.NO_SEGUIDA || 0) > 0) partesIgn.push(pluraliza(porEstado.NO_SEGUIDA, 'no seguida', 'no seguidas'));
+          if (Number(porEstado.ABONO || 0) > 0) partesIgn.push(pluraliza(porEstado.ABONO, 'abono', 'abonos'));
+          if (Number(porEstado.SERIE_IGNORADA || 0) > 0) partesIgn.push(pluraliza(porEstado.SERIE_IGNORADA, 'serie ignorada', 'series ignoradas'));
           filasDetalle +=
             '<details class="sl-imp-details"><summary>' +
             '<span class="sl-dot-ind" style="background:var(--sl-amber)"></span>' +
-            '<span style="flex:1"><b>' + esc(partesIgn.join(' · ')) + '</b> · no cuentan</span>' +
+            '<span style="flex:1"><b>' + esc(partesIgn.join(' · ')) + '</b> · ' + (nIgn === 1 ? 'no cuenta' : 'no cuentan') + '</span>' +
             '</summary><div class="sl-imp-details-body">Líneas ignoradas según las reglas de series y catálogo.</div></details>';
         }
         if (Number(porEstado.ERROR_DATOS || 0) > 0) {
           filasDetalle +=
             '<details class="sl-imp-details danger"><summary>' +
             '<span class="sl-dot-ind" style="background:var(--sl-red)"></span>' +
-            '<span style="flex:1;color:#FCA5A5"><b>' + fmt(porEstado.ERROR_DATOS) + ' líneas con error de datos</b></span>' +
+            '<span style="flex:1;color:#FCA5A5"><b>' + esc(pluraliza(porEstado.ERROR_DATOS, 'línea con error de datos', 'líneas con error de datos')) + '</b></span>' +
             '</summary><div class="sl-imp-details-body">Revisa que las cajas sean enteros positivos y las fechas válidas.</div></details>';
         }
 
@@ -610,7 +633,7 @@
             '</div>' +
             '<div class="sl-imp-segbar" aria-hidden="true">' +
             (nOk > 0 ? '<span style="flex:' + nOk + ';background:var(--sl-green)"></span>' : '') +
-            (nYa > 0 ? '<span style="flex:' + nYa + ';background:#71717A"></span>' : '') +
+            ((nYa + nDiferidos) > 0 ? '<span style="flex:' + (nYa + nDiferidos) + ';background:#71717A"></span>' : '') +
             (nIgn > 0 ? '<span style="flex:' + nIgn + ';background:var(--sl-amber)"></span>' : '') +
             (nProb > 0 ? '<span style="flex:' + nProb + ';background:var(--sl-red)"></span>' : '') +
             '</div></div>'
@@ -622,7 +645,7 @@
           '<div class="sl-file-icon-box" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></div>' +
           '<div style="min-width:0;flex:1">' +
           '<div style="font-weight:600;word-break:break-word">' + esc(archivo.nombre) + '</div>' +
-          '<div style="font-size:12px;color:var(--sl-text-secondary)">' + esc(tipoLabel) + ' · ' + fmt(totalLineas) + ' líneas' + (rango ? ' · ' + esc(rango) : '') + ' · ' + esc(archivo.codificacion) + '</div>' +
+          '<div style="font-size:12px;color:var(--sl-text-secondary)">' + esc(tipoLabel) + ' · ' + esc(pluraliza(totalLineas, 'línea', 'líneas')) + (rango ? ' · ' + esc(rango) : '') + ' · ' + esc(archivo.codificacion) + '</div>' +
           '</div>' +
           estadoBadge +
           '</div>' +
@@ -632,8 +655,28 @@
         );
       }).join('');
 
+      return { html: html, hayAlgoConfirmable: hayAlgoConfirmable, ordenados: ordenados };
+    }
+
+    function renderPrevisualizacionImportacion() {
+      const wrap = document.getElementById('impPreviewWrap');
+      const list = document.getElementById('impPreviewList');
+      const btnConf = document.getElementById('btnConfirmarImportacion');
+      if (!wrap || !list) return;
+
+      if (SLImp.archivos.length === 0) {
+        setVisibilidad('impPreviewWrap', false);
+        list.innerHTML = '';
+        return;
+      }
+
+      setVisibilidad('impPreviewWrap', true);
+      const res = construirHtmlPrevisualizacionImportacion(SLImp.archivos);
+      SLImp.archivos = res.ordenados;
+      list.innerHTML = res.html;
+
       if (btnConf) {
-        btnConf.disabled = !hayAlgoConfirmable || SLImp.confirmando;
+        btnConf.disabled = !res.hayAlgoConfirmable || SLImp.confirmando;
       }
     }
 
@@ -807,12 +850,12 @@
               '<div style="font-weight:700;font-size:16px;color:var(--sl-green)">Importación completada</div>' +
               '<div class="sl-si-grid" style="margin-top:12px">' +
               '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Documentos aplicados</span><span class="sl-mono" style="font-size:22px;font-weight:700">' + fmt(totalesRes.documentosAplicados) + '</span></div>' +
-              '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Cajas que entran</span><span class="sl-mono" style="font-size:22px;font-weight:700;color:var(--sl-green)">+' + fmt(totalesRes.cajasEntran) + '</span></div>' +
-              '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Cajas que salen</span><span class="sl-mono" style="font-size:22px;font-weight:700">−' + fmt(totalesRes.cajasSalen) + '</span></div>' +
+              '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Cajas que entran</span><span class="sl-mono" style="font-size:22px;font-weight:700;color:var(--sl-green)">' + esc(fmtSigned(Math.abs(totalesRes.cajasEntran || 0))) + '</span></div>' +
+              '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Cajas que salen</span><span class="sl-mono" style="font-size:22px;font-weight:700">' + esc(fmtSigned(-Math.abs(totalesRes.cajasSalen || 0))) + '</span></div>' +
               '<div class="sl-pend-item"><span style="font-size:12px;color:var(--sl-text-secondary)">Ventas sin stock</span><span class="sl-mono" style="font-size:22px;font-weight:700;color:' + (totalesRes.ventasSinStock > 0 ? 'var(--sl-red)' : 'var(--sl-text-secondary)') + '">' + fmt(totalesRes.ventasSinStock) + '</span></div>' +
               '</div>' +
               (totalesRes.pendientesResueltas > 0
-                ? '<div class="sl-alert-box ok" style="margin-top:12px"><b>Pendientes resueltas solas:</b> ' + fmt(totalesRes.pendientesResueltas) + ' ' + (totalesRes.pendientesResueltas === 1 ? 'pendiente se ha aplicado automáticamente' : 'pendientes se han aplicado automáticamente') + ' al entrar el stock.</div>'
+                ? '<div class="sl-alert-box ok" style="margin-top:12px"><b>Pendientes resueltas solas:</b> ' + esc(pluraliza(totalesRes.pendientesResueltas, 'pendiente se ha aplicado automáticamente', 'pendientes se han aplicado automáticamente')) + ' al entrar el stock.</div>'
                 : '') +
               '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">' +
               '<button type="button" id="btnImpIrExistencias" class="sl-btn">Ver existencias</button>' +
@@ -907,7 +950,7 @@
         '<div class="sl-card-flat">' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px">' +
         '<div><div style="font-size:12px;color:var(--sl-text-secondary)">Total general a cargar</div>' +
-        '<div class="sl-imp-big-num">' + fmt(gen.cajas) + ' <span style="font-size:15px;font-weight:400;color:var(--sl-text-secondary)">cajas · ' + fmt(gen.filas) + ' filas OK</span></div></div>' +
+        '<div class="sl-imp-big-num">' + fmt(gen.cajas) + ' <span style="font-size:15px;font-weight:400;color:var(--sl-text-secondary)">' + (Math.round(Number(gen.cajas) || 0) === 1 ? 'caja' : 'cajas') + ' · ' + esc(pluraliza(gen.filas, 'fila OK', 'filas OK')) + '</span></div></div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px">' +
         '<span class="sl-count-pill" style="color:var(--sl-green)">OK: ' + fmt(conteoEstados.OK) + '</span>' +
         '<span class="sl-count-pill">No seguida: ' + fmt(conteoEstados.NO_SEGUIDA) + '</span>' +
@@ -919,7 +962,7 @@
         '<div><div style="font-size:12px;font-weight:600;color:var(--sl-text-secondary)">Por proveedor</div>' +
         '<table class="sl-si-table"><thead><tr><th>Proveedor</th><th class="num">Cajas</th></tr></thead><tbody>' + provRows + '</tbody></table></div>' +
         '</div>' +
-        '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;color:var(--sl-text-secondary)">Ver detalle de las ' + fmt(filas.length) + ' filas</summary>' +
+        '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;color:var(--sl-text-secondary)">' + (filas.length === 1 ? 'Ver detalle de 1 fila' : ('Ver detalle de las ' + esc(pluraliza(filas.length, 'fila', 'filas')))) + '</summary>' +
         '<div style="overflow-x:auto"><table class="sl-si-table"><thead><tr><th class="num">#</th><th>Fecha</th><th>Artículo · Envase</th><th class="num">Cajas</th><th>Estado</th></tr></thead><tbody>' + filasRows + '</tbody></table></div>' +
         '</details></div>';
 
@@ -982,7 +1025,7 @@
             wrap.innerHTML =
               '<div class="sl-card-flat" style="border-color:rgba(74,222,128,.35)">' +
               '<div style="font-weight:700;font-size:16px;color:var(--sl-green)">Stock inicial cargado</div>' +
-              '<p style="margin:6px 0 0;font-size:14px">Se han cargado <b>' + fmt(res.cajasCargadas) + ' cajas</b> en ' + fmt(res.filasCargadas) + ' partidas.</p>' +
+              '<p style="margin:6px 0 0;font-size:14px">Se han cargado <b>' + esc(pluraliza(res.cajasCargadas, 'caja', 'cajas')) + '</b> en ' + esc(pluraliza(res.filasCargadas, 'partida', 'partidas')) + '.</p>' +
               (res.copia && res.copia.nombre ? '<p style="margin:4px 0 0;font-size:12px;color:var(--sl-text-secondary)">Copia previa creada: ' + esc(res.copia.nombre) + '</p>' : '') +
               '</div>';
             setVisibilidad('siResultadoWrap', true);
@@ -1096,7 +1139,7 @@
               '<span style="font-weight:600">' + esc(nombreLegible(g.articulo)) + ' · ' + esc(nombreLegible(g.envase)) + '</span>' +
               '<span class="sl-mono">' + fmt(g.cajas) + ' cj</span>' +
               '</div>' +
-              '<div style="font-size:12px;color:var(--sl-text-secondary)">' + fmt(g.lineas) + ' ' + (g.lineas === 1 ? 'línea esperando' : 'líneas esperando') + ' · Albaranes: ' + esc(g.documentos.join(', ')) + '</div>' +
+              '<div style="font-size:12px;color:var(--sl-text-secondary)">' + esc(pluraliza(g.lineas, 'línea esperando', 'líneas esperando')) + ' · ' + (g.documentos.length === 1 ? 'Albarán: ' : 'Albaranes: ') + esc(g.documentos.join(', ')) + '</div>' +
               accionesHtml +
               '</div>'
             );
@@ -1252,7 +1295,7 @@
           const box = document.getElementById('pendFeedbackBox');
           if (box) {
             box.textContent = aplicados > 0
-              ? ('Reintento completado: ' + fmt(aplicados) + ' ' + (aplicados === 1 ? 'línea aplicada' : 'líneas aplicadas') + '.')
+              ? ('Reintento completado: ' + pluraliza(aplicados, 'línea aplicada', 'líneas aplicadas') + '.')
               : 'Reintento completado: no había stock suficiente todavía para las ventas pendientes.';
             setVisibilidad('pendFeedbackBox', true);
           }
@@ -1284,7 +1327,7 @@
               box.textContent = nombreLegible(articulo) + ' · ' + nombreLegible(envase) + ' marcado como seguido' + grpTxt + '. Líneas aplicadas: ' + fmt(ap) + '.';
             } else {
               const ig = Number((res && res.ignorados && res.ignorados.total) || 0);
-              box.textContent = nombreLegible(articulo) + ' · ' + nombreLegible(envase) + ' ignorado (' + fmt(ig) + ' líneas descartadas).';
+              box.textContent = nombreLegible(articulo) + ' · ' + nombreLegible(envase) + ' ignorado (' + pluraliza(ig, 'línea descartada', 'líneas descartadas') + ').';
             }
             setVisibilidad('pendFeedbackBox', true);
           }
@@ -1506,8 +1549,8 @@
             '<div style="color:var(--sl-text-secondary)">' + esc(fmtFechaDdMm(d.fecha)) + '</div>' +
             '<div class="sl-mono" style="margin-top:2px">' +
             '<span style="color:var(--sl-text)">' + fmt(d.stock) + ' cj</span> ' +
-            '<span style="color:var(--sl-green)">+' + fmt(d.entradas) + '</span> ' +
-            '<span style="color:#A1A1AA">−' + fmt(d.salidas) + '</span>' +
+            '<span style="color:var(--sl-green)">' + esc(fmtSigned(Math.abs(Number(d.entradas || 0)))) + '</span> ' +
+            '<span style="color:#A1A1AA">' + esc(fmtSigned(-Math.abs(Number(d.salidas || 0)))) + '</span>' +
             '</div></div>';
         }
         overlay.appendChild(slot);
@@ -1632,9 +1675,9 @@
       (v.partidas || []).forEach(p => {
         if (p.proveedor && !provs.includes(p.proveedor)) provs.push(p.proveedor);
       });
-      const base = n + (n === 1 ? ' partida' : ' partidas');
+      const base = pluraliza(n, 'partida', 'partidas');
       if (provs.length === 1) return nombreLegible(provs[0]) + ' · ' + base;
-      if (provs.length > 1) return provs.length + ' agricultores · ' + base;
+      if (provs.length > 1) return pluraliza(provs.length, 'agricultor', 'agricultores') + ' · ' + base;
       return base;
     }
 
@@ -1958,10 +2001,12 @@
       document.getElementById('partidaArticulo').textContent = artLeg;
       document.getElementById('partidaEnvase').textContent = envLeg;
       document.getElementById('partidaCajasRestantes').textContent = fmt(p.cajas_restantes);
+      const unidadRest = Math.round(Number(p.cajas_restantes) || 0) === 1 ? 'caja' : 'cajas';
+      const unidadIni = Math.round(Number(p.cajas_iniciales) || 0) === 1 ? 'inicial' : 'iniciales';
       document.getElementById('partidaCajasUnidad').textContent =
         Number(p.cajas_consumidas || 0) > 0
-          ? ('cajas (de ' + fmt(p.cajas_iniciales) + ' iniciales)')
-          : 'cajas';
+          ? (unidadRest + ' (de ' + fmt(p.cajas_iniciales) + ' ' + unidadIni + ')')
+          : unidadRest;
 
       const esReproceso = p.origen && p.origen.tipo === 'REPROCESO';
       const badge = document.getElementById('partidaBadgeOrigen');
@@ -2036,7 +2081,7 @@
           ' del ' + esc(fmtFechaDdMm(orig.fecha || p.fecha_capa)) +
           (orig.documento_ref ? ' · Albarán ' + esc(orig.documento_ref) : '') +
           (orig.usuario ? ' · ' + esc(orig.usuario) : '') +
-          ' · ' + fmt(orig.cajas || p.cajas_iniciales) + ' cajas.' +
+          ' · ' + esc(pluraliza(orig.cajas || p.cajas_iniciales, 'caja', 'cajas')) + '.' +
           '</div>';
       }
 
@@ -2055,14 +2100,14 @@
           html +=
             '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:10px;background:var(--sl-elevated);font-size:13px">' +
             '<span><b>' + esc(titulo) + '</b> · ' + esc(fmtFechaDdMm(c.fecha)) + (c.entidad ? ' · ' + esc(nombreLegible(c.entidad)) : (c.documento_ref ? ' · ' + esc(c.documento_ref) : '')) + '</span>' +
-            '<span class="sl-mono">−' + fmt(c.cajas) + ' cj</span>' +
+            '<span class="sl-mono">' + esc(fmtSigned(-Math.abs(Number(c.cajas || 0)))) + ' cj</span>' +
             '</div>';
         });
         destinos.forEach(d => {
           html +=
             '<button type="button" data-dest-capa="' + esc(d.id_capa) + '" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;background:rgba(230,75,155,.10);border:1px solid rgba(230,75,155,.25);color:var(--sl-text);font-size:13px;cursor:pointer;width:100%;text-align:left">' +
             '<span><span style="color:var(--sl-pink);font-weight:600">⇄ Se convirtió en ' + esc(nombreLegible(d.articulo)) + '</span> · ' + esc(nombreLegible(d.envase)) + ' (' + esc(fmtFechaDdMm(d.fecha)) + ')</span>' +
-            '<span class="sl-mono" style="color:var(--sl-pink)">+' + fmt(d.cajas) + ' cj</span>' +
+            '<span class="sl-mono" style="color:var(--sl-pink)">' + esc(fmtSigned(Math.abs(Number(d.cajas || 0)))) + ' cj</span>' +
             '</button>';
         });
         html += '</div>';
@@ -2449,6 +2494,8 @@
       proximaVersion,
       nombreLegible,
       fmtDias,
+      fmtSigned,
+      pluraliza,
       normalizarBusqueda,
       filtrarVariedades,
       calcularDeltaSemanal,
@@ -2457,6 +2504,7 @@
       decodificarBytesCsv,
       detectarTipoArchivoCsv,
       ordenarArchivosImportacion,
+      construirHtmlPrevisualizacionImportacion,
       agruparSeguimientoDesconocido,
       abrirImportar,
       abrirPendientes,
