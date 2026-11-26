@@ -15,14 +15,34 @@
 
 ## git status
 
+Salida capturada tras el commit de trabajo `6213c2b`, antes del commit que añade este informe.
+
 ```text
-@@GIT_STATUS@@
+On branch ticket/T-030-lector-por-columnas
+Your branch is ahead of 'origin/main' by 2 commits.
+  (use "git push" to publish your local commits)
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	logs/T-011/fusion.md
+	logs/T-026/fusion.md
+	logs/T-029/fusion.md
+
+nothing added to commit but untracked files present (use "git add" to track)
 ```
+
+`logs/T-011/fusion.md`, `logs/T-026/fusion.md` y `logs/T-029/fusion.md` son archivos
+pendientes de tickets anteriores; no forman parte de T-030 y no se han incluido en ningún
+commit.
 
 ## git log --oneline -5
 
 ```text
-@@GIT_LOG@@
+6213c2b fix(T-030): lector CSV por columnas para formatos reales
+4b01200 docs(tickets): anadir T-030 lector por columnas
+e9abb1f docs(T-029): completar informe de entrega
+804580f feat(T-029): parte de stock de la noche en servidor
+d78536d docs(tickets): anadir T-029 parte de noche
 ```
 
 ## Dudas (cambios no pedidos por el ticket)
