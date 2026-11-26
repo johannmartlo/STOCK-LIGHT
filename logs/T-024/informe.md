@@ -84,3 +84,37 @@ Se retiraron de `src/Index.html` (permanecen intactos en el historial git) todas
 17. **Puente cliente `const api = {` en `Index.html`**: **conservado y cubierto** por `test/t020_acceso.test.js` (7.5).
 18. **Ausencia de cálculo FIFO en el cliente**: **cubierta** en `test/t024_interfaz.test.js` (prueba 7).
 19. **Integridad de `InventoryEngine.js` sin cambios visuales**: **cubierta** en `test/t024_interfaz.test.js` (prueba 7) y por la suite completa.
+
+---
+
+## Corrección
+
+### Lo hecho
+- **Rebase sobre `origin/main` (`5eea049`)**: reaplicada la rama `ticket/T-024-base-visual-existencias` sobre `main` (con T-025 incluido), resolviendo conflictos solo en `src/Código.js` y `src/Seguridad.js` conservando las API de T-025 y T-024.
+- **1. Últimos movimientos**: `InicioService.obtenerInicio` usa `OperacionesService.listarMovimientos({ limite: 12 })` aplanando los grupos; cada cambio sale en UNA línea (`Rosa Granel M → Rosa 500g`, detalle `60 → 86 · destrío 2`) sin líneas sueltas de origen/destino. Prueba de rendimiento ajustada en `test/t024_inicio.test.js` (`< 2 s` con 5.000 movimientos, cada hoja leída `<= 2` veces).
+- **2. Nombres legibles en cliente (`nombreLegible`)**: quita el prefijo `TOMATE `, capitaliza palabras, conserva en mayúsculas calibres/categorías (`G, GG, GGG, M, MM, MMM, I, II, EPS, POOL`) y pasa medidas a minúscula (`50X30 → 50x30`, `40X30 → 40x30`, `9X500 → 9x500`, `500G → 500g`) sin alterar los datos del servidor. Aplicada en toda la UI y probada con 6 ejemplos en `test/t024_interfaz.test.js` (prueba 8).
+- **3. Delta semanal en cajas**: `calcularDeltaSemanal` muestra siempre cajas (`+2.168 cajas esta semana`), verde si sube y gris (`var(--sl-text-secondary)`) si baja, nunca `%`.
+- **4. Días legibles (`fmtDias`)**: `0 → hoy`, `1 → 1 día`, `n → n días` en KPI, tabla y partidas.
+- **5. Barra lateral sticky**: `.sl-sidebar` mantiene `position: sticky; top: 0; height: 100vh;` (con `overflow-x: clip` en `html, body` y `align-self: flex-start`) y `.sl-sidebar-footer` queda fijado abajo.
+- **6. Renombrado `include` → `include_`**: renombrada en `src/Código.js`, `src/Index.html`, `tools/vista-previa/server.js` y `test/t024_interfaz.test.js`; retirada la fila de `docs/API_PUBLICA.md` (`t023_superficie.test.js` en verde).
+- **7. Buscador móvil (ampliación autorizada)**: `#inputBuscarMob` arriba de `Variedades` en móvil, sincronizado con escritorio, filtrando al instante variedades y artículos sin distinguir mayúsculas ni acentos (`mor` → `Moresco`).
+- **8. Desglose por artículo + envase (ampliación autorizada)**: añadido en `#panelVariedad` y `#hojaVariedad` arriba de las partidas, ordenado por cajas descendente (`I GG · Carton 40x30   686`).
+- **9. Usuario `CONSULTA` (ampliación autorizada)**: usa el `rol` que devuelve la sesión de T-020 (`aplicarRol`) para ocultar todos los botones de acción (`Cambiar`, `Cambios`, `Importar`, `Importar CSV`, `Destrío`, `Cargar stock inicial`) en escritorio, móvil, barra lateral, panel y ficha de partida.
+- **10. Compartir por WhatsApp y Copiar (ampliación autorizada)**: botones «Compartir» (`https://wa.me/?text=…` en pestaña nueva) y «Copiar» en el panel lateral y la hoja inferior, con miles separados por punto, desglose ordenado por cajas y fecha `Sale primero`.
+- **11. Pruebas y capturas**: `node test/run_all.js` → **34/34 suites, 352 pruebas, 0 fallos** (`logs/T-024/tests.txt`). Capturas actualizadas en `logs/T-024/`: `01-existencias-1440.png`, `04-existencias-390.png`, `04b-hoja-inferior-390.png`, `04c-busqueda-mor-390.png`, `10-consulta-1440.png` y `10b-consulta-390.png`.
+
+### `git log --oneline -5`
+```text
+7ec78c3 fix(T-024): correcciones de existencias, nombres legibles, desglose, buscador movil, WhatsApp y rol CONSULTA
+0b458ba docs(T-024): completar informe de entrega
+9202c1f feat(T-024): base visual y existencias (InicioService, UI modular y vista previa)
+c2dc347 docs(T-024): anadir ticket de base visual y existencias
+5eea049 feat(T-025): servidor de operaciones de solo lectura
+```
+
+### Dudas (corrección)
+- **Ampliación autorizada por el responsable (puntos 7–11)**: buscador móvil arriba de Variedades sin distinción de mayúsculas/acentos, desglose por artículo + envase ordenado por cajas arriba de partidas en hoja y panel, ocultación de botones de acción para usuarios `CONSULTA` (usando el `rol` ya devuelto por la sesión de T-020), botones «Compartir» (`https://wa.me/?text=…`) y «Copiar» con texto formateado, y sus pruebas unitarias en `test/t024_interfaz.test.js`.
+- **Ajustes técnicos menores para dar soporte a las correcciones**:
+  - En `src/ui/estilos.html` se cambió `overflow-x: hidden` por `overflow-x: clip` en `html, body` para que `position: sticky; top: 0; height: 100vh` en `.sl-sidebar` no quede bloqueado por un contenedor con overflow en Chromium/WebKit.
+  - En `test/t024_interfaz.test.js` (prueba 5) se permitió el prefijo `https://wa.me/` como enlace de acción de WhatsApp (sin ser recurso ni librería externa).
+  - En `tools/vista-previa/server.js` se añadió soporte opcional de parámetro `?rol=CONSULTA` para previsualizar y capturar la vista de un usuario `CONSULTA`.
