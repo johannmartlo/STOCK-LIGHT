@@ -428,7 +428,8 @@ function crearEntornoVistaPrevia() {
   const operacionesSvc = new OperacionesService({
     repository: env.repo,
     movementService: env.movService,
-    catalogoService: catalogoSvc
+    catalogoService: catalogoSvc,
+    lockService: env.lock
   });
   const parteSvc = new ParteService({
     repository: env.repo,
@@ -462,7 +463,8 @@ function crearEntornoVistaPrevia() {
     safetySvc,
     accesoSvc,
     tokenPreview,
-    sesionInicial
+    sesionInicial,
+    hoy
   };
 }
 

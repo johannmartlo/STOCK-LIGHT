@@ -365,13 +365,14 @@
       const mapa = {
         existencias: 'navExistencias',
         partida: 'navExistencias',
+        cambiar: 'navCambios',
         importar: 'navImportar',
         pendientes: SL.rol === 'CONSULTA' ? 'navPendientes' : 'navImportar',
         movimientos: 'navMovimientos',
         parte: 'navParte'
       };
       const activoId = mapa[vista] || 'navExistencias';
-      ['navExistencias', 'navImportar', 'navPendientes', 'navMovimientos', 'navParte'].forEach(function (id) {
+      ['navExistencias', 'navCambios', 'navImportar', 'navPendientes', 'navMovimientos', 'navParte'].forEach(function (id) {
         const el = document.getElementById(id);
         if (!el) return;
         if (id === activoId) el.setAttribute('aria-current', 'page');
@@ -383,6 +384,7 @@
       cerrarDetalleVariedadSilencioso();
       setVisibilidad('viewExistencias', vista === 'existencias');
       setVisibilidad('viewPartida', vista === 'partida');
+      setVisibilidad('viewCambiar', vista === 'cambiar');
       setVisibilidad('viewImportar', vista === 'importar');
       setVisibilidad('viewPendientes', vista === 'pendientes');
       if (window.SLMov) window.SLMov.setVisible(vista === 'movimientos');
@@ -2268,6 +2270,30 @@
           });
           return;
         }
+        if (txt === 'Cambiar' || txt === '⇄ Cambiar') {
+          el.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (!window.SLCambiar) return proximaVersion();
+            const enPartida = Boolean(el.closest && el.closest('#viewPartida'));
+            const enPanel = Boolean(el.closest && el.closest('#panelVariedad'));
+            if (enPartida && SL.partidaActual) window.SLCambiar.abrir({ idCapa: SL.partidaActual });
+            else if (enPanel && SL.variedadAbierta) window.SLCambiar.abrir({ variedad: SL.variedadAbierta });
+            else window.SLCambiar.abrir();
+          });
+          return;
+        }
+        if (txt === 'Destrío') {
+          el.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (!window.SLDestrioAjuste) return proximaVersion();
+            const enPartida = Boolean(el.closest && el.closest('#viewPartida'));
+            const enPanel = Boolean(el.closest && el.closest('#panelVariedad'));
+            if (enPartida && SL.partidaActual) window.SLDestrioAjuste.abrirDestrio({ idCapa: SL.partidaActual });
+            else if (enPanel && SL.variedadAbierta) window.SLDestrioAjuste.abrirDestrio({ variedad: SL.variedadAbierta });
+            else window.SLDestrioAjuste.abrirDestrio();
+          });
+          return;
+        }
         el.addEventListener('click', function (e) {
           e.preventDefault();
           proximaVersion();
@@ -2276,6 +2302,10 @@
 
       const navExist = document.getElementById('navExistencias');
       if (navExist) navExist.addEventListener('click', volverAExistencias);
+      const navCamb = document.getElementById('navCambios');
+      if (navCamb) navCamb.addEventListener('click', function () {
+        if (window.SLCambiar) window.SLCambiar.abrir();
+      });
       const navImp = document.getElementById('navImportar');
       if (navImp) navImp.addEventListener('click', function () { abrirImportar('csv'); });
       const navPend = document.getElementById('navPendientes');
@@ -2559,6 +2589,14 @@
       abrirParte,
       abrirBuscar,
       mostrarVista,
+      obtenerEstadoActual: function () {
+        return {
+          inicio: SL.inicio,
+          variedadAbierta: SL.variedadAbierta,
+          partidaActual: SL.partidaActual,
+          rol: SL.rol
+        };
+      },
       procesarArchivosCsv,
       confirmarImportacionTodos,
       previsualizarStockInicial,

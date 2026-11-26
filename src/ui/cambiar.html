@@ -1,0 +1,1857 @@
+<style>
+  /* T-033 — Pantalla Cambiar (ordenador primero + móvil ref. 06) */
+  .sl-chg-desktop { display: none; }
+  .sl-chg-mobile { display: block; }
+  @media (min-width: 1024px) {
+    .sl-chg-desktop { display: block; }
+    .sl-chg-mobile { display: none; }
+  }
+
+  .sl-chg-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.9fr);
+    gap: 18px;
+    align-items: start;
+  }
+  .sl-chg-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+  .sl-chg-section-title {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--sl-text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .sl-chg-input {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-bg);
+    color: var(--sl-text);
+    font-family: var(--sl-font);
+    font-size: 14px;
+    outline: none;
+  }
+  .sl-chg-input:focus {
+    border-color: var(--sl-text-secondary);
+  }
+  .sl-chg-num-input {
+    width: 92px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-bg);
+    color: var(--sl-text);
+    font-family: var(--sl-mono);
+    font-size: 15px;
+    font-weight: 600;
+    text-align: right;
+    outline: none;
+  }
+  .sl-chg-num-input:focus {
+    border-color: var(--sl-green);
+  }
+  .sl-chg-search-results {
+    margin-top: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--sl-line);
+    border-radius: 10px;
+    background: var(--sl-bg);
+  }
+  .sl-chg-result-btn {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border: 0;
+    border-bottom: 1px solid var(--sl-line-subtle);
+    background: transparent;
+    color: var(--sl-text);
+    text-align: left;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .sl-chg-result-btn:last-child { border-bottom: 0; }
+  .sl-chg-result-btn:hover, .sl-chg-result-btn:focus-visible {
+    background: var(--sl-elevated);
+    outline: none;
+  }
+  .sl-chg-selected-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .sl-chg-orig-card {
+    background: var(--sl-bg);
+    border: 1px solid var(--sl-line-strong);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .sl-chg-pill-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .sl-chg-pill {
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--sl-line-strong);
+    background: transparent;
+    color: var(--sl-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .sl-chg-pill:hover, .sl-chg-pill[aria-pressed="true"] {
+    background: var(--sl-elevated);
+    color: var(--sl-text);
+    border-color: var(--sl-text-secondary);
+  }
+  .sl-chg-sugs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .sl-chg-sug-btn {
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-bg);
+    color: var(--sl-text);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sl-chg-sug-btn:hover, .sl-chg-sug-btn.active {
+    border-color: var(--sl-green);
+    background: rgba(74, 222, 128, .08);
+  }
+  .sl-chg-dest-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) 88px auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border-radius: 10px;
+    background: var(--sl-bg);
+    border: 1px solid var(--sl-line);
+  }
+  .sl-chg-field-label {
+    display: block;
+    font-size: 12px;
+    color: var(--sl-text-secondary);
+    margin-bottom: 5px;
+  }
+  .sl-chg-kbd-hint {
+    font-size: 12px;
+    color: var(--sl-text-label);
+    margin-top: 8px;
+  }
+
+  /* Móvil referencia 06-cambiar-movil.png */
+  .sl-chg-mob-wrap {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 12px 16px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .sl-chg-mob-top {
+    display: grid;
+    grid-template-columns: 40px 1fr 40px;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .sl-chg-mob-close {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-panel);
+    color: var(--sl-text);
+    font-size: 18px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sl-chg-mob-cards {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .sl-chg-mob-card {
+    background: var(--sl-panel);
+    border: 1px solid var(--sl-line);
+    border-radius: 18px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .sl-chg-mob-card.active {
+    border-color: var(--sl-line-strong);
+  }
+  .sl-chg-mob-swap {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--sl-bg);
+    border: 1px solid var(--sl-line-strong);
+    color: var(--sl-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .sl-chg-mob-big {
+    font-family: var(--sl-mono);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sl-chg-mob-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sl-chg-mob-step-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-bg);
+    color: var(--sl-text);
+    font-size: 16px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sl-chg-mob-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 4px 2px;
+    font-size: 13px;
+    color: var(--sl-text-secondary);
+  }
+  .sl-chg-mob-keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .sl-chg-mob-key {
+    height: 50px;
+    border-radius: 12px;
+    border: 0;
+    background: transparent;
+    color: var(--sl-text);
+    font: 500 24px var(--sl-font);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sl-chg-mob-key:active {
+    background: var(--sl-elevated);
+  }
+  .sl-chg-mob-cta {
+    width: 100%;
+    height: 52px;
+    border-radius: 999px;
+    border: 0;
+    background: var(--sl-btn-bg);
+    color: var(--sl-btn-text);
+    font: 700 16px var(--sl-font);
+    cursor: pointer;
+    margin-top: 6px;
+  }
+  .sl-chg-mob-cta:disabled {
+    opacity: .38;
+    cursor: not-allowed;
+  }
+</style>
+
+<section id="viewCambiar" class="sl-hidden" aria-label="Cambiar confección">
+  <!-- ÉXITO / DESHACER (compartido ordenador y móvil) -->
+  <div id="chgExitoWrap" class="sl-page-wrap sl-hidden" aria-live="polite">
+    <div class="sl-card-flat" style="border-color:rgba(74,222,128,.35);max-width:640px;margin:0 auto;width:100%">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:32px;height:32px;border-radius:50%;background:rgba(74,222,128,.16);color:var(--sl-green);display:inline-flex;align-items:center;justify-content:center;font-weight:700">✓</span>
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--sl-green)">Cambio registrado</div>
+          <div id="chgExitoResumen" style="font-size:14px;color:var(--sl-text);margin-top:2px"></div>
+        </div>
+      </div>
+      <div id="chgExitoDetalle" style="font-size:13px;color:var(--sl-text-secondary);margin-top:10px"></div>
+
+      <!-- Vista previa de anulación antes de deshacer -->
+      <div id="chgDeshacerPreview" class="sl-hidden" style="margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--sl-bg);border:1px solid var(--sl-line-strong)">
+        <div style="font-size:13px;font-weight:600;color:var(--sl-amber)">Vista previa al deshacer</div>
+        <div id="chgDeshacerBody" style="font-size:13px;color:var(--sl-text-secondary);margin-top:6px;line-height:1.5"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button type="button" id="btnChgConfirmarDeshacer" class="sl-btn" style="background:var(--sl-red);color:#0A0A0B">Sí, deshacer cambio</button>
+          <button type="button" id="btnChgCancelarDeshacer" class="sl-ghost">Cancelar</button>
+        </div>
+      </div>
+
+      <div id="chgExitoError" class="sl-alert-box error sl-hidden" role="alert" style="margin-top:12px"></div>
+
+      <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+        <button type="button" id="btnChgOtroCambio" class="sl-btn sl-btn-lg">Otro cambio</button>
+        <button type="button" id="btnChgVerPartida" class="sl-ghost sl-btn-lg sl-hidden">Ver partida destino</button>
+        <button type="button" id="btnChgDeshacer" class="sl-ghost sl-btn-lg" style="color:var(--sl-amber);border-color:rgba(251,191,36,.35)">Deshacer</button>
+        <button type="button" id="btnChgIrExistencias" class="sl-ghost sl-btn-lg">Existencias</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VISTA ORDENADOR (>= 1024px) -->
+  <div id="chgDesktopWrap" class="sl-page-wrap sl-chg-desktop">
+    <div class="sl-page-header">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+        <button type="button" id="btnVolverCambiar" class="sl-icon-btn" aria-label="Volver a existencias">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+        </button>
+        <div style="min-width:0">
+          <h1 class="sl-page-title">Cambiar confección</h1>
+          <p class="sl-page-sub">Pasa cajas de una o varias partidas a otro formato o artículo. Navegable con Tab, Intro y Esc.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="chgErrorBox" class="sl-alert-box error sl-hidden" role="alert"></div>
+
+    <div class="sl-chg-grid">
+      <!-- COLUMNA IZQUIERDA: ORIGEN + DESTINO -->
+      <div class="sl-chg-col">
+        <!-- 1. ORIGEN -->
+        <section class="sl-card-flat" aria-labelledby="lblChgOrigen">
+          <h2 id="lblChgOrigen" class="sl-chg-section-title">
+            <span>1. Origen · partidas vivas</span>
+            <span id="chgOrigenTotalPill" class="sl-count-pill">0 cj</span>
+          </h2>
+          <input id="chgOrigenBuscar" type="search" class="sl-chg-input" placeholder="Buscar partida (ej. rosa cart, moresco, volley…)" aria-label="Buscar partida de origen" autocomplete="off">
+          <div id="chgOrigenResultados" class="sl-chg-search-results" role="listbox" aria-label="Partidas disponibles"></div>
+          <div id="chgOrigenSeleccionadas" class="sl-chg-selected-list"></div>
+        </section>
+
+        <!-- 2. DESTINO -->
+        <section class="sl-card-flat" aria-labelledby="lblChgDestino">
+          <h2 id="lblChgDestino" class="sl-chg-section-title">
+            <span>2. Destino</span>
+            <span id="chgDestinoTotalPill" class="sl-count-pill">0 cj</span>
+          </h2>
+
+          <div id="chgSugerenciasBlock" class="sl-hidden">
+            <div style="font-size:12px;color:var(--sl-text-secondary);margin-bottom:6px">Habituales para este origen</div>
+            <div id="chgSugerenciasWrap" class="sl-chg-sugs"></div>
+          </div>
+
+          <div id="chgProporcionHint" class="sl-hidden" style="font-size:13px;color:var(--sl-green);margin-bottom:10px"></div>
+
+          <datalist id="chgCatalogoArticulos"></datalist>
+          <datalist id="chgCatalogoEnvases"></datalist>
+          <div id="chgDestinosList" style="display:flex;flex-direction:column;gap:8px"></div>
+
+          <div id="chgCatalogoRapidoWrap" style="margin-top:10px">
+            <label class="sl-chg-field-label" for="chgDestinoBuscarCat">Elegir combinación de Hispatec (CATALOGO)</label>
+            <input id="chgDestinoBuscarCat" type="search" class="sl-chg-input" placeholder="Filtrar artículo + envase conocidos…" autocomplete="off">
+            <div id="chgDestinoCatResultados" class="sl-chg-search-results sl-hidden"></div>
+          </div>
+
+          <div id="chgAvisoNombreNuevo" class="sl-alert-box amber sl-hidden" style="margin-top:10px">
+            <b>Aviso:</b> nombre que nunca ha aparecido en Hispatec. Revisa que coincida exactamente con Hispatec.
+          </div>
+
+          <div style="margin-top:10px">
+            <button type="button" id="btnChgAnadirDestino" class="sl-ghost">+ Añadir otro destino</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- COLUMNA DERECHA: DESTRÍO, FECHA Y CONFIRMAR -->
+      <div class="sl-chg-col">
+        <section class="sl-card-flat" aria-labelledby="lblChgDetalles">
+          <h2 id="lblChgDetalles" class="sl-chg-section-title">3. Destrío y fecha</h2>
+
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px">
+              <label class="sl-chg-field-label" for="chgDestrioCajas" style="margin:0">
+                Destrío (cajas) <span id="chgDestrioReqTag" style="color:var(--sl-amber)"></span>
+              </label>
+              <button type="button" id="btnChgSinDestrio" class="sl-chg-pill">Sin destrío (0)</button>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center">
+              <input id="chgDestrioCajas" type="number" min="0" step="1" class="sl-chg-input" placeholder="Escribe 0 o más…" style="font-family:var(--sl-mono);font-weight:600">
+              <input id="chgDestrioKg" type="number" min="0" step="0.1" class="sl-chg-input" placeholder="Kg (opcional)" style="width:140px;font-family:var(--sl-mono)">
+            </div>
+          </div>
+
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px">
+              <label class="sl-chg-field-label" for="chgFecha" style="margin:0">Fecha del cambio</label>
+              <div class="sl-chg-pill-row">
+                <button type="button" id="btnChgFechaHoy" class="sl-chg-pill">Hoy</button>
+                <button type="button" id="btnChgFechaAyer" class="sl-chg-pill">Ayer</button>
+              </div>
+            </div>
+            <input id="chgFecha" type="date" class="sl-chg-input">
+          </div>
+
+          <div style="margin-bottom:14px">
+            <label class="sl-chg-field-label" for="chgObs">Observaciones (opcional)</label>
+            <input id="chgObs" type="text" class="sl-chg-input" placeholder="Ej. Confección tarrinas 500 g">
+          </div>
+
+          <div id="chgAvisoRinde" class="sl-alert-box amber sl-hidden" style="margin-bottom:14px"></div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap" data-solo-escritura="1">
+            <button type="button" id="btnChgConfirmar" class="sl-btn sl-btn-lg" style="flex:1" data-solo-escritura="1">Confirmar cambio</button>
+            <button type="button" id="btnChgCancelar" class="sl-ghost sl-btn-lg">Cancelar</button>
+          </div>
+          <div class="sl-chg-kbd-hint">Teclado: Tab / Intro para avanzar · Esc para cancelar</div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- VISTA MÓVIL (< 1024px, referencia 06-cambiar-movil.png) -->
+  <div id="chgMobileWrap" class="sl-chg-mobile">
+    <div class="sl-chg-mob-wrap">
+      <div class="sl-chg-mob-top">
+        <button type="button" id="btnChgMobCerrar" class="sl-chg-mob-close" aria-label="Cerrar">✕</button>
+        <div style="text-align:center;font-size:17px;font-weight:700">Cambiar</div>
+        <span></span>
+      </div>
+
+      <div id="chgMobError" class="sl-alert-box error sl-hidden" role="alert"></div>
+
+      <div class="sl-chg-mob-cards">
+        <!-- Tarjeta DE -->
+        <div id="chgMobDeCard" class="sl-chg-mob-card active">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <button type="button" id="btnChgMobElegirOrig" style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;background:transparent;border:0;color:var(--sl-text);text-align:left;padding:0;cursor:pointer">
+              <span id="chgMobOrigDot" style="width:32px;height:32px;border-radius:50%;background:rgba(245,163,181,.18);display:flex;align-items:center;justify-content:center;flex:none"><span style="width:12px;height:12px;border-radius:50%;background:#F5A3B5"></span></span>
+              <span style="min-width:0">
+                <span id="chgMobOrigNombre" style="display:block;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Elegir partida</span>
+                <span id="chgMobOrigSub" style="display:block;font-size:12px;color:var(--sl-text-secondary)">Toca para elegir origen</span>
+              </span>
+            </button>
+            <button type="button" id="btnChgMobFocusOrig" class="sl-chg-mob-big" style="background:transparent;border:0;color:var(--sl-text);cursor:pointer;padding:0">0</button>
+          </div>
+          <div class="sl-chg-pill-row">
+            <button type="button" class="sl-chg-pill" data-mob-pct="0.25">25 %</button>
+            <button type="button" class="sl-chg-pill" data-mob-pct="0.5">50 %</button>
+            <button type="button" class="sl-chg-pill" data-mob-pct="1">Toda</button>
+          </div>
+        </div>
+
+        <div class="sl-chg-mob-swap" aria-hidden="true">⇅</div>
+
+        <!-- Tarjeta A -->
+        <div id="chgMobACard" class="sl-chg-mob-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <button type="button" id="btnChgMobElegirDest" style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;background:transparent;border:0;color:var(--sl-text);text-align:left;padding:0;cursor:pointer">
+              <span style="width:32px;height:32px;border-radius:50%;background:rgba(236,72,153,.18);display:flex;align-items:center;justify-content:center;flex:none"><span style="width:12px;height:12px;border-radius:50%;background:#EC4899"></span></span>
+              <span style="min-width:0">
+                <span id="chgMobDestNombre" style="display:block;font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Elegir destino</span>
+                <span id="chgMobDestSub" style="display:block;font-size:12px;color:var(--sl-text-secondary)">Toca para elegir destino</span>
+              </span>
+            </button>
+            <button type="button" id="btnChgMobFocusDest" class="sl-chg-mob-big" style="background:transparent;border:0;color:var(--sl-green);cursor:pointer;padding:0">0</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;color:var(--sl-text-secondary)">Ajustar</span>
+            <div class="sl-chg-mob-stepper">
+              <button type="button" id="btnChgMobDestMenos" class="sl-chg-mob-step-btn" aria-label="Restar 1 caja destino">−</button>
+              <button type="button" id="btnChgMobDestMas" class="sl-chg-mob-step-btn" aria-label="Sumar 1 caja destino">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Picker inline móvil (para elegir origen o destino) -->
+      <div id="chgMobPicker" class="sl-card-flat sl-hidden" style="padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <b id="chgMobPickerTitle" style="font-size:13px">Elegir</b>
+          <button type="button" id="btnChgMobPickerCerrar" class="sl-chg-pill">Cerrar</button>
+        </div>
+        <div id="chgMobPickerList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto"></div>
+      </div>
+
+      <!-- Fila proporción + destrío -->
+      <div class="sl-chg-mob-info">
+        <span id="chgMobPropInfo"></span>
+        <div class="sl-chg-mob-stepper">
+          <span>Destrío</span>
+          <button type="button" id="btnChgMobSinDestrio" class="sl-chg-pill sl-hidden" style="height:26px;font-size:11px">Sin destrío</button>
+          <button type="button" id="btnChgMobDestrioMenos" class="sl-chg-mob-step-btn" aria-label="Restar destrío">−</button>
+          <span id="chgMobDestrioVal" class="sl-mono" style="min-width:20px;text-align:center;color:var(--sl-text);font-weight:700">—</span>
+          <button type="button" id="btnChgMobDestrioMas" class="sl-chg-mob-step-btn" aria-label="Sumar destrío">+</button>
+        </div>
+      </div>
+
+      <div id="chgMobAvisoRinde" class="sl-alert-box amber sl-hidden" style="padding:8px 10px;font-size:12px"></div>
+
+      <!-- Teclado numérico móvil -->
+      <div class="sl-chg-mob-keypad" id="chgMobKeypad">
+        <button type="button" class="sl-chg-mob-key" data-mob-key="1">1</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="2">2</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="3">3</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="4">4</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="5">5</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="6">6</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="7">7</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="8">8</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="9">9</button>
+        <span></span>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="0">0</button>
+        <button type="button" class="sl-chg-mob-key" data-mob-key="back" aria-label="Borrar">⌫</button>
+      </div>
+
+      <button type="button" id="btnChgMobConfirmar" class="sl-chg-mob-cta" data-solo-escritura="1">Cambiar</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    function normTxt(s) {
+      if (window.SLApp && typeof window.SLApp.normalizarBusqueda === 'function') {
+        return window.SLApp.normalizarBusqueda(s);
+      }
+      return String(s === null || s === undefined ? '' : s)
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    }
+
+    function normClave(s) {
+      return String(s === null || s === undefined ? '' : s).trim().replace(/\s+/g, ' ').toUpperCase();
+    }
+
+    function nombreLeg(s) {
+      if (window.SLApp && typeof window.SLApp.nombreLegible === 'function') {
+        return window.SLApp.nombreLegible(s);
+      }
+      return String(s || '');
+    }
+
+    function fmtNum(n) {
+      return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function fmtSignedLocal(n) {
+      if (window.SLApp && typeof window.SLApp.fmtSigned === 'function') {
+        return window.SLApp.fmtSigned(n);
+      }
+      const v = Math.round(Number(n) || 0);
+      if (v > 0) return '+' + fmtNum(v);
+      if (v < 0) return '−' + fmtNum(Math.abs(v));
+      return '0';
+    }
+
+    function pluralLocal(n, sing, plur) {
+      if (window.SLApp && typeof window.SLApp.pluraliza === 'function') {
+        return window.SLApp.pluraliza(n, sing, plur);
+      }
+      const v = Math.round(Number(n) || 0);
+      return fmtNum(v) + ' ' + (Math.abs(v) === 1 ? sing : plur);
+    }
+
+    function escHtml(s) {
+      return String(s === null || s === undefined ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    function fmtFechaCorta(iso) {
+      const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? (m[3] + '/' + m[2]) : (iso || '—');
+    }
+
+    function hoyIsoLocal() {
+      try {
+        const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+          ? window.SLApp.obtenerEstadoActual() : null;
+        if (est && est.inicio && est.inicio.fecha_referencia) {
+          return String(est.inicio.fecha_referencia).slice(0, 10);
+        }
+      } catch (e) {}
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function restarDiasIso(iso, dias) {
+      const p = String(iso || '').split('-').map(Number);
+      if (p.length !== 3) return iso;
+      const dt = new Date(Date.UTC(p[0], p[1] - 1, p[2] - dias));
+      return dt.toISOString().slice(0, 10);
+    }
+
+    function formatearProporcion(p) {
+      const num = Number(p || 0);
+      if (!Number.isFinite(num) || num <= 0) return '1';
+      if (Math.abs(num - Math.round(num)) < 0.005) return String(Math.round(num));
+      return num.toFixed(2).replace('.', ',');
+    }
+
+    /**
+     * Calcula las cajas de destino a partir de las cajas de origen y una sugerencia,
+     * redondeando a caja entera (T-033 aceptación 1).
+     */
+    function calcularDestinoSugerido(origenCajas, sugerencia) {
+      const orig = Math.max(0, Number(origenCajas) || 0);
+      const dests = (sugerencia && Array.isArray(sugerencia.destinos)) ? sugerencia.destinos : [];
+      return dests.map(function (d) {
+        const prop = Number(d.proporcion || (sugerencia && sugerencia.proporcion_total) || 1);
+        return {
+          articulo: String(d.articulo || '').trim(),
+          envase: String(d.envase || '').trim(),
+          proporcion: prop,
+          cajas: orig > 0 ? Math.max(1, Math.round(orig * prop)) : 0
+        };
+      });
+    }
+
+    /**
+     * Comprueba si algún destino cambia de envase respecto a algún origen.
+     */
+    function cambiaEnvase(origenes, destinos) {
+      const origList = Array.isArray(origenes) ? origenes : [];
+      const destList = Array.isArray(destinos) ? destinos : [];
+      if (origList.length === 0 || destList.length === 0) return false;
+      const envOrig = new Set(origList.map(function (o) { return normClave(o.envase); }).filter(Boolean));
+      return destList.some(function (d) {
+        const envD = normClave(d.envase);
+        if (!envD) return false;
+        if (envOrig.size === 0) return false;
+        return !envOrig.has(envD) || envOrig.size > 1;
+      });
+    }
+
+    /**
+     * Valida un cambio en cliente (T-033 aceptación 1 y precisión 1).
+     */
+    function validarCambio(datos) {
+      const d = datos || {};
+      const origenes = Array.isArray(d.origenes) ? d.origenes : [];
+      const destinos = Array.isArray(d.destinos) ? d.destinos : [];
+      const hoy = String(d.hoy || hoyIsoLocal()).slice(0, 10);
+      const fecha = String(d.fecha || '').trim();
+
+      if (origenes.length === 0) {
+        return { ok: false, error: 'Elige al menos una partida de origen.' };
+      }
+      for (let i = 0; i < origenes.length; i++) {
+        const o = origenes[i];
+        const cj = Number(o.cajas);
+        if (!Number.isInteger(cj) || cj <= 0) {
+          return { ok: false, error: 'Indica un número entero mayor que 0 para las cajas de origen.' };
+        }
+        if (o.disponibles !== undefined && cj > Number(o.disponibles)) {
+          return { ok: false, error: 'No puedes sacar más cajas de las disponibles (' + fmtNum(o.disponibles) + ').' };
+        }
+      }
+      if (destinos.length === 0) {
+        return { ok: false, error: 'Indica al menos un destino.' };
+      }
+      for (let j = 0; j < destinos.length; j++) {
+        const dst = destinos[j];
+        if (!String(dst.articulo || '').trim() || !String(dst.envase || '').trim()) {
+          return { ok: false, error: 'Completa el artículo y el envase de destino.' };
+        }
+        const cjD = Number(dst.cajas);
+        if (!Number.isInteger(cjD) || cjD <= 0) {
+          return { ok: false, error: 'Las cajas de destino deben ser un número entero mayor que 0.' };
+        }
+      }
+
+      const hayCambioEnv = cambiaEnvase(origenes, destinos);
+      const rawDest = d.destrioCajasRaw === null || d.destrioCajasRaw === undefined ? '' : String(d.destrioCajasRaw).trim();
+      if (hayCambioEnv && rawDest === '') {
+        return { ok: false, error: 'El destrío es obligatorio al cambiar de envase (0 es válido; pulsa «Sin destrío» si no hubo).' };
+      }
+      let destrioCajas = 0;
+      if (rawDest !== '') {
+        const parsed = Number(rawDest);
+        if (!Number.isInteger(parsed) || parsed < 0) {
+          return { ok: false, error: 'El destrío en cajas debe ser un entero mayor o igual que 0.' };
+        }
+        destrioCajas = parsed;
+      }
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        return { ok: false, error: 'Indica una fecha válida para el cambio.' };
+      }
+      if (fecha > hoy) {
+        return { ok: false, error: 'La fecha del cambio no puede ser futura.' };
+      }
+
+      return { ok: true, destrioCajas: destrioCajas, cambioEnvase: hayCambioEnv };
+    }
+
+    function filtrarPartidasOrigen(partidas, query) {
+      const lista = (Array.isArray(partidas) ? partidas : []).slice().sort(function (a, b) {
+        return String(a.fecha || '').localeCompare(String(b.fecha || ''));
+      });
+      const q = normTxt(query);
+      if (!q) return lista;
+      const tokens = q.split(/\s+/).filter(Boolean);
+      return lista.filter(function (p) {
+        const texto = normTxt([
+          p.articulo, nombreLeg(p.articulo),
+          p.envase, nombreLeg(p.envase),
+          p.grupo, nombreLeg(p.grupo),
+          p.proveedor, p.fecha
+        ].join(' '));
+        return tokens.every(function (tk) { return texto.indexOf(tk) >= 0; });
+      });
+    }
+
+    function esCombinacionConocida(articulo, envase, combinaciones) {
+      const art = normClave(articulo);
+      const env = normClave(envase);
+      if (!art || !env) return true;
+      const clave = art + '|' + env;
+      return (Array.isArray(combinaciones) ? combinaciones : []).some(function (c) {
+        return (normClave(c.articulo) + '|' + normClave(c.envase)) === clave;
+      });
+    }
+
+    // --- Estado interactivo ---
+    const St = {
+      partidasVivas: [],
+      combinaciones: [],
+      origenes: [], // { id_capa, articulo, envase, fecha, proveedor, disponibles, cajas, color }
+      destinos: [{ articulo: '', envase: '', cajas: 0 }],
+      sugerencias: [],
+      sugerenciaActiva: null,
+      destrioCajasRaw: '',
+      destrioKg: '',
+      fecha: '',
+      observaciones: '',
+      evaluacion: null,
+      enviando: false,
+      ultimoResultado: null,
+      mobCampoActivo: 'origen', // 'origen' | 'destino'
+      mobPickerModo: null // 'origen' | 'destino' | null
+    };
+
+    function recopilarPartidasVivas() {
+      const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+        ? window.SLApp.obtenerEstadoActual() : null;
+      const vars = (est && est.inicio && Array.isArray(est.inicio.variedades)) ? est.inicio.variedades : [];
+      const lista = [];
+      vars.forEach(function (v) {
+        (v.partidas || []).forEach(function (p) {
+          if (Number(p.cajas || 0) > 0) {
+            lista.push({
+              id_capa: p.id_capa,
+              articulo: p.articulo,
+              envase: p.envase,
+              fecha: p.fecha,
+              proveedor: p.proveedor || '',
+              disponibles: Number(p.cajas || 0),
+              grupo: v.grupo || '',
+              color: v.color || '#4FA37C'
+            });
+          }
+        });
+      });
+      lista.sort(function (a, b) {
+        return String(a.fecha || '').localeCompare(String(b.fecha || ''));
+      });
+      St.partidasVivas = lista;
+      return lista;
+    }
+
+    function cargarCatalogoCombinaciones() {
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') return Promise.resolve([]);
+      return window.SLBridge.call('apiListarCombinacionesCatalogo')
+        .then(function (res) {
+          St.combinaciones = (res && Array.isArray(res.combinaciones)) ? res.combinaciones : [];
+          actualizarDatalists();
+          return St.combinaciones;
+        })
+        .catch(function () { return St.combinaciones; });
+    }
+
+    function actualizarDatalists() {
+      const dlArt = document.getElementById('chgCatalogoArticulos');
+      const dlEnv = document.getElementById('chgCatalogoEnvases');
+      const arts = new Set();
+      const envs = new Set();
+      St.combinaciones.forEach(function (c) {
+        if (c.articulo) arts.add(c.articulo);
+        if (c.envase) envs.add(c.envase);
+      });
+      if (dlArt) {
+        dlArt.innerHTML = Array.from(arts).sort().map(function (a) {
+          return '<option value="' + escHtml(a) + '">';
+        }).join('');
+      }
+      if (dlEnv) {
+        dlEnv.innerHTML = Array.from(envs).sort().map(function (e) {
+          return '<option value="' + escHtml(e) + '">';
+        }).join('');
+      }
+    }
+
+    function totalOrigenCajas() {
+      return St.origenes.reduce(function (acc, o) { return acc + (Number(o.cajas) || 0); }, 0);
+    }
+
+    function totalDestinoCajas() {
+      return St.destinos.reduce(function (acc, d) { return acc + (Number(d.cajas) || 0); }, 0);
+    }
+
+    function cargarSugerenciasParaOrigen() {
+      if (St.origenes.length === 0 || !window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        St.sugerencias = [];
+        St.sugerenciaActiva = null;
+        renderTodo();
+        return Promise.resolve();
+      }
+      const prim = St.origenes[0];
+      return window.SLBridge.call('apiSugerenciasCambio', prim.articulo, prim.envase)
+        .then(function (sugs) {
+          St.sugerencias = Array.isArray(sugs) ? sugs : [];
+          renderTodo();
+        })
+        .catch(function () {
+          St.sugerencias = [];
+          renderTodo();
+        });
+    }
+
+    let evalTimer = null;
+    function programarEvaluacion() {
+      clearTimeout(evalTimer);
+      const totO = totalOrigenCajas();
+      const totD = totalDestinoCajas();
+      if (totO <= 0 || totD <= 0 || !St.sugerenciaActiva || !window.SLBridge) {
+        St.evaluacion = null;
+        renderAvisoRinde();
+        return;
+      }
+      evalTimer = setTimeout(function () {
+        window.SLBridge.call('apiEvaluarCambio', totO, St.destinos, St.sugerenciaActiva)
+          .then(function (ev) {
+            St.evaluacion = ev || null;
+            renderAvisoRinde();
+          })
+          .catch(function () {});
+      }, 150);
+    }
+
+    function renderAvisoRinde() {
+      const boxDesk = document.getElementById('chgAvisoRinde');
+      const boxMob = document.getElementById('chgMobAvisoRinde');
+      const ev = St.evaluacion;
+      const mostrar = Boolean(ev && ev.rinde_distinto);
+      const txt = mostrar
+        ? ('Rinde distinto: 1 caja → ' + formatearProporcion(ev.real) + ' (lo habitual es ' + formatearProporcion(ev.esperado) + ', desviación ' + fmtSignedLocal(Math.round(ev.desviacion_pct)) + ' %). Puedes confirmar igualmente.')
+        : '';
+      [boxDesk, boxMob].forEach(function (el) {
+        if (!el) return;
+        if (mostrar) {
+          el.textContent = txt;
+          el.classList.remove('sl-hidden');
+        } else {
+          el.classList.add('sl-hidden');
+        }
+      });
+    }
+
+    function aplicarSugerencia(sug) {
+      St.sugerenciaActiva = sug;
+      const totO = totalOrigenCajas();
+      const calc = calcularDestinoSugerido(totO, sug);
+      if (calc.length > 0) {
+        St.destinos = calc.map(function (c) {
+          return { articulo: c.articulo, envase: c.envase, cajas: c.cajas, proporcion: c.proporcion };
+        });
+      }
+      renderTodo();
+      programarEvaluacion();
+    }
+
+    function recalcularDestinosSiSugerencia() {
+      if (!St.sugerenciaActiva) return;
+      const totO = totalOrigenCajas();
+      const calc = calcularDestinoSugerido(totO, St.sugerenciaActiva);
+      if (calc.length === St.destinos.length) {
+        St.destinos = calc.map(function (c) {
+          return { articulo: c.articulo, envase: c.envase, cajas: c.cajas, proporcion: c.proporcion };
+        });
+      }
+    }
+
+    function seleccionarPartidaOrigen(p, cajasIniciales) {
+      if (!p) return;
+      const ya = St.origenes.find(function (o) { return o.id_capa === p.id_capa; });
+      if (ya) {
+        renderTodo();
+        return;
+      }
+      const cajas = cajasIniciales !== undefined ? cajasIniciales : p.disponibles;
+      St.origenes.push({
+        id_capa: p.id_capa,
+        articulo: p.articulo,
+        envase: p.envase,
+        fecha: p.fecha,
+        proveedor: p.proveedor,
+        disponibles: p.disponibles,
+        cajas: Math.min(p.disponibles, Math.max(1, Math.round(Number(cajas) || p.disponibles))),
+        color: p.color
+      });
+      if (St.origenes.length === 1) {
+        cargarSugerenciasParaOrigen();
+      } else {
+        recalcularDestinosSiSugerencia();
+        renderTodo();
+        programarEvaluacion();
+      }
+    }
+
+    function renderResultadosOrigen() {
+      const box = document.getElementById('chgOrigenResultados');
+      const inp = document.getElementById('chgOrigenBuscar');
+      if (!box) return;
+      const q = inp ? inp.value : '';
+      const filtradas = filtrarPartidasOrigen(St.partidasVivas, q).slice(0, 12);
+      if (filtradas.length === 0) {
+        box.innerHTML = '<div style="padding:10px 12px;font-size:13px;color:var(--sl-text-secondary)">No hay partidas vivas que coincidan.</div>';
+        return;
+      }
+      box.innerHTML = filtradas.map(function (p) {
+        const elegida = St.origenes.some(function (o) { return o.id_capa === p.id_capa; });
+        return (
+          '<button type="button" class="sl-chg-result-btn" data-add-orig="' + escHtml(p.id_capa) + '"' + (elegida ? ' style="opacity:.5"' : '') + '>' +
+          '<span><b>' + escHtml(nombreLeg(p.articulo)) + '</b> · ' + escHtml(nombreLeg(p.envase)) + '<br><span style="font-size:11px;color:var(--sl-text-secondary)">Entrada ' + escHtml(fmtFechaCorta(p.fecha)) + (p.proveedor ? ' · ' + escHtml(nombreLeg(p.proveedor)) : '') + '</span></span>' +
+          '<span class="sl-mono" style="font-weight:600">' + (elegida ? 'Elegida' : ('hay ' + fmtNum(p.disponibles))) + '</span>' +
+          '</button>'
+        );
+      }).join('');
+
+      box.querySelectorAll('[data-add-orig]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const id = btn.getAttribute('data-add-orig');
+          const p = St.partidasVivas.find(function (x) { return x.id_capa === id; });
+          if (p) {
+            seleccionarPartidaOrigen(p);
+            setTimeout(function () {
+              const inpC = document.querySelector('[data-orig-cajas="' + id + '"]');
+              if (inpC) { inpC.focus(); inpC.select(); }
+            }, 30);
+          }
+        });
+      });
+    }
+
+    function renderDesktop() {
+      const totO = totalOrigenCajas();
+      const totD = totalDestinoCajas();
+      const pO = document.getElementById('chgOrigenTotalPill');
+      const pD = document.getElementById('chgDestinoTotalPill');
+      if (pO) pO.textContent = fmtNum(totO) + ' cj';
+      if (pD) pD.textContent = fmtNum(totD) + ' cj';
+
+      renderResultadosOrigen();
+
+      // Orígenes seleccionados
+      const selWrap = document.getElementById('chgOrigenSeleccionadas');
+      if (selWrap) {
+        if (St.origenes.length === 0) {
+          selWrap.innerHTML = '<div style="font-size:13px;color:var(--sl-text-secondary)">Elige una o varias partidas arriba (sale primero la más antigua).</div>';
+        } else {
+          selWrap.innerHTML = St.origenes.map(function (o, idx) {
+            return (
+              '<div class="sl-chg-orig-card">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">' +
+              '<div style="min-width:0"><div style="font-weight:600">' + escHtml(nombreLeg(o.articulo)) + ' · ' + escHtml(nombreLeg(o.envase)) + '</div>' +
+              '<div style="font-size:12px;color:var(--sl-text-secondary)">Entrada ' + escHtml(fmtFechaCorta(o.fecha)) + ' · hay ' + fmtNum(o.disponibles) + '</div></div>' +
+              '<div style="display:flex;align-items:center;gap:6px">' +
+              '<input type="number" min="1" max="' + o.disponibles + '" step="1" class="sl-chg-num-input" data-orig-cajas="' + escHtml(o.id_capa) + '" value="' + o.cajas + '" aria-label="Cajas de origen">' +
+              '<button type="button" class="sl-chg-pill" data-del-orig="' + idx + '" aria-label="Quitar partida">✕</button>' +
+              '</div></div>' +
+              '<div class="sl-chg-pill-row">' +
+              '<button type="button" class="sl-chg-pill" data-orig-pct="' + idx + ':0.25">25 %</button>' +
+              '<button type="button" class="sl-chg-pill" data-orig-pct="' + idx + ':0.5">50 %</button>' +
+              '<button type="button" class="sl-chg-pill" data-orig-pct="' + idx + ':1">Toda</button>' +
+              '</div></div>'
+            );
+          }).join('');
+
+          selWrap.querySelectorAll('[data-orig-cajas]').forEach(function (inp) {
+            inp.addEventListener('input', function () {
+              const id = inp.getAttribute('data-orig-cajas');
+              const o = St.origenes.find(function (x) { return x.id_capa === id; });
+              if (!o) return;
+              o.cajas = Math.max(0, Math.round(Number(inp.value) || 0));
+              recalcularDestinosSiSugerencia();
+              actualizarResumenSinPerderFoco();
+              programarEvaluacion();
+            });
+            inp.addEventListener('keydown', function (e) {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const sugBtn = document.querySelector('#chgSugerenciasWrap .sl-chg-sug-btn');
+                if (sugBtn) sugBtn.focus();
+                else {
+                  const dstInp = document.querySelector('#chgDestinosList input');
+                  if (dstInp) dstInp.focus();
+                }
+              }
+            });
+          });
+          selWrap.querySelectorAll('[data-orig-pct]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              const parts = btn.getAttribute('data-orig-pct').split(':');
+              const idx = Number(parts[0]);
+              const pct = Number(parts[1]);
+              const o = St.origenes[idx];
+              if (!o) return;
+              o.cajas = Math.max(1, Math.round(o.disponibles * pct));
+              recalcularDestinosSiSugerencia();
+              renderTodo();
+              programarEvaluacion();
+            });
+          });
+          selWrap.querySelectorAll('[data-del-orig]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              const idx = Number(btn.getAttribute('data-del-orig'));
+              St.origenes.splice(idx, 1);
+              if (St.origenes.length === 0) {
+                St.sugerencias = [];
+                St.sugerenciaActiva = null;
+              } else if (idx === 0) {
+                cargarSugerenciasParaOrigen();
+                return;
+              }
+              recalcularDestinosSiSugerencia();
+              renderTodo();
+              programarEvaluacion();
+            });
+          });
+        }
+      }
+
+      // Sugerencias habituales
+      const sugBlock = document.getElementById('chgSugerenciasBlock');
+      const sugWrap = document.getElementById('chgSugerenciasWrap');
+      if (sugBlock && sugWrap) {
+        if (St.sugerencias.length === 0) {
+          sugBlock.classList.add('sl-hidden');
+        } else {
+          sugBlock.classList.remove('sl-hidden');
+          sugWrap.innerHTML = St.sugerencias.map(function (s, idx) {
+            const nombre = (s.destinos || []).map(function (d) {
+              return nombreLeg(d.articulo) + ' · ' + nombreLeg(d.envase);
+            }).join(' + ');
+            const activa = St.sugerenciaActiva === s;
+            return (
+              '<button type="button" class="sl-chg-sug-btn' + (activa ? ' active' : '') + '" data-sug-idx="' + idx + '">' +
+              '<span style="font-weight:600">' + escHtml(nombre) + '</span>' +
+              '<span style="font-size:12px;color:var(--sl-text-secondary)">1 caja → ' + escHtml(formatearProporcion(s.proporcion_total)) + ' · usado ' + escHtml(pluralLocal(s.veces, 'vez', 'veces')) + '</span>' +
+              '</button>'
+            );
+          }).join('');
+          sugWrap.querySelectorAll('[data-sug-idx]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              const s = St.sugerencias[Number(btn.getAttribute('data-sug-idx'))];
+              if (s) {
+                aplicarSugerencia(s);
+                const destrioInp = document.getElementById('chgDestrioCajas');
+                if (destrioInp) destrioInp.focus();
+              }
+            });
+          });
+        }
+      }
+
+      // Hint proporción habitual
+      const propHint = document.getElementById('chgProporcionHint');
+      if (propHint) {
+        if (St.sugerenciaActiva && totO > 0) {
+          propHint.textContent = fmtNum(totO) + ' → ' + fmtNum(totD) + ' · 1 caja → ' + formatearProporcion(St.sugerenciaActiva.proporcion_total) + ' · lo habitual';
+          propHint.classList.remove('sl-hidden');
+        } else {
+          propHint.classList.add('sl-hidden');
+        }
+      }
+
+      // Filas de destino
+      const dstList = document.getElementById('chgDestinosList');
+      if (dstList) {
+        dstList.innerHTML = St.destinos.map(function (d, idx) {
+          return (
+            '<div class="sl-chg-dest-row">' +
+            '<input type="text" list="chgCatalogoArticulos" class="sl-chg-input" data-dst-art="' + idx + '" value="' + escHtml(d.articulo) + '" placeholder="Artículo Hispatec" aria-label="Artículo de destino">' +
+            '<input type="text" list="chgCatalogoEnvases" class="sl-chg-input" data-dst-env="' + idx + '" value="' + escHtml(d.envase) + '" placeholder="Envase Hispatec" aria-label="Envase de destino">' +
+            '<input type="number" min="1" step="1" class="sl-chg-num-input" style="width:100%" data-dst-cajas="' + idx + '" value="' + (d.cajas > 0 ? d.cajas : '') + '" placeholder="Cajas" aria-label="Cajas de destino">' +
+            (St.destinos.length > 1 ? '<button type="button" class="sl-chg-pill" data-del-dst="' + idx + '" aria-label="Quitar destino">✕</button>' : '<span></span>') +
+            '</div>'
+          );
+        }).join('');
+
+        dstList.querySelectorAll('[data-dst-art]').forEach(function (inp) {
+          inp.addEventListener('input', function () {
+            const idx = Number(inp.getAttribute('data-dst-art'));
+            St.destinos[idx].articulo = inp.value;
+            actualizarAvisosDestino();
+          });
+        });
+        dstList.querySelectorAll('[data-dst-env]').forEach(function (inp) {
+          inp.addEventListener('input', function () {
+            const idx = Number(inp.getAttribute('data-dst-env'));
+            St.destinos[idx].envase = inp.value;
+            actualizarAvisosDestino();
+          });
+        });
+        dstList.querySelectorAll('[data-dst-cajas]').forEach(function (inp) {
+          inp.addEventListener('input', function () {
+            const idx = Number(inp.getAttribute('data-dst-cajas'));
+            St.destinos[idx].cajas = Math.max(0, Math.round(Number(inp.value) || 0));
+            actualizarResumenSinPerderFoco();
+            programarEvaluacion();
+          });
+          inp.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              const dInp = document.getElementById('chgDestrioCajas');
+              if (dInp) dInp.focus();
+            }
+          });
+        });
+        dstList.querySelectorAll('[data-del-dst]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            St.destinos.splice(Number(btn.getAttribute('data-del-dst')), 1);
+            renderTodo();
+            programarEvaluacion();
+          });
+        });
+      }
+
+      // Destrío y fecha
+      const dInp = document.getElementById('chgDestrioCajas');
+      if (dInp && document.activeElement !== dInp) dInp.value = St.destrioCajasRaw;
+      const kgInp = document.getElementById('chgDestrioKg');
+      if (kgInp && document.activeElement !== kgInp) kgInp.value = St.destrioKg;
+      const fInp = document.getElementById('chgFecha');
+      if (fInp) {
+        fInp.max = hoyIsoLocal();
+        if (document.activeElement !== fInp) fInp.value = St.fecha;
+      }
+      const oInp = document.getElementById('chgObs');
+      if (oInp && document.activeElement !== oInp) oInp.value = St.observaciones;
+
+      actualizarAvisosDestino();
+      renderAvisoRinde();
+    }
+
+    function actualizarResumenSinPerderFoco() {
+      const pO = document.getElementById('chgOrigenTotalPill');
+      const pD = document.getElementById('chgDestinoTotalPill');
+      const totO = totalOrigenCajas();
+      const totD = totalDestinoCajas();
+      if (pO) pO.textContent = fmtNum(totO) + ' cj';
+      if (pD) pD.textContent = fmtNum(totD) + ' cj';
+      const propHint = document.getElementById('chgProporcionHint');
+      if (propHint && St.sugerenciaActiva && totO > 0) {
+        propHint.textContent = fmtNum(totO) + ' → ' + fmtNum(totD) + ' · 1 caja → ' + formatearProporcion(St.sugerenciaActiva.proporcion_total) + ' · lo habitual';
+      }
+      // Actualizar inputs de destino si no tienen foco
+      document.querySelectorAll('#chgDestinosList [data-dst-cajas]').forEach(function (inp) {
+        const idx = Number(inp.getAttribute('data-dst-cajas'));
+        if (document.activeElement !== inp && St.destinos[idx]) {
+          inp.value = St.destinos[idx].cajas > 0 ? St.destinos[idx].cajas : '';
+        }
+      });
+      renderMobile();
+    }
+
+    function actualizarAvisosDestino() {
+      const hayNuevo = St.destinos.some(function (d) {
+        return String(d.articulo || '').trim() && String(d.envase || '').trim() && !esCombinacionConocida(d.articulo, d.envase, St.combinaciones);
+      });
+      const avisoNuevo = document.getElementById('chgAvisoNombreNuevo');
+      if (avisoNuevo) {
+        if (hayNuevo && St.combinaciones.length > 0) avisoNuevo.classList.remove('sl-hidden');
+        else avisoNuevo.classList.add('sl-hidden');
+      }
+      const reqTag = document.getElementById('chgDestrioReqTag');
+      if (reqTag) {
+        reqTag.textContent = cambiaEnvase(St.origenes, St.destinos) ? '· obligatorio (0 válido)' : '· opcional';
+      }
+    }
+
+    function renderMobile() {
+      const orig = St.origenes[0] || null;
+      const dst = St.destinos[0] || { articulo: '', envase: '', cajas: 0 };
+      const totO = totalOrigenCajas();
+      const totD = totalDestinoCajas();
+
+      const deCard = document.getElementById('chgMobDeCard');
+      const aCard = document.getElementById('chgMobACard');
+      if (deCard) deCard.classList.toggle('active', St.mobCampoActivo === 'origen');
+      if (aCard) aCard.classList.toggle('active', St.mobCampoActivo === 'destino');
+
+      const oNom = document.getElementById('chgMobOrigNombre');
+      const oSub = document.getElementById('chgMobOrigSub');
+      const oBig = document.getElementById('btnChgMobFocusOrig');
+      if (oNom) oNom.textContent = orig ? nombreLeg(orig.articulo) : 'Elegir partida';
+      if (oSub) oSub.textContent = orig ? (nombreLeg(orig.envase) + ' · ' + fmtFechaCorta(orig.fecha) + ' · hay ' + fmtNum(orig.disponibles)) : 'Toca para elegir origen';
+      if (oBig) oBig.textContent = fmtSignedLocal(-Math.abs(totO));
+
+      const dNom = document.getElementById('chgMobDestNombre');
+      const dSub = document.getElementById('chgMobDestSub');
+      const dBig = document.getElementById('btnChgMobFocusDest');
+      if (dNom) dNom.textContent = dst.articulo ? nombreLeg(dst.articulo) : 'Elegir destino';
+      if (dSub) dSub.textContent = dst.envase ? nombreLeg(dst.envase) : 'Toca para elegir destino';
+      if (dBig) dBig.textContent = fmtSignedLocal(Math.abs(totD));
+
+      const propInfo = document.getElementById('chgMobPropInfo');
+      if (propInfo) {
+        if (St.sugerenciaActiva) {
+          propInfo.textContent = '↗ 1 caja → ' + formatearProporcion(St.sugerenciaActiva.proporcion_total) + ' · lo habitual';
+        } else if (totO > 0 && totD > 0) {
+          propInfo.textContent = '↗ 1 caja → ' + formatearProporcion(totD / totO);
+        } else {
+          propInfo.textContent = 'Fecha: ' + fmtFechaCorta(St.fecha);
+        }
+      }
+
+      const dVal = document.getElementById('chgMobDestrioVal');
+      if (dVal) dVal.textContent = St.destrioCajasRaw === '' ? '—' : fmtNum(Number(St.destrioCajasRaw));
+      const btnSinD = document.getElementById('btnChgMobSinDestrio');
+      if (btnSinD) {
+        const mostrarSin = cambiaEnvase(St.origenes, St.destinos) && St.destrioCajasRaw === '';
+        btnSinD.classList.toggle('sl-hidden', !mostrarSin);
+      }
+
+      const cta = document.getElementById('btnChgMobConfirmar');
+      if (cta) {
+        cta.textContent = totO > 0 ? ('Cambiar ' + pluralLocal(totO, 'caja', 'cajas')) : 'Cambiar';
+        const val = validarCambio({
+          origenes: St.origenes,
+          destinos: St.destinos,
+          destrioCajasRaw: St.destrioCajasRaw,
+          fecha: St.fecha,
+          hoy: hoyIsoLocal()
+        });
+        cta.disabled = !val.ok || St.enviando;
+      }
+    }
+
+    function renderTodo() {
+      renderDesktop();
+      renderMobile();
+    }
+
+    function mostrarErrorCambio(msg) {
+      ['chgErrorBox', 'chgMobError'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (msg) {
+          el.textContent = msg;
+          el.classList.remove('sl-hidden');
+        } else {
+          el.classList.add('sl-hidden');
+        }
+      });
+    }
+
+    function confirmarCambio() {
+      if (St.enviando) return;
+      mostrarErrorCambio('');
+      const val = validarCambio({
+        origenes: St.origenes,
+        destinos: St.destinos,
+        destrioCajasRaw: St.destrioCajasRaw,
+        fecha: St.fecha,
+        hoy: hoyIsoLocal()
+      });
+      if (!val.ok) {
+        mostrarErrorCambio(val.error);
+        return;
+      }
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        mostrarErrorCambio('Puente de servidor no disponible.');
+        return;
+      }
+
+      St.enviando = true;
+      const btnDesk = document.getElementById('btnChgConfirmar');
+      const btnMob = document.getElementById('btnChgMobConfirmar');
+      if (btnDesk) btnDesk.disabled = true;
+      if (btnMob) btnMob.disabled = true;
+
+      const payload = {
+        fecha: St.fecha,
+        origenes: St.origenes.map(function (o) {
+          return { id_capa: o.id_capa, cajas: Number(o.cajas) };
+        }),
+        destinos: St.destinos.map(function (d) {
+          return { articulo: String(d.articulo).trim(), envase: String(d.envase).trim(), cajas: Number(d.cajas) };
+        }),
+        destrio_cajas: val.destrioCajas,
+        destrio_kg: St.destrioKg !== '' ? Number(St.destrioKg) : undefined,
+        observaciones: String(St.observaciones || '').trim()
+      };
+
+      window.SLBridge.call('apiRegistrarReproceso', payload)
+        .then(function (res) {
+          if (!res || res.success === false) {
+            throw new Error((res && (res.message || res.error)) || 'No se pudo registrar el cambio.');
+          }
+          St.ultimoResultado = res;
+          mostrarExitoCambio(res);
+          if (window.SLApp && typeof window.SLApp.cargarInicio === 'function') {
+            window.SLApp.cargarInicio({ silencioso: true });
+          }
+        })
+        .catch(function (err) {
+          mostrarErrorCambio(err && err.message ? err.message : String(err));
+        })
+        .finally(function () {
+          St.enviando = false;
+          if (btnDesk) btnDesk.disabled = false;
+          if (btnMob) btnMob.disabled = false;
+        });
+    }
+
+    function mostrarExitoCambio(res) {
+      const desk = document.getElementById('chgDesktopWrap');
+      const mob = document.getElementById('chgMobileWrap');
+      const ex = document.getElementById('chgExitoWrap');
+      if (desk) desk.classList.add('sl-hidden');
+      if (mob) mob.classList.add('sl-hidden');
+      if (ex) ex.classList.remove('sl-hidden');
+
+      const resEl = document.getElementById('chgExitoResumen');
+      const detEl = document.getElementById('chgExitoDetalle');
+      const prevEl = document.getElementById('chgDeshacerPreview');
+      const errEl = document.getElementById('chgExitoError');
+      if (prevEl) prevEl.classList.add('sl-hidden');
+      if (errEl) errEl.classList.add('sl-hidden');
+
+      if (resEl) {
+        resEl.textContent = pluralLocal(res.totalRetirado, 'caja', 'cajas') + ' → ' + pluralLocal(res.totalDestinos, 'caja', 'cajas') + (Number(res.destrioCajas || 0) > 0 ? (' · destrío ' + fmtNum(res.destrioCajas) + ' cj') : ' · sin destrío');
+      }
+      if (detEl) {
+        const destTxt = St.destinos.map(function (d) { return nombreLeg(d.articulo) + ' · ' + nombreLeg(d.envase) + ' (' + fmtNum(d.cajas) + ' cj)'; }).join(', ');
+        detEl.textContent = 'Destino: ' + destTxt + ' · Fecha ' + fmtFechaCorta(St.fecha);
+      }
+
+      const btnVer = document.getElementById('btnChgVerPartida');
+      const capaCreada = res.capasCreadas && res.capasCreadas[0];
+      if (btnVer) {
+        if (capaCreada && capaCreada.id_capa) {
+          btnVer.classList.remove('sl-hidden');
+          btnVer.setAttribute('data-capa-destino', capaCreada.id_capa);
+        } else {
+          btnVer.classList.add('sl-hidden');
+        }
+      }
+
+      const btnDesh = document.getElementById('btnChgDeshacer');
+      if (btnDesh) btnDesh.classList.remove('sl-hidden');
+    }
+
+    function pedirVistaPreviaDeshacer() {
+      const res = St.ultimoResultado;
+      if (!res || !res.id_reproceso || !window.SLBridge) return;
+      const errEl = document.getElementById('chgExitoError');
+      if (errEl) errEl.classList.add('sl-hidden');
+
+      window.SLBridge.call('apiPrevisualizarAnulacion', 'REPROCESO', res.id_reproceso)
+        .then(function (prev) {
+          const prevBox = document.getElementById('chgDeshacerPreview');
+          const body = document.getElementById('chgDeshacerBody');
+          const btnConf = document.getElementById('btnChgConfirmarDeshacer');
+          if (!prevBox || !body) return;
+          if (!prev || !prev.posible) {
+            body.textContent = 'No se puede deshacer: ' + ((prev && prev.motivo) || 'las partidas destino ya tienen consumos.');
+            if (btnConf) btnConf.disabled = true;
+          } else {
+            const vuelven = (prev.partidas_vuelven || []).map(function (p) {
+              return nombreLeg(p.articulo) + ' (' + fmtSignedLocal(Math.abs(p.cajas || 0)) + ' cj)';
+            }).join(', ');
+            const desap = (prev.partidas_desaparecen || []).map(function (p) {
+              return nombreLeg(p.articulo) + ' (' + fmtSignedLocal(-Math.abs(p.cajas || 0)) + ' cj)';
+            }).join(', ');
+            body.innerHTML =
+              (vuelven ? '<div><b>Vuelven al stock:</b> ' + escHtml(vuelven) + '</div>' : '') +
+              (desap ? '<div><b>Desaparecen:</b> ' + escHtml(desap) + '</div>' : '');
+            if (btnConf) btnConf.disabled = false;
+          }
+          prevBox.classList.remove('sl-hidden');
+        })
+        .catch(function (err) {
+          if (errEl) {
+            errEl.textContent = err && err.message ? err.message : String(err);
+            errEl.classList.remove('sl-hidden');
+          }
+        });
+    }
+
+    function ejecutarDeshacer() {
+      const res = St.ultimoResultado;
+      if (!res || !res.id_reproceso || !window.SLBridge) return;
+      const btnConf = document.getElementById('btnChgConfirmarDeshacer');
+      if (btnConf) btnConf.disabled = true;
+
+      window.SLBridge.call('apiAnularReproceso', res.id_reproceso)
+        .then(function (an) {
+          if (!an || an.success === false) {
+            throw new Error((an && (an.message || an.error)) || 'No se pudo anular el cambio.');
+          }
+          if (window.SLApp && typeof window.SLApp.cargarInicio === 'function') {
+            window.SLApp.cargarInicio({ silencioso: true });
+          }
+          if (window.SLApp && typeof window.SLApp.mostrarAviso === 'function') {
+            window.SLApp.mostrarAviso('Cambio deshecho correctamente', 'success');
+          }
+          reiniciarFormulario();
+        })
+        .catch(function (err) {
+          const errEl = document.getElementById('chgExitoError');
+          if (errEl) {
+            errEl.textContent = err && err.message ? err.message : String(err);
+            errEl.classList.remove('sl-hidden');
+          }
+        })
+        .finally(function () {
+          if (btnConf) btnConf.disabled = false;
+        });
+    }
+
+    function reiniciarFormulario(opciones) {
+      const opts = opciones || {};
+      recopilarPartidasVivas();
+      St.origenes = [];
+      St.destinos = [{ articulo: '', envase: '', cajas: 0 }];
+      St.sugerencias = [];
+      St.sugerenciaActiva = null;
+      St.destrioCajasRaw = '';
+      St.destrioKg = '';
+      St.fecha = hoyIsoLocal();
+      St.observaciones = '';
+      St.evaluacion = null;
+      St.ultimoResultado = null;
+      St.mobCampoActivo = 'origen';
+      St.mobPickerModo = null;
+
+      const desk = document.getElementById('chgDesktopWrap');
+      const mob = document.getElementById('chgMobileWrap');
+      const ex = document.getElementById('chgExitoWrap');
+      if (desk) desk.classList.remove('sl-hidden');
+      if (mob) mob.classList.remove('sl-hidden');
+      if (ex) ex.classList.add('sl-hidden');
+      const picker = document.getElementById('chgMobPicker');
+      if (picker) picker.classList.add('sl-hidden');
+      mostrarErrorCambio('');
+
+      const inpB = document.getElementById('chgOrigenBuscar');
+      if (inpB) inpB.value = '';
+      const inpCat = document.getElementById('chgDestinoBuscarCat');
+      if (inpCat) inpCat.value = '';
+      const catRes = document.getElementById('chgDestinoCatResultados');
+      if (catRes) catRes.classList.add('sl-hidden');
+
+      if (opts.idCapa) {
+        const p = St.partidasVivas.find(function (x) { return x.id_capa === opts.idCapa; });
+        if (p) seleccionarPartidaOrigen(p);
+      } else if (opts.variedad && Array.isArray(opts.variedad.partidas) && opts.variedad.partidas.length > 0) {
+        const primera = opts.variedad.partidas[0];
+        const p = St.partidasVivas.find(function (x) { return x.id_capa === primera.id_capa; });
+        if (p) seleccionarPartidaOrigen(p);
+      } else if (window.innerWidth < 1024 && St.partidasVivas.length > 0) {
+        seleccionarPartidaOrigen(St.partidasVivas[0]);
+      }
+
+      renderTodo();
+      if (window.innerWidth >= 1024 && inpB && !opts.idCapa) {
+        setTimeout(function () { inpB.focus(); }, 40);
+      }
+    }
+
+    function abrir(opciones) {
+      const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+        ? window.SLApp.obtenerEstadoActual() : null;
+      if (est && est.rol === 'CONSULTA') return;
+      if (window.SLApp && typeof window.SLApp.mostrarVista === 'function') {
+        window.SLApp.mostrarVista('cambiar');
+      }
+      cargarCatalogoCombinaciones();
+      reiniciarFormulario(opciones);
+    }
+
+    function abrirMobPicker(modo) {
+      St.mobPickerModo = modo;
+      const box = document.getElementById('chgMobPicker');
+      const title = document.getElementById('chgMobPickerTitle');
+      const list = document.getElementById('chgMobPickerList');
+      if (!box || !list) return;
+      box.classList.remove('sl-hidden');
+      if (modo === 'origen') {
+        if (title) title.textContent = 'Elegir partida de origen';
+        list.innerHTML = St.partidasVivas.slice(0, 15).map(function (p) {
+          return '<button type="button" class="sl-chg-result-btn" data-mp-orig="' + escHtml(p.id_capa) + '"><span><b>' + escHtml(nombreLeg(p.articulo)) + '</b> · ' + escHtml(nombreLeg(p.envase)) + '</span><span class="sl-mono">' + fmtNum(p.disponibles) + ' cj</span></button>';
+        }).join('');
+        list.querySelectorAll('[data-mp-orig]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            const p = St.partidasVivas.find(function (x) { return x.id_capa === btn.getAttribute('data-mp-orig'); });
+            if (p) {
+              St.origenes = [];
+              seleccionarPartidaOrigen(p);
+            }
+            box.classList.add('sl-hidden');
+          });
+        });
+      } else {
+        if (title) title.textContent = 'Elegir destino';
+        let html = '';
+        if (St.sugerencias.length > 0) {
+          html += St.sugerencias.map(function (s, idx) {
+            const d0 = s.destinos && s.destinos[0];
+            if (!d0) return '';
+            return '<button type="button" class="sl-chg-result-btn" data-mp-sug="' + idx + '"><span><b>' + escHtml(nombreLeg(d0.articulo)) + '</b> · ' + escHtml(nombreLeg(d0.envase)) + '</span><span style="color:var(--sl-green);font-size:12px">1 → ' + escHtml(formatearProporcion(s.proporcion_total)) + '</span></button>';
+          }).join('');
+        }
+        html += St.combinaciones.slice(0, 15).map(function (c, idx) {
+          return '<button type="button" class="sl-chg-result-btn" data-mp-cat="' + idx + '"><span>' + escHtml(nombreLeg(c.articulo)) + ' · ' + escHtml(nombreLeg(c.envase)) + '</span></button>';
+        }).join('');
+        list.innerHTML = html || '<div style="font-size:13px;color:var(--sl-text-secondary)">Sin destinos cargados.</div>';
+        list.querySelectorAll('[data-mp-sug]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            const s = St.sugerencias[Number(btn.getAttribute('data-mp-sug'))];
+            if (s) aplicarSugerencia(s);
+            box.classList.add('sl-hidden');
+          });
+        });
+        list.querySelectorAll('[data-mp-cat]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            const c = St.combinaciones[Number(btn.getAttribute('data-mp-cat'))];
+            if (c) {
+              St.sugerenciaActiva = null;
+              St.destinos = [{ articulo: c.articulo, envase: c.envase, cajas: Math.max(1, totalOrigenCajas()) }];
+              renderTodo();
+            }
+            box.classList.add('sl-hidden');
+          });
+        });
+      }
+    }
+
+    function pulsarTeclaMovil(key) {
+      if (St.mobCampoActivo === 'origen') {
+        if (St.origenes.length === 0) return;
+        const o = St.origenes[0];
+        let s = String(o.cajas || 0);
+        if (key === 'back') s = s.length > 1 ? s.slice(0, -1) : '0';
+        else s = s === '0' ? key : (s + key);
+        o.cajas = Math.min(o.disponibles, Number(s) || 0);
+        recalcularDestinosSiSugerencia();
+      } else {
+        const d = St.destinos[0];
+        if (!d) return;
+        let s = String(d.cajas || 0);
+        if (key === 'back') s = s.length > 1 ? s.slice(0, -1) : '0';
+        else s = s === '0' ? key : (s + key);
+        d.cajas = Math.min(99999, Number(s) || 0);
+      }
+      renderTodo();
+      programarEvaluacion();
+    }
+
+    function enlazarCambiar() {
+      const btnVol = document.getElementById('btnVolverCambiar');
+      const btnCanc = document.getElementById('btnChgCancelar');
+      const btnMobC = document.getElementById('btnChgMobCerrar');
+      const volver = function () {
+        if (window.SLApp && typeof window.SLApp.volverAExistencias === 'function') {
+          window.SLApp.volverAExistencias();
+        }
+      };
+      if (btnVol) btnVol.addEventListener('click', volver);
+      if (btnCanc) btnCanc.addEventListener('click', volver);
+      if (btnMobC) btnMobC.addEventListener('click', volver);
+
+      const inpB = document.getElementById('chgOrigenBuscar');
+      if (inpB) {
+        inpB.addEventListener('input', renderResultadosOrigen);
+        inpB.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const firstBtn = document.querySelector('#chgOrigenResultados [data-add-orig]');
+            if (firstBtn) firstBtn.click();
+          }
+        });
+      }
+
+      const inpCat = document.getElementById('chgDestinoBuscarCat');
+      const catRes = document.getElementById('chgDestinoCatResultados');
+      if (inpCat && catRes) {
+        inpCat.addEventListener('input', function () {
+          const q = normTxt(inpCat.value);
+          if (!q) { catRes.classList.add('sl-hidden'); return; }
+          const tokens = q.split(/\s+/).filter(Boolean);
+          const matches = St.combinaciones.filter(function (c) {
+            const t = normTxt(c.articulo + ' ' + nombreLeg(c.articulo) + ' ' + c.envase + ' ' + nombreLeg(c.envase));
+            return tokens.every(function (tk) { return t.indexOf(tk) >= 0; });
+          }).slice(0, 10);
+          catRes.classList.remove('sl-hidden');
+          if (matches.length === 0) {
+            catRes.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:var(--sl-text-secondary)">Sin coincidencias en CATALOGO. Escribe arriba el nombre exacto de Hispatec.</div>';
+            return;
+          }
+          catRes.innerHTML = matches.map(function (c, idx) {
+            return '<button type="button" class="sl-chg-result-btn" data-cat-pick="' + idx + '"><span><b>' + escHtml(nombreLeg(c.articulo)) + '</b> · ' + escHtml(nombreLeg(c.envase)) + '</span><span style="font-size:11px;color:var(--sl-text-secondary)">' + escHtml(c.articulo) + '</span></button>';
+          }).join('');
+          catRes.querySelectorAll('[data-cat-pick]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              const c = matches[Number(btn.getAttribute('data-cat-pick'))];
+              if (!c) return;
+              St.sugerenciaActiva = null;
+              const target = St.destinos[St.destinos.length - 1] || { articulo: '', envase: '', cajas: 0 };
+              target.articulo = c.articulo;
+              target.envase = c.envase;
+              if (!target.cajas && totalOrigenCajas() > 0) target.cajas = totalOrigenCajas();
+              inpCat.value = '';
+              catRes.classList.add('sl-hidden');
+              renderTodo();
+            });
+          });
+        });
+      }
+
+      const btnAddDst = document.getElementById('btnChgAnadirDestino');
+      if (btnAddDst) {
+        btnAddDst.addEventListener('click', function () {
+          St.sugerenciaActiva = null;
+          St.destinos.push({ articulo: '', envase: '', cajas: 0 });
+          renderTodo();
+        });
+      }
+
+      const dInp = document.getElementById('chgDestrioCajas');
+      if (dInp) {
+        dInp.addEventListener('input', function () {
+          St.destrioCajasRaw = dInp.value;
+          renderMobile();
+        });
+        dInp.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmarCambio();
+          }
+        });
+      }
+      const btnSinD = document.getElementById('btnChgSinDestrio');
+      if (btnSinD) {
+        btnSinD.addEventListener('click', function () {
+          St.destrioCajasRaw = '0';
+          if (dInp) dInp.value = '0';
+          renderMobile();
+        });
+      }
+      const kgInp = document.getElementById('chgDestrioKg');
+      if (kgInp) kgInp.addEventListener('input', function () { St.destrioKg = kgInp.value; });
+
+      const fInp = document.getElementById('chgFecha');
+      if (fInp) fInp.addEventListener('change', function () { St.fecha = fInp.value; renderMobile(); });
+      const bHoy = document.getElementById('btnChgFechaHoy');
+      const bAyer = document.getElementById('btnChgFechaAyer');
+      if (bHoy) bHoy.addEventListener('click', function () { St.fecha = hoyIsoLocal(); renderTodo(); });
+      if (bAyer) bAyer.addEventListener('click', function () { St.fecha = restarDiasIso(hoyIsoLocal(), 1); renderTodo(); });
+
+      const oInp = document.getElementById('chgObs');
+      if (oInp) {
+        oInp.addEventListener('input', function () { St.observaciones = oInp.value; });
+        oInp.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); confirmarCambio(); }
+        });
+      }
+
+      const btnConf = document.getElementById('btnChgConfirmar');
+      if (btnConf) btnConf.addEventListener('click', confirmarCambio);
+
+      // Éxito / Deshacer / Otro cambio
+      const btnOtro = document.getElementById('btnChgOtroCambio');
+      if (btnOtro) {
+        btnOtro.addEventListener('click', function () {
+          if (window.SLApp && typeof window.SLApp.cargarInicio === 'function') {
+            window.SLApp.cargarInicio({ silencioso: true }).then(function () { reiniciarFormulario(); });
+          } else {
+            reiniciarFormulario();
+          }
+        });
+      }
+      const btnDesh = document.getElementById('btnChgDeshacer');
+      if (btnDesh) btnDesh.addEventListener('click', pedirVistaPreviaDeshacer);
+      const btnConfDesh = document.getElementById('btnChgConfirmarDeshacer');
+      if (btnConfDesh) btnConfDesh.addEventListener('click', ejecutarDeshacer);
+      const btnCancDesh = document.getElementById('btnChgCancelarDeshacer');
+      if (btnCancDesh) {
+        btnCancDesh.addEventListener('click', function () {
+          const p = document.getElementById('chgDeshacerPreview');
+          if (p) p.classList.add('sl-hidden');
+        });
+      }
+      const btnVerP = document.getElementById('btnChgVerPartida');
+      if (btnVerP) {
+        btnVerP.addEventListener('click', function () {
+          const id = btnVerP.getAttribute('data-capa-destino');
+          if (id && window.SLApp && typeof window.SLApp.abrirPartida === 'function') {
+            window.SLApp.abrirPartida(id);
+          }
+        });
+      }
+      const btnIrEx = document.getElementById('btnChgIrExistencias');
+      if (btnIrEx) btnIrEx.addEventListener('click', volver);
+
+      // Eventos móvil
+      const mEligO = document.getElementById('btnChgMobElegirOrig');
+      const mEligD = document.getElementById('btnChgMobElegirDest');
+      const mFocO = document.getElementById('btnChgMobFocusOrig');
+      const mFocD = document.getElementById('btnChgMobFocusDest');
+      if (mEligO) mEligO.addEventListener('click', function () { abrirMobPicker('origen'); });
+      if (mEligD) mEligD.addEventListener('click', function () { abrirMobPicker('destino'); });
+      if (mFocO) mFocO.addEventListener('click', function () { St.mobCampoActivo = 'origen'; renderMobile(); });
+      if (mFocD) mFocD.addEventListener('click', function () { St.mobCampoActivo = 'destino'; renderMobile(); });
+      const mPickC = document.getElementById('btnChgMobPickerCerrar');
+      if (mPickC) mPickC.addEventListener('click', function () {
+        const b = document.getElementById('chgMobPicker');
+        if (b) b.classList.add('sl-hidden');
+      });
+
+      document.querySelectorAll('[data-mob-pct]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (St.origenes.length === 0) return;
+          const pct = Number(btn.getAttribute('data-mob-pct'));
+          const o = St.origenes[0];
+          o.cajas = Math.max(1, Math.round(o.disponibles * pct));
+          recalcularDestinosSiSugerencia();
+          renderTodo();
+          programarEvaluacion();
+        });
+      });
+
+      const mDMen = document.getElementById('btnChgMobDestMenos');
+      const mDMas = document.getElementById('btnChgMobDestMas');
+      if (mDMen) mDMen.addEventListener('click', function () {
+        if (!St.destinos[0]) return;
+        St.destinos[0].cajas = Math.max(0, (Number(St.destinos[0].cajas) || 0) - 1);
+        renderTodo();
+        programarEvaluacion();
+      });
+      if (mDMas) mDMas.addEventListener('click', function () {
+        if (!St.destinos[0]) return;
+        St.destinos[0].cajas = (Number(St.destinos[0].cajas) || 0) + 1;
+        renderTodo();
+        programarEvaluacion();
+      });
+
+      const mDestMen = document.getElementById('btnChgMobDestrioMenos');
+      const mDestMas = document.getElementById('btnChgMobDestrioMas');
+      const mSinD = document.getElementById('btnChgMobSinDestrio');
+      if (mDestMen) mDestMen.addEventListener('click', function () {
+        const cur = St.destrioCajasRaw === '' ? 0 : Math.max(0, Number(St.destrioCajasRaw) - 1);
+        St.destrioCajasRaw = String(cur);
+        renderTodo();
+      });
+      if (mDestMas) mDestMas.addEventListener('click', function () {
+        const cur = St.destrioCajasRaw === '' ? 1 : (Number(St.destrioCajasRaw) + 1);
+        St.destrioCajasRaw = String(cur);
+        renderTodo();
+      });
+      if (mSinD) mSinD.addEventListener('click', function () {
+        St.destrioCajasRaw = '0';
+        renderTodo();
+      });
+
+      document.querySelectorAll('#chgMobKeypad [data-mob-key]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          pulsarTeclaMovil(btn.getAttribute('data-mob-key'));
+        });
+      });
+      const btnMobConf = document.getElementById('btnChgMobConfirmar');
+      if (btnMobConf) btnMobConf.addEventListener('click', confirmarCambio);
+
+      // Teclado global Esc en viewCambiar
+      document.addEventListener('keydown', function (e) {
+        const v = document.getElementById('viewCambiar');
+        if (!v || v.classList.contains('sl-hidden')) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          const prev = document.getElementById('chgDeshacerPreview');
+          if (prev && !prev.classList.contains('sl-hidden')) {
+            prev.classList.add('sl-hidden');
+            return;
+          }
+          volver();
+        }
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', enlazarCambiar);
+    } else {
+      enlazarCambiar();
+    }
+
+    window.SLCambiar = {
+      abrir,
+      reiniciarFormulario,
+      confirmarCambio,
+      calcularDestinoSugerido,
+      cambiaEnvase,
+      validarCambio,
+      filtrarPartidasOrigen,
+      esCombinacionConocida,
+      formatearProporcion
+    };
+  })();
+</script>

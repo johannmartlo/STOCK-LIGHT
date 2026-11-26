@@ -11,6 +11,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { crearEntornoVistaPrevia } = require('./datosFicticios');
+const codigo = require('../../src/Código');
+const { conContextoDePrueba_ } = require('../../src/Seguridad');
 
 const PORT = Number(process.argv[2] || process.env.PORT || 3099);
 const SRC_DIR = path.resolve(__dirname, '../../src');
@@ -133,6 +135,8 @@ function renderIndexHtml(query) {
         } else if (previewVista === 'parte') window.SLApp.abrirParte();
         else if (previewVista === 'buscar') {
           window.SLApp.abrirBuscar('rosa');
+        } else if (previewVista === 'cambiar' && window.SLCambiar) {
+          window.SLCambiar.abrir();
         }
       }, 150);
     }
@@ -258,6 +262,39 @@ function despacharApi(fnName, args) {
     }
     if (targetFn === 'apiConfirmarStockInicial') {
       return ctx.stockInicialSvc.confirmar(targetArgs[0], targetArgs[1], usuario, { anadir: targetArgs[2] === true });
+    }
+    if (targetFn === 'apiSugerenciasCambio') {
+      return ctx.operacionesSvc.sugerenciasCambio(targetArgs[0], targetArgs[1]);
+    }
+    if (targetFn === 'apiEvaluarCambio') {
+      return ctx.operacionesSvc.evaluarCambio_(targetArgs[0], targetArgs[1], targetArgs[2]);
+    }
+    if (targetFn === 'apiPrevisualizarAnulacion') {
+      return ctx.operacionesSvc.previsualizarAnulacion(targetArgs[0], targetArgs[1]);
+    }
+    if (targetFn === 'apiRegistrarReproceso') {
+      return ctx.env.movService.registrarReproceso(targetArgs[0] || {}, usuario);
+    }
+    if (targetFn === 'apiListarCombinacionesCatalogo') {
+      return conContextoDePrueba_(usuario, 'ADMIN', () =>
+        codigo.apiListarCombinacionesCatalogo({ repository: ctx.env.repo })
+      );
+    }
+    if (targetFn === 'apiRegistrarAjustePartida') {
+      return conContextoDePrueba_(usuario, 'ENCARGADO', () =>
+        codigo.apiRegistrarAjustePartida(targetArgs[0] || {}, {
+          repository: ctx.env.repo,
+          movementService: ctx.env.movService,
+          lockService: ctx.env.lock,
+          reloj: () => ctx.hoy
+        })
+      );
+    }
+    if (targetFn === 'apiRegistrarAjustePositivo') {
+      return ctx.env.movService.registrarAjustePositivo(targetArgs[0] || {}, usuario);
+    }
+    if (targetFn === 'apiRegistrarAjusteNegativo') {
+      return ctx.env.movService.registrarAjusteNegativo(targetArgs[0] || {}, usuario);
     }
     if (targetFn === 'apiSalir') {
       return { success: true };

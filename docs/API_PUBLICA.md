@@ -56,6 +56,8 @@ no las expone.
 | `apiObtenerDetallePartidas` | `src/Código.js` | LECTURA | Capas FIFO vivas de una combinación. |
 | `apiRegistrarAjustePositivo` | `src/Código.js` | ESCRITURA | Ajuste positivo; usuario del servidor. |
 | `apiRegistrarAjusteNegativo` | `src/Código.js` | ESCRITURA | Ajuste negativo; usuario del servidor. |
+| `apiRegistrarAjustePartida` | `src/Código.js` | ESCRITURA | Ajuste o destrío dirigido sobre una partida concreta (`id_capa_objetivo`); usuario del servidor; rol ENCARGADO (T-033). |
+| `apiListarCombinacionesCatalogo` | `src/Código.js` | LECTURA | Lista única de combinaciones artículo + envase conocidas en CATALOGO, CAPAS_FIFO y STOCK_ACTUAL; rol CONSULTA (T-033). |
 | `apiRegistrarReclasificacion` | `src/Código.js` | ESCRITURA | Reclasificación entre formatos; usuario del servidor. |
 | `apiGetGruposComerciales` | `src/Código.js` | LECTURA | Obsoleta: se retira en T-012 (D-029). Exige sesión (T-020). |
 | `apiUpsertGrupoComercial` | `src/Código.js` | ESCRITURA | Obsoleta: lanza error claro sin escribir (se retira en T-012, D-029). Exige sesión (T-020). |

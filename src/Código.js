@@ -736,6 +736,156 @@ function apiRegistrarAjusteNegativo(params, usuario) {
 }
 
 /**
+ * Registra un ajuste o destrío dirigido sobre una partida concreta (id_capa) (T-033).
+ * ESCRITURA, rol ENCARGADO. Delega en MovementService.registrarAjuste con id_capa_objetivo.
+ *
+ * @param {Object} params - { id_capa, signo (-1|+1), cajas (>0), motivo, nota?, fecha?, kg? }
+ * @param {Object} [options] - Opciones de inyección para pruebas
+ * @returns {Object}
+ */
+function apiRegistrarAjustePartida(params, options = {}) {
+  exigirSesionApi_();
+  const p = params && typeof params === 'object' ? params : {};
+  const idCapa = String(p.id_capa || p.idCapa || '').trim();
+  if (!idCapa) {
+    throw new Error('Debes indicar la partida (id_capa).');
+  }
+
+  const signo = Number(p.signo);
+  if (signo !== 1 && signo !== -1) {
+    throw new Error('El signo del ajuste debe ser +1 o -1.');
+  }
+
+  const cajas = Number(p.cajas);
+  if (!Number.isInteger(cajas) || cajas <= 0) {
+    throw new Error('Las cajas deben ser un número entero mayor que 0.');
+  }
+
+  const motivosValidos = ['DESTRIO', 'RECUENTO', 'ERROR_CARGA', 'OTRO'];
+  const motivo = String(p.motivo || '').trim().toUpperCase();
+  if (motivosValidos.indexOf(motivo) < 0) {
+    throw new Error('Motivo no válido. Usa DESTRIO, RECUENTO, ERROR_CARGA u OTRO.');
+  }
+
+  const nota = String(p.nota !== undefined ? p.nota : (p.observaciones || '')).trim();
+  if (motivo === 'OTRO' && !nota) {
+    throw new Error('Debes escribir una nota explicativa cuando el motivo es OTRO.');
+  }
+
+  const hoyFn = typeof hoyMadrid === 'function'
+    ? hoyMadrid
+    : (typeof require !== 'undefined' ? require('./Fechas').hoyMadrid : (() => new Date().toISOString().slice(0, 10)));
+  const normFechaFn = typeof normalizarFechaNegocio === 'function'
+    ? normalizarFechaNegocio
+    : (typeof require !== 'undefined' ? require('./Fechas').normalizarFechaNegocio : (d => String(d || '').slice(0, 10)));
+
+  const hoy = hoyFn(options && options.reloj);
+  const fechaNorm = p.fecha ? normFechaFn(p.fecha) : hoy;
+  if (fechaNorm > hoy) {
+    throw new Error('La fecha del ajuste no puede ser futura.');
+  }
+
+  let kgVal = '';
+  if (p.kg !== undefined && p.kg !== null && String(p.kg).trim() !== '') {
+    const kgNum = Number(p.kg);
+    if (!Number.isFinite(kgNum) || kgNum < 0) {
+      throw new Error('Los kilos deben ser un número mayor o igual que 0.');
+    }
+    kgVal = kgNum;
+  }
+
+  const repo = options.repository || new SheetsRepository();
+  const capas = typeof repo.getCapasFifo === 'function' ? repo.getCapasFifo() : [];
+  const capa = capas.find(c => String(c.id_capa || '').trim() === idCapa);
+  if (!capa) {
+    return {
+      success: false,
+      errorCode: 'CAPA_NO_ENCONTRADA',
+      message: `No se encontró la partida ${idCapa}.`
+    };
+  }
+
+  const disponibles = Number(capa.cajas_restantes || 0);
+  if (signo === -1 && cajas > disponibles) {
+    return {
+      success: false,
+      errorCode: 'STOCK_INSUFICIENTE',
+      stockDisponible: disponibles,
+      cajasSolicitadas: cajas,
+      message: `No se pueden restar ${cajas} cajas: en esta partida solo quedan ${disponibles}.`
+    };
+  }
+
+  const service = options.movementService || new MovementService({
+    repository: repo,
+    lockService: options.lockService
+  });
+  const user = usuarioActual_(options && options.session);
+
+  return service.registrarAjuste({
+    codigo_articulo: capa.codigo_articulo,
+    codigo_envase: capa.codigo_envase,
+    cajas,
+    signo,
+    motivo,
+    observaciones: nota,
+    fecha: fechaNorm,
+    kg: kgVal,
+    id_capa_objetivo: idCapa
+  }, user);
+}
+
+/**
+ * Devuelve la lista única de combinaciones artículo + envase conocidas en CATALOGO,
+ * CAPAS_FIFO y STOCK_ACTUAL para ofrecer destinos válidos de Hispatec (T-033).
+ * LECTURA, rol CONSULTA.
+ *
+ * @param {Object} [options]
+ * @returns {{ combinaciones: Array<{ articulo: string, envase: string }> }}
+ */
+function apiListarCombinacionesCatalogo(options = {}) {
+  exigirSesionApi_();
+  const repo = options.repository || new SheetsRepository();
+  const normFn = typeof normalizarNombre === 'function'
+    ? normalizarNombre
+    : (typeof require !== 'undefined' ? require('./Normalizacion').normalizarNombre : (s => String(s || '').trim().replace(/\s+/g, ' ').toUpperCase()));
+
+  const mapa = new Map();
+  const registrar = (artRaw, envRaw) => {
+    const articulo = normFn(artRaw);
+    const envase = normFn(envRaw);
+    if (!articulo || !envase) return;
+    const clave = `${articulo}|${envase}`;
+    if (!mapa.has(clave)) {
+      mapa.set(clave, { articulo, envase });
+    }
+  };
+
+  if (typeof repo.getCatalogo === 'function') {
+    for (const fila of (repo.getCatalogo() || [])) {
+      registrar(fila.articulo, fila.envase);
+    }
+  }
+  if (typeof repo.getCapasFifo === 'function') {
+    for (const fila of (repo.getCapasFifo() || [])) {
+      registrar(fila.codigo_articulo, fila.codigo_envase);
+    }
+  }
+  if (typeof repo.getStockActual === 'function') {
+    for (const fila of (repo.getStockActual() || [])) {
+      registrar(fila.codigo_articulo, fila.codigo_envase);
+    }
+  }
+
+  const combinaciones = Array.from(mapa.values()).sort((a, b) => {
+    const cmp = a.articulo.localeCompare(b.articulo);
+    return cmp !== 0 ? cmp : a.envase.localeCompare(b.envase);
+  });
+
+  return { combinaciones };
+}
+
+/**
  * Registra una reclasificación u operación de traspaso entre dos formatos (Fase 5).
  * @param {Object} params 
  * @param {string} [usuario] 
@@ -2265,6 +2415,8 @@ if (typeof module !== 'undefined' && module.exports) {
     apiObtenerDetallePartidas,
     apiRegistrarAjustePositivo,
     apiRegistrarAjusteNegativo,
+    apiRegistrarAjustePartida,
+    apiListarCombinacionesCatalogo,
     apiRegistrarReclasificacion,
     apiGetGruposComerciales,
     apiUpsertGrupoComercial,

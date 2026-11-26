@@ -77,6 +77,7 @@ const PERMISOS_API = {
   apiPrevisualizarAnularAjuste: 'ENCARGADO',
   apiListarExclusiones: 'CONSULTA',
   apiListarEquivalencias: 'CONSULTA',
+  apiListarCombinacionesCatalogo: 'CONSULTA',
 
   // LECTURA de usuarios — ADMIN
   apiListarUsuarios: 'ADMIN',
@@ -86,6 +87,7 @@ const PERMISOS_API = {
   confirmarCompraPendiente: 'ENCARGADO',
   apiRegistrarAjustePositivo: 'ENCARGADO',
   apiRegistrarAjusteNegativo: 'ENCARGADO',
+  apiRegistrarAjustePartida: 'ENCARGADO',
   apiRegistrarReclasificacion: 'ENCARGADO',
   apiProcesarEntradaDocumento: 'ENCARGADO',
   apiProcesarSalidaDocumento: 'ENCARGADO',

@@ -1,0 +1,679 @@
+<style>
+  /* T-033 — Modal de Destrío directo y Ajuste (+ / −) */
+  .sl-da-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .62);
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .sl-da-dialog {
+    width: 100%;
+    max-width: 460px;
+    max-height: 92vh;
+    overflow-y: auto;
+    background: var(--sl-panel);
+    border: 1px solid var(--sl-line-strong);
+    border-radius: 18px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  }
+  .sl-da-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .sl-da-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .sl-da-target-box {
+    background: var(--sl-bg);
+    border: 1px solid var(--sl-line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .sl-da-field-label {
+    display: block;
+    font-size: 12px;
+    color: var(--sl-text-secondary);
+    margin-bottom: 5px;
+  }
+  .sl-da-input, .sl-da-select {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-bg);
+    color: var(--sl-text);
+    font-family: var(--sl-font);
+    font-size: 14px;
+    outline: none;
+  }
+  .sl-da-seg {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--sl-bg);
+    border: 1px solid var(--sl-line);
+  }
+  .sl-da-seg button {
+    height: 36px;
+    border-radius: 7px;
+    border: 0;
+    background: transparent;
+    color: var(--sl-text-secondary);
+    font: 600 13px var(--sl-font);
+    cursor: pointer;
+  }
+  .sl-da-seg button[aria-pressed="true"] {
+    background: var(--sl-elevated);
+    color: var(--sl-text);
+  }
+  .sl-da-resumen {
+    background: var(--sl-bg);
+    border: 1px solid var(--sl-line-strong);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  /* Permitir 3 botones (Cambiar / Destrío / Ajuste) en el pie de Partida */
+  .sl-partida-footer-inner.sl-da-3cols {
+    grid-template-columns: 1.2fr 1fr 1fr;
+  }
+</style>
+
+<div id="modalDestrioAjuste" class="sl-da-backdrop sl-hidden" role="dialog" aria-modal="true" aria-labelledby="daTitle">
+  <div class="sl-da-dialog">
+    <div class="sl-da-head">
+      <h2 id="daTitle" class="sl-da-title">Destrío</h2>
+      <button type="button" id="btnDaCerrar" aria-label="Cerrar" style="width:32px;height:32px;border-radius:8px;border:0;background:transparent;color:var(--sl-text-secondary);cursor:pointer;font-size:16px">✕</button>
+    </div>
+
+    <div id="daErrorBox" class="sl-alert-box error sl-hidden" role="alert"></div>
+
+    <!-- Objetivo: partida concreta o selector artículo + envase -->
+    <div id="daPartidaBox" class="sl-da-target-box sl-hidden"></div>
+    <div id="daSelectorStockWrap" class="sl-hidden">
+      <label class="sl-da-field-label" for="daSelectComb">Artículo y envase (consumo FIFO)</label>
+      <select id="daSelectComb" class="sl-da-select"></select>
+    </div>
+
+    <!-- Signo (solo en modo AJUSTE) -->
+    <div id="daSignoWrap" class="sl-hidden">
+      <label class="sl-da-field-label">Tipo de ajuste</label>
+      <div class="sl-da-seg" role="group" aria-label="Sumar o restar cajas">
+        <button type="button" id="btnDaSignoMenos" aria-pressed="true">− Restar cajas</button>
+        <button type="button" id="btnDaSignoMas" aria-pressed="false">+ Sumar cajas</button>
+      </div>
+    </div>
+
+    <!-- Cajas + Kg opcionales -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label class="sl-da-field-label" for="daCajas">Cajas</label>
+        <input id="daCajas" type="number" min="1" step="1" class="sl-da-input" style="font-family:var(--sl-mono);font-weight:600" placeholder="Ej. 5">
+      </div>
+      <div>
+        <label class="sl-da-field-label" for="daKg">Kg (opcional)</label>
+        <input id="daKg" type="number" min="0" step="0.1" class="sl-da-input" style="font-family:var(--sl-mono)" placeholder="Opcional">
+      </div>
+    </div>
+
+    <!-- Motivo -->
+    <div>
+      <label class="sl-da-field-label" for="daMotivo">Motivo</label>
+      <select id="daMotivo" class="sl-da-select"></select>
+    </div>
+
+    <!-- Nota / texto adicional -->
+    <div id="daNotaWrap">
+      <label class="sl-da-field-label" for="daNota" id="daNotaLabel">Detalle (opcional)</label>
+      <input id="daNota" type="text" class="sl-da-input" placeholder="Añade una breve explicación…">
+    </div>
+
+    <!-- Fecha -->
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <label class="sl-da-field-label" for="daFecha" style="margin:0">Fecha</label>
+        <div style="display:flex;gap:6px">
+          <button type="button" id="btnDaFechaHoy" class="sl-chg-pill">Hoy</button>
+          <button type="button" id="btnDaFechaAyer" class="sl-chg-pill">Ayer</button>
+        </div>
+      </div>
+      <input id="daFecha" type="date" class="sl-da-input">
+    </div>
+
+    <!-- Paso 2: Confirmación con resumen -->
+    <div id="daResumenBox" class="sl-da-resumen sl-hidden"></div>
+
+    <div style="display:flex;gap:10px;margin-top:4px" data-solo-escritura="1">
+      <button type="button" id="btnDaAccion" class="sl-btn sl-btn-lg" style="flex:1" data-solo-escritura="1">Revisar</button>
+      <button type="button" id="btnDaCancelar" class="sl-ghost sl-btn-lg">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const MOTIVOS_DESTRIO = [
+      { value: 'ROTURA', label: 'Rotura' },
+      { value: 'PODRIDO', label: 'Podrido' },
+      { value: 'CALIDAD', label: 'Calidad' },
+      { value: 'OTRO', label: 'Otro (especificar)' }
+    ];
+    const MOTIVOS_AJUSTE = [
+      { value: 'RECUENTO', label: 'Recuento' },
+      { value: 'ERROR_CARGA', label: 'Error de carga' },
+      { value: 'OTRO', label: 'Otro (especificar)' }
+    ];
+
+    function nombreLeg(s) {
+      return (window.SLApp && typeof window.SLApp.nombreLegible === 'function')
+        ? window.SLApp.nombreLegible(s) : String(s || '');
+    }
+    function fmtNum(n) {
+      return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+    function pluralLocal(n, sing, plur) {
+      return (window.SLApp && typeof window.SLApp.pluraliza === 'function')
+        ? window.SLApp.pluraliza(n, sing, plur)
+        : (fmtNum(n) + ' ' + (Math.abs(Math.round(Number(n) || 0)) === 1 ? sing : plur));
+    }
+    function escHtml(s) {
+      return String(s === null || s === undefined ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+    function hoyIsoLocal() {
+      try {
+        const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+          ? window.SLApp.obtenerEstadoActual() : null;
+        if (est && est.inicio && est.inicio.fecha_referencia) {
+          return String(est.inicio.fecha_referencia).slice(0, 10);
+        }
+      } catch (e) {}
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function restarDiasIso(iso, dias) {
+      const p = String(iso || '').split('-').map(Number);
+      if (p.length !== 3) return iso;
+      const dt = new Date(Date.UTC(p[0], p[1] - 1, p[2] - dias));
+      return dt.toISOString().slice(0, 10);
+    }
+
+    /**
+     * Valida en cliente una operación de destrío o ajuste (T-033 reglas 2 y 3).
+     */
+    function validarOperacionDestrioAjuste(p) {
+      const d = p || {};
+      const cajas = Number(d.cajas);
+      if (!Number.isInteger(cajas) || cajas <= 0) {
+        return { ok: false, error: 'Indica un número entero de cajas mayor que 0.' };
+      }
+      const signo = d.modo === 'DESTRIO' ? -1 : Number(d.signo);
+      if (signo !== 1 && signo !== -1) {
+        return { ok: false, error: 'Selecciona sumar o restar cajas.' };
+      }
+      if (signo === -1 && d.disponibles !== undefined && cajas > Number(d.disponibles)) {
+        return { ok: false, error: 'No se pueden restar ' + fmtNum(cajas) + ' cajas: solo hay ' + fmtNum(d.disponibles) + ' disponibles.' };
+      }
+      const motivo = String(d.motivo || '').trim().toUpperCase();
+      if (!motivo) {
+        return { ok: false, error: 'Elige un motivo.' };
+      }
+      const nota = String(d.nota || '').trim();
+      if (motivo === 'OTRO' && !nota) {
+        return { ok: false, error: 'Escribe una nota explicativa cuando el motivo es «Otro».' };
+      }
+      const hoy = String(d.hoy || hoyIsoLocal()).slice(0, 10);
+      const fecha = String(d.fecha || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        return { ok: false, error: 'Indica una fecha válida.' };
+      }
+      if (fecha > hoy) {
+        return { ok: false, error: 'La fecha no puede ser futura.' };
+      }
+      return { ok: true, signo: signo, cajas: cajas, motivo: motivo, nota: nota, fecha: fecha };
+    }
+
+    const Da = {
+      modo: 'DESTRIO', // 'DESTRIO' | 'AJUSTE'
+      signo: -1,
+      partida: null, // { id_capa, articulo, envase, cajas, fecha }
+      combinacionesStock: [], // { articulo, envase, cajas }
+      confirmandoPaso: false,
+      enviando: false
+    };
+
+    function recopilarCombinacionesStock(variedadFiltro) {
+      const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+        ? window.SLApp.obtenerEstadoActual() : null;
+      const vars = (est && est.inicio && Array.isArray(est.inicio.variedades)) ? est.inicio.variedades : [];
+      const fuente = variedadFiltro ? [variedadFiltro] : vars;
+      const mapa = new Map();
+      fuente.forEach(function (v) {
+        (v.partidas || []).forEach(function (p) {
+          const clave = String(p.articulo || '') + '|' + String(p.envase || '');
+          if (!mapa.has(clave)) {
+            mapa.set(clave, { articulo: p.articulo, envase: p.envase, cajas: 0 });
+          }
+          mapa.get(clave).cajas += Number(p.cajas || 0);
+        });
+      });
+      return Array.from(mapa.values()).filter(function (c) { return c.cajas > 0; });
+    }
+
+    function buscarPartidaPorId(idCapa) {
+      if (!idCapa) return null;
+      const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+        ? window.SLApp.obtenerEstadoActual() : null;
+      const vars = (est && est.inicio && Array.isArray(est.inicio.variedades)) ? est.inicio.variedades : [];
+      for (let i = 0; i < vars.length; i++) {
+        const list = vars[i].partidas || [];
+        for (let j = 0; j < list.length; j++) {
+          if (list[j].id_capa === idCapa) return list[j];
+        }
+      }
+      return null;
+    }
+
+    function mostrarErrorDa(msg) {
+      const el = document.getElementById('daErrorBox');
+      if (!el) return;
+      if (msg) {
+        el.textContent = msg;
+        el.classList.remove('sl-hidden');
+      } else {
+        el.classList.add('sl-hidden');
+      }
+    }
+
+    function actualizarEtiquetaNota() {
+      const sel = document.getElementById('daMotivo');
+      const lbl = document.getElementById('daNotaLabel');
+      if (!sel || !lbl) return;
+      lbl.textContent = sel.value === 'OTRO' ? 'Explicación (obligatoria)' : 'Detalle (opcional)';
+    }
+
+    function objetivoActual() {
+      if (Da.partida) {
+        return {
+          tipo: 'PARTIDA',
+          id_capa: Da.partida.id_capa,
+          articulo: Da.partida.articulo,
+          envase: Da.partida.envase,
+          disponibles: Number(Da.partida.cajas || Da.partida.cajas_restantes || 0)
+        };
+      }
+      const sel = document.getElementById('daSelectComb');
+      const idx = sel ? Number(sel.value) : 0;
+      const c = Da.combinacionesStock[idx];
+      if (!c) return null;
+      return {
+        tipo: 'FIFO',
+        articulo: c.articulo,
+        envase: c.envase,
+        disponibles: Number(c.cajas || 0)
+      };
+    }
+
+    function abrirModal(modo, opciones) {
+      const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+        ? window.SLApp.obtenerEstadoActual() : null;
+      if (est && est.rol === 'CONSULTA') return;
+
+      const opts = opciones || {};
+      Da.modo = modo === 'AJUSTE' ? 'AJUSTE' : 'DESTRIO';
+      Da.signo = -1;
+      Da.confirmandoPaso = false;
+      Da.enviando = false;
+
+      if (opts.partida) {
+        Da.partida = opts.partida;
+      } else if (opts.idCapa) {
+        Da.partida = buscarPartidaPorId(opts.idCapa);
+      } else {
+        Da.partida = null;
+      }
+
+      Da.combinacionesStock = recopilarCombinacionesStock(opts.variedad || null);
+
+      const title = document.getElementById('daTitle');
+      if (title) title.textContent = Da.modo === 'DESTRIO' ? 'Registrar destrío' : 'Ajuste de stock';
+
+      const pBox = document.getElementById('daPartidaBox');
+      const sWrap = document.getElementById('daSelectorStockWrap');
+      if (Da.partida) {
+        if (pBox) {
+          pBox.innerHTML = '<b>' + escHtml(nombreLeg(Da.partida.articulo)) + ' · ' + escHtml(nombreLeg(Da.partida.envase)) + '</b><div style="font-size:12px;color:var(--sl-text-secondary);margin-top:2px">Partida concreta · quedan ' + escHtml(pluralLocal(Da.partida.cajas || Da.partida.cajas_restantes || 0, 'caja', 'cajas')) + '</div>';
+          pBox.classList.remove('sl-hidden');
+        }
+        if (sWrap) sWrap.classList.add('sl-hidden');
+      } else {
+        if (pBox) pBox.classList.add('sl-hidden');
+        if (sWrap) {
+          sWrap.classList.remove('sl-hidden');
+          const sel = document.getElementById('daSelectComb');
+          if (sel) {
+            sel.innerHTML = Da.combinacionesStock.map(function (c, idx) {
+              return '<option value="' + idx + '">' + escHtml(nombreLeg(c.articulo) + ' · ' + nombreLeg(c.envase) + ' (hay ' + fmtNum(c.cajas) + ')') + '</option>';
+            }).join('');
+          }
+        }
+      }
+
+      const signoWrap = document.getElementById('daSignoWrap');
+      if (signoWrap) signoWrap.classList.toggle('sl-hidden', Da.modo !== 'AJUSTE');
+      const bMen = document.getElementById('btnDaSignoMenos');
+      const bMas = document.getElementById('btnDaSignoMas');
+      if (bMen) bMen.setAttribute('aria-pressed', 'true');
+      if (bMas) bMas.setAttribute('aria-pressed', 'false');
+
+      const motSel = document.getElementById('daMotivo');
+      if (motSel) {
+        const lista = Da.modo === 'DESTRIO' ? MOTIVOS_DESTRIO : MOTIVOS_AJUSTE;
+        motSel.innerHTML = lista.map(function (m) {
+          return '<option value="' + escHtml(m.value) + '">' + escHtml(m.label) + '</option>';
+        }).join('');
+      }
+      actualizarEtiquetaNota();
+
+      const cInp = document.getElementById('daCajas');
+      const kInp = document.getElementById('daKg');
+      const nInp = document.getElementById('daNota');
+      const fInp = document.getElementById('daFecha');
+      const rBox = document.getElementById('daResumenBox');
+      const btnAcc = document.getElementById('btnDaAccion');
+      if (cInp) cInp.value = '';
+      if (kInp) kInp.value = '';
+      if (nInp) nInp.value = '';
+      if (fInp) {
+        const hoy = hoyIsoLocal();
+        fInp.max = hoy;
+        fInp.value = hoy;
+      }
+      if (rBox) rBox.classList.add('sl-hidden');
+      if (btnAcc) btnAcc.textContent = 'Revisar';
+      mostrarErrorDa('');
+
+      const modal = document.getElementById('modalDestrioAjuste');
+      if (modal) modal.classList.remove('sl-hidden');
+      if (cInp) setTimeout(function () { cInp.focus(); }, 30);
+    }
+
+    function cerrarModal() {
+      const modal = document.getElementById('modalDestrioAjuste');
+      if (modal) modal.classList.add('sl-hidden');
+      Da.confirmandoPaso = false;
+    }
+
+    function manejarAccionPrincipal() {
+      if (Da.enviando) return;
+      mostrarErrorDa('');
+      const obj = objetivoActual();
+      if (!obj) {
+        mostrarErrorDa('No hay ninguna partida o artículo con stock seleccionado.');
+        return;
+      }
+
+      const cInp = document.getElementById('daCajas');
+      const kInp = document.getElementById('daKg');
+      const mSel = document.getElementById('daMotivo');
+      const nInp = document.getElementById('daNota');
+      const fInp = document.getElementById('daFecha');
+
+      const val = validarOperacionDestrioAjuste({
+        modo: Da.modo,
+        signo: Da.signo,
+        cajas: cInp ? cInp.value : '',
+        disponibles: obj.disponibles,
+        motivo: mSel ? mSel.value : '',
+        nota: nInp ? nInp.value : '',
+        fecha: fInp ? fInp.value : '',
+        hoy: hoyIsoLocal()
+      });
+      if (!val.ok) {
+        mostrarErrorDa(val.error);
+        Da.confirmandoPaso = false;
+        return;
+      }
+
+      const rBox = document.getElementById('daResumenBox');
+      const btnAcc = document.getElementById('btnDaAccion');
+      if (!Da.confirmandoPaso) {
+        Da.confirmandoPaso = true;
+        const accionTxt = Da.modo === 'DESTRIO'
+          ? ('Destrío de <b>−' + fmtNum(val.cajas) + '</b> ' + (val.cajas === 1 ? 'caja' : 'cajas'))
+          : ((val.signo > 0 ? 'Sumar <b>+' : 'Restar <b>−') + fmtNum(val.cajas) + '</b> ' + (val.cajas === 1 ? 'caja' : 'cajas'));
+        const motivoLbl = mSel && mSel.options[mSel.selectedIndex] ? mSel.options[mSel.selectedIndex].text : val.motivo;
+        if (rBox) {
+          rBox.innerHTML =
+            '<div style="font-weight:600;margin-bottom:4px">Resumen antes de confirmar</div>' +
+            '<div>' + accionTxt + ' en <b>' + escHtml(nombreLeg(obj.articulo) + ' · ' + nombreLeg(obj.envase)) + '</b></div>' +
+            '<div style="color:var(--sl-text-secondary)">Motivo: ' + escHtml(motivoLbl) + (val.nota ? ' · ' + escHtml(val.nota) : '') + ' · Fecha: ' + escHtml(val.fecha) + '</div>' +
+            '<div style="color:var(--sl-text-secondary)">' + (obj.tipo === 'PARTIDA' ? 'Se aplica sobre esta partida concreta.' : 'Se aplica por orden FIFO.') + '</div>';
+          rBox.classList.remove('sl-hidden');
+        }
+        if (btnAcc) btnAcc.textContent = Da.modo === 'DESTRIO' ? 'Confirmar destrío' : 'Confirmar ajuste';
+        return;
+      }
+
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        mostrarErrorDa('Puente de servidor no disponible.');
+        return;
+      }
+
+      Da.enviando = true;
+      if (btnAcc) btnAcc.disabled = true;
+
+      const motivoApi = Da.modo === 'DESTRIO' ? 'DESTRIO' : val.motivo;
+      const notaFinal = Da.modo === 'DESTRIO'
+        ? (val.motivo + (val.nota ? (': ' + val.nota) : ''))
+        : val.nota;
+      const kgRaw = kInp ? String(kInp.value || '').trim() : '';
+
+      let llamada;
+      if (obj.tipo === 'PARTIDA') {
+        llamada = window.SLBridge.call('apiRegistrarAjustePartida', {
+          id_capa: obj.id_capa,
+          signo: val.signo,
+          cajas: val.cajas,
+          motivo: motivoApi,
+          nota: notaFinal,
+          fecha: val.fecha,
+          kg: kgRaw !== '' ? Number(kgRaw) : ''
+        });
+      } else if (val.signo > 0) {
+        llamada = window.SLBridge.call('apiRegistrarAjustePositivo', {
+          codigo_articulo: obj.articulo,
+          codigo_envase: obj.envase,
+          cajas: val.cajas,
+          motivo: motivoApi,
+          observaciones: notaFinal,
+          fecha: val.fecha
+        });
+      } else {
+        llamada = window.SLBridge.call('apiRegistrarAjusteNegativo', {
+          codigo_articulo: obj.articulo,
+          codigo_envase: obj.envase,
+          cajas: val.cajas,
+          motivo: motivoApi,
+          observaciones: notaFinal,
+          fecha: val.fecha
+        });
+      }
+
+      llamada
+        .then(function (res) {
+          if (!res || res.success === false) {
+            throw new Error((res && (res.message || res.error)) || 'No se pudo registrar la operación.');
+          }
+          cerrarModal();
+          if (window.SLApp && typeof window.SLApp.mostrarAviso === 'function') {
+            window.SLApp.mostrarAviso(Da.modo === 'DESTRIO' ? 'Destrío registrado' : 'Ajuste registrado', 'success');
+          }
+          const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+            ? window.SLApp.obtenerEstadoActual() : null;
+          if (window.SLApp && typeof window.SLApp.cargarInicio === 'function') {
+            window.SLApp.cargarInicio({ silencioso: true });
+          }
+          const vPart = document.getElementById('viewPartida');
+          if (est && est.partidaActual && vPart && !vPart.classList.contains('sl-hidden') && window.SLApp && typeof window.SLApp.abrirPartida === 'function') {
+            window.SLApp.abrirPartida(est.partidaActual);
+          }
+        })
+        .catch(function (err) {
+          mostrarErrorDa(err && err.message ? err.message : String(err));
+          Da.confirmandoPaso = false;
+          if (btnAcc) btnAcc.textContent = 'Revisar';
+        })
+        .finally(function () {
+          Da.enviando = false;
+          if (btnAcc) btnAcc.disabled = false;
+        });
+    }
+
+    function inyectarBotonesAjuste() {
+      // 1. Botón Ajuste en el pie de Partida (sin editar partida.html)
+      const foot = document.querySelector('#viewPartida .sl-partida-footer-inner');
+      if (foot && !document.getElementById('btnPartidaAjuste')) {
+        foot.classList.add('sl-da-3cols');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'btnPartidaAjuste';
+        btn.className = 'sl-ghost';
+        btn.setAttribute('data-solo-escritura', '1');
+        btn.style.cssText = 'height:50px;border-radius:14px;font-size:15px;font-weight:700';
+        btn.textContent = 'Ajuste';
+        btn.addEventListener('click', function () {
+          const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+            ? window.SLApp.obtenerEstadoActual() : null;
+          abrirModal('AJUSTE', { idCapa: est ? est.partidaActual : null });
+        });
+        foot.appendChild(btn);
+      }
+
+      // 2. Botón Ajuste en el panel lateral de Variedad (sin editar existencias.html)
+      const panel = document.getElementById('panelVariedad');
+      if (panel && !document.getElementById('btnPanelAjuste')) {
+        const filaBtns = panel.querySelector('[data-solo-escritura="1"]');
+        if (filaBtns) {
+          const btnA = document.createElement('button');
+          btnA.type = 'button';
+          btnA.id = 'btnPanelAjuste';
+          btnA.className = 'sl-ghost';
+          btnA.setAttribute('data-solo-escritura', '1');
+          btnA.style.flex = '1';
+          btnA.textContent = 'Ajuste';
+          btnA.addEventListener('click', function () {
+            const est = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+              ? window.SLApp.obtenerEstadoActual() : null;
+            abrirModal('AJUSTE', { variedad: est ? est.variedadAbierta : null });
+          });
+          filaBtns.appendChild(btnA);
+        }
+      }
+    }
+
+    function enlazarDestrioAjuste() {
+      inyectarBotonesAjuste();
+
+      const btnC = document.getElementById('btnDaCerrar');
+      const btnCanc = document.getElementById('btnDaCancelar');
+      const modal = document.getElementById('modalDestrioAjuste');
+      if (btnC) btnC.addEventListener('click', cerrarModal);
+      if (btnCanc) btnCanc.addEventListener('click', cerrarModal);
+      if (modal) {
+        modal.addEventListener('click', function (e) {
+          if (e.target === modal) cerrarModal();
+        });
+      }
+
+      const bMen = document.getElementById('btnDaSignoMenos');
+      const bMas = document.getElementById('btnDaSignoMas');
+      if (bMen && bMas) {
+        bMen.addEventListener('click', function () {
+          Da.signo = -1;
+          Da.confirmandoPaso = false;
+          bMen.setAttribute('aria-pressed', 'true');
+          bMas.setAttribute('aria-pressed', 'false');
+          const r = document.getElementById('daResumenBox');
+          if (r) r.classList.add('sl-hidden');
+          const a = document.getElementById('btnDaAccion');
+          if (a) a.textContent = 'Revisar';
+        });
+        bMas.addEventListener('click', function () {
+          Da.signo = 1;
+          Da.confirmandoPaso = false;
+          bMen.setAttribute('aria-pressed', 'false');
+          bMas.setAttribute('aria-pressed', 'true');
+          const r = document.getElementById('daResumenBox');
+          if (r) r.classList.add('sl-hidden');
+          const a = document.getElementById('btnDaAccion');
+          if (a) a.textContent = 'Revisar';
+        });
+      }
+
+      const motSel = document.getElementById('daMotivo');
+      if (motSel) motSel.addEventListener('change', actualizarEtiquetaNota);
+
+      const fInp = document.getElementById('daFecha');
+      const bHoy = document.getElementById('btnDaFechaHoy');
+      const bAyer = document.getElementById('btnDaFechaAyer');
+      if (bHoy && fInp) bHoy.addEventListener('click', function () { fInp.value = hoyIsoLocal(); });
+      if (bAyer && fInp) bAyer.addEventListener('click', function () { fInp.value = restarDiasIso(hoyIsoLocal(), 1); });
+
+      const btnAcc = document.getElementById('btnDaAccion');
+      if (btnAcc) btnAcc.addEventListener('click', manejarAccionPrincipal);
+
+      ['daCajas', 'daNota', 'daFecha'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', function () {
+            Da.confirmandoPaso = false;
+            const r = document.getElementById('daResumenBox');
+            if (r) r.classList.add('sl-hidden');
+            if (btnAcc) btnAcc.textContent = 'Revisar';
+          });
+        }
+      });
+
+      document.addEventListener('keydown', function (e) {
+        const m = document.getElementById('modalDestrioAjuste');
+        if (!m || m.classList.contains('sl-hidden')) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          cerrarModal();
+        }
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', enlazarDestrioAjuste);
+    } else {
+      enlazarDestrioAjuste();
+    }
+
+    window.SLDestrioAjuste = {
+      abrirDestrio: function (opts) { abrirModal('DESTRIO', opts); },
+      abrirAjuste: function (opts) { abrirModal('AJUSTE', opts); },
+      cerrar: cerrarModal,
+      validarOperacionDestrioAjuste
+    };
+  })();
+</script>
