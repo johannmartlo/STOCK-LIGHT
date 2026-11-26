@@ -85,6 +85,7 @@ const SCHEMA_DEFINITIONS = {
     'lineas_abono',
     'lineas_series_ignoradas',
     'lineas_pendientes',
+    'lineas_cliente_excluido',
     'lineas_error',
     'estado',
     'ultimo_tramo'
@@ -280,6 +281,14 @@ const SCHEMA_DEFINITIONS = {
     'Envase',
     'Cajas',
     'Kg'
+  ],
+  // Patrones de clientes cuyas ventas no pasan por el almacén (T-031).
+  CLIENTES_EXCLUIDOS: [
+    'patron',
+    'activo',
+    'nota',
+    'fecha_alta',
+    'usuario'
   ],
   USUARIOS: [
     'id_usuario',

@@ -236,6 +236,7 @@ Registro de cada importación de CSV, para comprobar el hash, reanudar tramos y 
 | `lineas_abono` | `INTEGER` | NO | Líneas ABONO (D-031). |
 | `lineas_series_ignoradas` | `INTEGER` | NO | Líneas SERIE_IGNORADA. |
 | `lineas_pendientes` | `INTEGER` | NO | Líneas PENDIENTE (seguimiento desconocido). |
+| `lineas_cliente_excluido` | `INTEGER` | NO | Líneas de venta descartadas por cliente excluido (T-031). |
 | `lineas_error` | `INTEGER` | NO | Líneas ERROR_DATOS. |
 | `estado` | `ENUM` | NO | `EN_CURSO` o `CONFIRMADA`. |
 | `ultimo_tramo` | `INTEGER` | NO | Último tramo aplicado; permite reanudar sin repetir documentos. |
@@ -477,6 +478,22 @@ Las copias de la hoja de datos son archivos de Drive, no filas de una hoja. Se n
 
 `crearCopiaSeguridad_(motivo)` es la única función que crea copias y registra el resultado
 en `LOG_OPERACIONES`. La restauración se describe en `docs/RESTAURAR_COPIA.md`.
+
+### 3.13. Tabla: `CLIENTES_EXCLUIDOS` (T-031)
+Patrones de clientes cuyas ventas no pasan por el almacén. La comparación se hace con la
+entidad normalizada (mayúsculas, sin acentos y sin espacios sobrantes).
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `patron` | `VARCHAR(200)` | NO | Texto que debe contener la entidad del cliente. Se guarda normalizado. |
+| `activo` | `BOOLEAN` | NO | Solo los patrones activos excluyen líneas. |
+| `nota` | `VARCHAR(300)` | SÍ | Nota libre para el responsable. |
+| `fecha_alta` | `DATETIME` | NO | Fecha y hora de alta. |
+| `usuario` | `VARCHAR(100)` | NO | Usuario que dio de alta el patrón. |
+
+Una línea de venta cuya entidad contiene un patrón activo recibe el estado
+`CLIENTE_EXCLUIDO`: no genera movimientos, no va a `PENDIENTES` y se cuenta aparte en
+`IMPORTACIONES.lineas_cliente_excluido`.
 
 ---
 

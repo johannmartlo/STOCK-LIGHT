@@ -2,6 +2,17 @@
 const CLASIFICADOR_CONFIG_NODE = typeof module !== 'undefined' && module.exports
   ? require('../Config')
   : null;
+const CLASIFICADOR_EXCLUSIONES_NODE = typeof module !== 'undefined' && module.exports
+  ? require('../Exclusiones')
+  : null;
+
+function clasificadorEsClienteExcluido_(entidad, patrones) {
+  if (CLASIFICADOR_EXCLUSIONES_NODE && typeof CLASIFICADOR_EXCLUSIONES_NODE.esClienteExcluido_ === 'function') {
+    return CLASIFICADOR_EXCLUSIONES_NODE.esClienteExcluido_(entidad, patrones);
+  }
+  if (typeof esClienteExcluido_ === 'function') return esClienteExcluido_(entidad, patrones);
+  return false;
+}
 
 function clasificadorPrefijosPredeterminados() {
   if (CLASIFICADOR_CONFIG_NODE) return CLASIFICADOR_CONFIG_NODE.PREFIJOS_SERIES_IMPORTACION;
@@ -23,11 +34,12 @@ function clasificadorEstado(linea, estado, mensaje) {
   return Object.assign({}, linea, { estado, mensaje: mensaje || null });
 }
 
-function clasificar(lineas, config, esCombinacionSeguida) {
+function clasificar(lineas, config, esCombinacionSeguida, clientesExcluidos) {
   if (!Array.isArray(lineas)) throw new TypeError('lineas debe ser un array');
   if (typeof esCombinacionSeguida !== 'function') {
     throw new TypeError('esCombinacionSeguida debe ser una función');
   }
+  const excluidos = Array.isArray(clientesExcluidos) ? clientesExcluidos : [];
 
   const predeterminados = clasificadorPrefijosPredeterminados();
   const opciones = config || {};
@@ -50,6 +62,11 @@ function clasificar(lineas, config, esCombinacionSeguida) {
       if (!clasificadorSerieCuenta(linea.serie, prefijos)) {
         return clasificadorEstado(linea, 'SERIE_IGNORADA');
       }
+    }
+
+    // T-031: las ventas a clientes excluidos no pasan por el almacén.
+    if (esCsvOdf && linea.tipoDoc === 'SALIDA' && clasificadorEsClienteExcluido_(linea.entidad, excluidos)) {
+      return clasificadorEstado(linea, 'CLIENTE_EXCLUIDO');
     }
 
     const faltan = [];
@@ -124,7 +141,7 @@ function clasificadorCompararDocumentos(a, b) {
 function agruparEnDocumentos(lineasClasificadas) {
   if (!Array.isArray(lineasClasificadas)) throw new TypeError('lineasClasificadas debe ser un array');
   const grupos = new Map();
-  const estados = ['VACIA', 'SERIE_IGNORADA', 'ERROR_DATOS', 'NO_SEGUIDA', 'ABONO', 'PENDIENTE', 'OK'];
+  const estados = ['VACIA', 'SERIE_IGNORADA', 'CLIENTE_EXCLUIDO', 'ERROR_DATOS', 'NO_SEGUIDA', 'ABONO', 'PENDIENTE', 'OK'];
 
   lineasClasificadas.forEach(linea => {
     const clave = clasificadorClaveDocumento(linea);

@@ -107,6 +107,7 @@ no las expone.
 | `apiObtenerInicio` | `src/Código.js` | LECTURA | Devuelve existencias, serie de 30 días, variedades, pendientes, destrío, importado hasta y últimos movimientos; rol CONSULTA (T-024). |
 | `apiObtenerParte` | `src/Código.js` | LECTURA | Devuelve `{ fecha, hora, texto, html, datos }` del parte de stock de la noche; rol CONSULTA (T-029). |
 | `apiObtenerPartida` | `src/Código.js` | LECTURA | Devuelve origen, consumos y destinos de reproceso de una partida; rol CONSULTA (T-024). |
+| `apiListarExclusiones` | `src/Código.js` | LECTURA | Lista clientes excluidos y nombres comerciales fuera; rol CONSULTA (T-031). |
 | `apiConfirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento revisado; usuario del servidor. |
 | `apiGetMaestroArticulos` | `src/Código.js` | LECTURA | Catálogo maestro de artículos. |
 | `apiGetMaestroEnvases` | `src/Código.js` | LECTURA | Catálogo maestro de envases. |
@@ -204,6 +205,8 @@ no las expone.
 | `adminInstalarCopiaDiaria` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario de copia a las 23:00. |
 | `adminConfigurarCarpetaCopias` | `src/Código.js` | ADMIN | Persiste la carpeta de Drive de las copias (`BACKUP_FOLDER_ID`). |
 | `adminConfigurarParte` | `src/Código.js` | ADMIN | Guarda los destinatarios y la hora del parte diario en ScriptProperties (T-029). |
+| `adminConfigurarClientesExcluidos` | `src/Exclusiones.js` | ADMIN | Añade patrones de clientes cuyas ventas no pasan por el almacén; idempotente (T-031). |
+| `adminConfigurarArticulosFuera` | `src/Exclusiones.js` | ADMIN | Crea o actualiza reglas de seguimiento NO para nombres comerciales fuera; idempotente (T-031). |
 | `adminInstalarParteDiario` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario del parte a la hora configurada, en Europe/Madrid (T-029). |
 | `adminEnviarParteAhora` | `src/Código.js` | ADMIN | Envía el parte ahora por correo para probarlo desde el editor (T-029). |
 | `adminInstalarStockLight` | `src/Instalacion.js` | ADMIN | Puesta en marcha idempotente: provisiona hojas, siembra el catálogo si está vacío, instala la copia diaria y crea el primer ADMIN (T-011). |

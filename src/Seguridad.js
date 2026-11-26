@@ -75,6 +75,7 @@ const PERMISOS_API = {
   apiListarVersionesPendientes: 'CONSULTA',
   apiPrevisualizarVersion: 'ENCARGADO',
   apiPrevisualizarAnularAjuste: 'ENCARGADO',
+  apiListarExclusiones: 'CONSULTA',
 
   // LECTURA de usuarios — ADMIN
   apiListarUsuarios: 'ADMIN',

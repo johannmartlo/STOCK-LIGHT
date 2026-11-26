@@ -43,6 +43,8 @@ if (typeof require !== 'undefined') {
   try { parteMod = require('./ParteService'); } catch (e) {}
   let correccionMod = null;
   try { correccionMod = require('./CorreccionService'); } catch (e) {}
+  let exclusionesMod = null;
+  try { exclusionesMod = require('./Exclusiones'); } catch (e) {}
 
   global.SheetsRepository = repoMod.SheetsRepository;
   global.MovementService = movMod.MovementService;
@@ -68,6 +70,13 @@ if (typeof require !== 'undefined') {
     global.normalizarDestinatariosParte_ = global.normalizarDestinatariosParte_ || parteMod.normalizarDestinatariosParte_;
   }
   if (correccionMod) global.CorreccionService = global.CorreccionService || correccionMod.CorreccionService;
+  if (exclusionesMod) {
+    global.adminConfigurarClientesExcluidos = global.adminConfigurarClientesExcluidos || exclusionesMod.adminConfigurarClientesExcluidos;
+    global.adminConfigurarArticulosFuera = global.adminConfigurarArticulosFuera || exclusionesMod.adminConfigurarArticulosFuera;
+    global.listarExclusiones_ = global.listarExclusiones_ || exclusionesMod.listarExclusiones_;
+    global.leerClientesExcluidos_ = global.leerClientesExcluidos_ || exclusionesMod.leerClientesExcluidos_;
+    global.esClienteExcluido_ = global.esClienteExcluido_ || exclusionesMod.esClienteExcluido_;
+  }
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
   global.checkDocumentDuplicate = dedupMod.checkDocumentDuplicate;
@@ -2124,6 +2133,21 @@ function apiObtenerPartida(idCapa, options = {}) {
   return service.obtenerPartida(idCapa);
 }
 
+/**
+ * Lista los clientes excluidos y los nombres comerciales fuera (T-031).
+ * Categoría: LECTURA (rol mínimo CONSULTA).
+ *
+ * @param {Object} [options={}]
+ * @returns {{ clientesExcluidos: Array<string>, articulosFuera: Array<string> }}
+ */
+function apiListarExclusiones(options = {}) {
+  exigirSesionApi_();
+  const repo = options.repository || new SheetsRepository();
+  const listar = typeof listarExclusiones_ === 'function' ? listarExclusiones_ : null;
+  if (!listar) throw new Error('listarExclusiones_ no está disponible en este entorno de ejecución.');
+  return listar(repo);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     initDatabase,
@@ -2215,6 +2239,12 @@ if (typeof module !== 'undefined' && module.exports) {
     adminConfigurarParte,
     adminInstalarParteDiario,
     adminEnviarParteAhora,
+    adminConfigurarClientesExcluidos: (typeof adminConfigurarClientesExcluidos !== 'undefined')
+      ? adminConfigurarClientesExcluidos
+      : (exclusionesMod ? exclusionesMod.adminConfigurarClientesExcluidos : null),
+    adminConfigurarArticulosFuera: (typeof adminConfigurarArticulosFuera !== 'undefined')
+      ? adminConfigurarArticulosFuera
+      : (exclusionesMod ? exclusionesMod.adminConfigurarArticulosFuera : null),
     enviarParteDiario_: (typeof enviarParteDiario_ !== 'undefined')
       ? enviarParteDiario_
       : (parteMod ? parteMod.enviarParteDiario_ : null),
@@ -2227,6 +2257,7 @@ if (typeof module !== 'undefined' && module.exports) {
     apiObtenerInicio,
     apiObtenerParte,
     apiObtenerPartida,
+    apiListarExclusiones,
     apiGetMaestroArticulos,
     apiGetMaestroEnvases,
     apiSubirYAnalizarPdf,

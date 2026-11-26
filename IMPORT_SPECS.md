@@ -110,6 +110,29 @@ Reglas de lectura:
   (línea, artículo, envase y cajas), no con la línea cruda ni con el orden de las columnas.
   Por eso el mismo contenido en el formato antiguo y en el real da la misma firma.
 
+### 2.5. Exclusiones de líneas (T-031, D-039)
+
+**Clientes excluidos.** La hoja `CLIENTES_EXCLUIDOS` contiene patrones (`patron`) que se
+comparan con la entidad normalizada de cada línea de venta (mayúsculas, sin acentos ni
+espacios sobrantes). Si la entidad contiene un patrón activo, la línea queda
+`CLIENTE_EXCLUIDO`:
+
+- no genera movimientos ni pendientes;
+- no cuenta como falta de stock;
+- se cuenta aparte en la previsualización y en `IMPORTACIONES.lineas_cliente_excluido`.
+
+Ejemplo ficticio: con el patrón `CLIENTE FICTICIO`, una venta a «Cliente Ficticio, S.L.» no
+toca stock; una venta a «Destinatario Inventado» sí descuenta.
+
+**Nombres comerciales fuera.** Se configuran como reglas de catálogo
+`SEGUIMIENTO = NO` con prioridad alta (por encima de «TOMATE → SI»). No hay nombres en el
+código. Ejemplo ficticio: `NOMBRE COMERCIAL X` hace que «TOMATE NOMBRE COMERCIAL X EXTRA»
+quede `NO_SEGUIDA`, mientras que «TOMATE FICTICIO» sigue contando.
+
+Las dos configuraciones se hacen desde el editor con
+`adminConfigurarClientesExcluidos(...)` y `adminConfigurarArticulosFuera(...)`, que son
+idempotentes y exigen ser propietario del script.
+
 ---
 
 ## 3. Catálogo de Campos Dudosos o Dependientes de Formato

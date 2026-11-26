@@ -278,3 +278,33 @@ La corrección de un documento de **entrada** se aplica en cascada, porque ya se
 La operación es todo o nada y deja una anulación y movimientos nuevos, sin borrar ni editar nunca el libro de movimientos. Al terminar, el documento guarda la firma de la versión nueva, de modo que reimportar el mismo CSV da `YA_IMPORTADO`.
 
 **Ejemplo.** Una compra de 100 cajas de Moresco G se registró por error a nombre de la finca A. En realidad era de la finca B. De esa compra ya habían salido 30 cajas vendidas, se habían cambiado 20 a Rosa 500 y se habían vendido 10 de ese Rosa 500. Al corregir el proveedor en Hispatec y aplicar la versión nueva, la app deshace esas tres operaciones, sustituye la partida de la finca A por la de la finca B, y las vuelve a hacer contra la partida nueva. El total de cajas no cambia, el Rosa 500 «viene de» la partida de la finca B y no se duplica ni se pierde ninguna caja.
+
+---
+
+## 9. Exclusiones de la Importación (T-031, D-039)
+
+### 9.1. Clientes excluidos
+Algunas ventas no pasan físicamente por el almacén (compras entre empresas o clientes
+servidos directamente). Se configuran **patrones de cliente** en la hoja
+`CLIENTES_EXCLUIDOS`. Una línea de venta cuya entidad contiene un patrón activo, tras
+normalizar mayúsculas, acentos y espacios, recibe el estado `CLIENTE_EXCLUIDO`:
+
+* no genera movimientos de stock;
+* no se guarda en `PENDIENTES` ni cuenta como falta de stock;
+* se cuenta aparte en la importación (`lineas_cliente_excluido`).
+
+Ejemplo ficticio: con el patrón `CLIENTE FICTICIO`, una venta a «Cliente Ficticio, S.L.»
+queda fuera del stock, pero una venta a «Destinatario Inventado» sí descuenta.
+
+### 9.2. Nombres comerciales fuera
+Ciertos nombres comerciales nunca pasan por el almacén aunque el artículo sea de una familia
+seguida. Se configuran como reglas de catálogo `SEGUIMIENTO = NO` con prioridad alta, por
+encima de la regla general «TOMATE → SI». No hay código específico para ningún nombre.
+
+Ejemplo ficticio: con el patrón `NOMBRE COMERCIAL X`, «TOMATE NOMBRE COMERCIAL X EXTRA»
+queda `NO_SEGUIDA`, mientras que «TOMATE FICTICIO» sigue contando en el stock.
+
+### 9.3. Configuración
+Las funciones `adminConfigurarClientesExcluidos` y `adminConfigurarArticulosFuera` son
+idempotentes y solo las ejecuta el propietario del script. Los nombres reales de clientes o
+proveedores **nunca** se guardan en el repositorio público.

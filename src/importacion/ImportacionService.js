@@ -22,6 +22,9 @@ const IMPORTACIONES_CLASIFICADOR_NODE = typeof module !== 'undefined' && module.
 const IMPORTACIONES_NORMALIZACION_NODE = typeof module !== 'undefined' && module.exports
   ? require('../Normalizacion')
   : null;
+const IMPORTACIONES_EXCLUSIONES_NODE = typeof module !== 'undefined' && module.exports
+  ? require('../Exclusiones')
+  : null;
 const IMPORTACIONES_CRYPTO_NODE = typeof module !== 'undefined' && module.exports
   ? require('crypto')
   : null;
@@ -74,6 +77,7 @@ class ImportacionService {
     const umbral = Number(options.umbralTramos || umbralPredeterminado);
     this.umbralTramos = Number.isFinite(umbral) && umbral > 0 ? Math.floor(umbral) : 150;
     this.pendientesService = options.pendientesService || null;
+    this.clientesExcluidos = options.clientesExcluidos !== undefined ? options.clientesExcluidos : null;
   }
 
   _resolverPendientesService_() {
@@ -142,7 +146,21 @@ class ImportacionService {
     const prefijos = (IMPORTACIONES_CONFIG_NODE && IMPORTACIONES_CONFIG_NODE.PREFIJOS_SERIES_IMPORTACION)
       ? IMPORTACIONES_CONFIG_NODE.PREFIJOS_SERIES_IMPORTACION
       : (typeof PREFIJOS_SERIES_IMPORTACION !== 'undefined' ? PREFIJOS_SERIES_IMPORTACION : undefined);
-    return clasificarFn(lineas, prefijos, (articulo, envase) => this.catalogoService.esCombinacionSeguida(articulo, envase));
+
+    let excluidos = this.clientesExcluidos;
+    if (excluidos === null || excluidos === undefined) {
+      const leerFn = (IMPORTACIONES_EXCLUSIONES_NODE && typeof IMPORTACIONES_EXCLUSIONES_NODE.leerClientesExcluidos_ === 'function')
+        ? IMPORTACIONES_EXCLUSIONES_NODE.leerClientesExcluidos_
+        : (typeof leerClientesExcluidos_ === 'function' ? leerClientesExcluidos_ : null);
+      excluidos = leerFn ? leerFn(this.repo) : [];
+    }
+
+    return clasificarFn(
+      lineas,
+      prefijos,
+      (articulo, envase) => this.catalogoService.esCombinacionSeguida(articulo, envase),
+      excluidos
+    );
   }
 
   _agrupar_(lineasClasificadas) {
@@ -551,6 +569,7 @@ class ImportacionService {
       hash,
       tipoCsv: preparado.tipo,
       resumen: preparado.resumen,
+      lineasClienteExcluido: Number(preparado.resumen.porEstado.CLIENTE_EXCLUIDO || 0),
       documentos: resultados,
       totales,
       stockSimulado: { ...estado.stock }
@@ -600,6 +619,16 @@ class ImportacionService {
     const aplicables = clasificados
       .filter(item => !item.existente && (item.documento.lineasOk.length > 0 || item.documento.lineasPendiente.length > 0))
       .map(item => item.documento);
+    const soloExcluidos = clasificados
+      .filter(item => (
+        !item.existente
+        && item.documento.lineasOk.length === 0
+        && item.documento.lineasPendiente.length === 0
+        && Number(item.documento.resumen && item.documento.resumen.porEstado
+          ? item.documento.resumen.porEstado.CLIENTE_EXCLUIDO || 0
+          : 0) > 0
+      ))
+      .map(item => item.documento);
     const saltados = clasificados.filter(item => item.estado === 'YA_IMPORTADO').length;
     const modificados = clasificados.filter(item => item.estado === 'MODIFICADO_EN_ERP').length;
 
@@ -623,6 +652,7 @@ class ImportacionService {
       lineas_abono: 0,
       lineas_series_ignoradas: 0,
       lineas_pendientes: 0,
+      lineas_cliente_excluido: 0,
       lineas_error: 0,
       estado: 'EN_CURSO',
       ultimo_tramo: 0
@@ -636,6 +666,7 @@ class ImportacionService {
     importacion.lineas_abono = Number(porEstado.ABONO || 0);
     importacion.lineas_series_ignoradas = Number(porEstado.SERIE_IGNORADA || 0);
     importacion.lineas_pendientes = Number(porEstado.PENDIENTE || 0);
+    importacion.lineas_cliente_excluido = Number(porEstado.CLIENTE_EXCLUIDO || 0);
     importacion.lineas_error = Number(porEstado.ERROR_DATOS || 0);
 
     if (!esReanudacion) {
@@ -679,11 +710,57 @@ class ImportacionService {
       }
     }
 
+    const resultadosExcluidos = new Map();
+    if (soloExcluidos.length > 0) {
+      const ahora = new Date().toISOString();
+      const registros = soloExcluidos.map((documento) => {
+        const idDocumento = this._nuevoId_('DOC');
+        const tipoDoc = documento.tipoDoc === 'ENTRADA' ? 'ENTRADA' : 'SALIDA';
+        resultadosExcluidos.set(documento.clave, {
+          clave: documento.clave,
+          tipoDoc,
+          serie: documento.serie,
+          numero: documento.numero,
+          fecha: documento.fecha || null,
+          estado: 'CLIENTE_EXCLUIDO',
+          estadoProceso: 'CONFIRMADO',
+          idDocumento
+        });
+        return {
+          id_documento: idDocumento,
+          sha256_hash: hash,
+          tipo_documento: tipoDoc === 'ENTRADA' ? 'COMPRA' : 'SALIDA',
+          serie: String(documento.serie || '').trim(),
+          numero: String(documento.numero || '').trim(),
+          fecha_documento: documento.fecha || '',
+          entidad_nombre: String(documento.entidad || '').trim(),
+          total_lineas: Number(documento.totalLineas || 0),
+          total_cajas: 0,
+          drive_file_id: '',
+          drive_url: '',
+          estado_proceso: 'CONFIRMADO',
+          fecha_subida: ahora,
+          usuario_subida: usuario || 'SISTEMA',
+          firma_lineas: documento.firma || ''
+        };
+      });
+
+      if (typeof this.repo.appendRecords === 'function') {
+        this.repo.appendRecords('DOCUMENTOS', registros);
+      } else if (typeof this.repo.appendDocumento === 'function') {
+        for (const registro of registros) this.repo.appendDocumento(registro);
+      }
+      importacion.documentos_nuevos = Number(importacion.documentos_nuevos || 0) + registros.length;
+      if (typeof this.repo.saveImportaciones === 'function') {
+        this.repo.saveImportaciones(listaImportaciones);
+      }
+    }
+
     const documentosResultado = clasificados.map(item => {
       if (item.estado !== 'NUEVO') {
         return this._resultadoDocumento_(item.documento, item.estado, item.existente);
       }
-      const resultado = resultadosPorClave.get(item.documento.clave);
+      const resultado = resultadosPorClave.get(item.documento.clave) || resultadosExcluidos.get(item.documento.clave);
       return resultado || this._resultadoDocumento_(item.documento, 'SIN_LINEAS_APLICABLES', null);
     });
 
@@ -745,7 +822,8 @@ class ImportacionService {
         nuevos: Number(importacion.documentos_nuevos || 0),
         saltados: Number(importacion.documentos_saltados || 0),
         modificados: Number(importacion.documentos_modificados || 0),
-        pendientes: Number(importacion.documentos_pendientes || 0)
+        pendientes: Number(importacion.documentos_pendientes || 0),
+        clienteExcluido: Number(importacion.lineas_cliente_excluido || 0)
       }
     };
     if (reintentoPendientes) salida.reintentoPendientes = reintentoPendientes;
