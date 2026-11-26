@@ -1134,6 +1134,7 @@ class CorreccionService {
         id_version: ctx.version.id_version,
         id_documento: ctx.doc.id_documento || '',
         movimientosGenerados: plan.movimientosNuevos.map(mov => mov.id_movimiento),
+        lineas_cambian: plan.lineas_cambian,
         operaciones_rehechas: plan.operaciones_rehechas,
         ventas_a_pendientes: plan.ventas_a_pendientes,
         partidas_cambian: plan.partidas_cambian,
@@ -1193,8 +1194,11 @@ class CorreccionService {
         id_documento: version.id_documento,
         firma_lineas: version.firma_lineas,
         lineas: lineasVersion,
+        lineas_json: version.lineas_json,
         fecha_alta: version.fecha_alta,
         estado: version.estado,
+        fecha_resolucion: version.fecha_resolucion || '',
+        usuario: version.usuario || '',
         motivo: version.motivo || pendiente.motivo,
         tipo_doc: pendiente.tipo_doc,
         serie: pendiente.serie,
@@ -1273,9 +1277,28 @@ class CorreccionService {
     const datos = this._cargarDatos_();
     const plan = this._prepararAnulacionAjuste_(datos, idMovimiento, 'PREVISUALIZACION');
     if (!plan.posible) return { posible: false, motivo: plan.motivo };
+    const vuelven = [];
+    const bajan = [];
+    const desaparecen = [];
+    for (const partida of plan.partidas_cambian) {
+      const antes = partida.antes ? Number(partida.antes.cajas_restantes || 0) : 0;
+      const despues = partida.despues ? Number(partida.despues.cajas_restantes || 0) : 0;
+      const entrada = {
+        id_capa: partida.id_capa,
+        articulo: partida.articulo,
+        envase: partida.envase,
+        cajas: Math.abs(despues - antes)
+      };
+      if (despues > antes) vuelven.push(entrada);
+      else if (!partida.despues || despues === 0 || (partida.despues && partida.despues.estado_capa === 'ANULADA')) desaparecen.push(entrada);
+      else if (despues < antes) bajan.push(entrada);
+    }
     return {
       posible: true,
       motivo: '',
+      partidas_vuelven: vuelven,
+      partidas_bajan: bajan,
+      partidas_desaparecen: desaparecen,
       partidas_cambian: plan.partidas_cambian,
       efecto_variedades: plan.efecto_variedades
     };
