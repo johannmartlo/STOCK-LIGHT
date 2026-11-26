@@ -620,14 +620,13 @@ class ImportacionService {
       .filter(item => !item.existente && (item.documento.lineasOk.length > 0 || item.documento.lineasPendiente.length > 0))
       .map(item => item.documento);
     const soloExcluidos = clasificados
-      .filter(item => (
-        !item.existente
-        && item.documento.lineasOk.length === 0
-        && item.documento.lineasPendiente.length === 0
-        && Number(item.documento.resumen && item.documento.resumen.porEstado
-          ? item.documento.resumen.porEstado.CLIENTE_EXCLUIDO || 0
-          : 0) > 0
-      ))
+      .filter(item => {
+        if (item.existente || !item.documento.resumen || !item.documento.resumen.porEstado) return false;
+        if (item.documento.lineasOk.length > 0 || item.documento.lineasPendiente.length > 0) return false;
+        const excluidas = Number(item.documento.resumen.porEstado.CLIENTE_EXCLUIDO || 0);
+        const total = Number(item.documento.resumen.totalLineas || 0);
+        return excluidas > 0 && excluidas === total;
+      })
       .map(item => item.documento);
     const saltados = clasificados.filter(item => item.estado === 'YA_IMPORTADO').length;
     const modificados = clasificados.filter(item => item.estado === 'MODIFICADO_EN_ERP').length;
