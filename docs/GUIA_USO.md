@@ -13,19 +13,21 @@ Esta guía explica lo que se hace cada día en Stock Light. Está pensada para e
 
 ## 2. Cada mañana (administrativo, ordenador)
 
-1. En Hispatec, exporta el informe de **recepciones** y el de **ventas** del día anterior. No los abras ni los cambies: se importan tal cual.
+1. En Hispatec, exporta el informe de **RECEPCIONES** (no el de entradas o compras) y el de **ventas** del día anterior. No los abras ni los cambies: se importan tal cual.
 2. En Stock Light, entra en **Importar**. Arrastra los dos archivos a la vez o pulsa **Elegir archivos CSV**.
-3. La app pone sola las compras antes que las ventas. Espera a que termine de leerlos y revisa la vista previa.
+3. La app pone sola las recepciones antes que las ventas. Espera a que termine de leerlos y revisa la vista previa.
 4. Si todo tiene sentido, pulsa **Confirmar importación**. Si te has equivocado de archivo, pulsa **Limpiar** y vuelve a empezar.
 
-![Vista previa de compras y ventas](guia/02-importar-1440.png)
+![Vista previa de recepciones y ventas](guia/02-importar-1440.png)
+
+La pantalla todavía dice «compras»: es el informe de recepciones de Hispatec.
 
 Qué significa cada fila de la vista previa:
 
 - **Albaranes nuevos / líneas listas:** se van a aplicar. El número grande indica las cajas que entran o salen.
 - **Ya importados:** ese albarán ya estaba en la app y se salta. No se duplica.
 - **Modificados en Hispatec:** el albarán ya existía, pero ahora trae otras líneas o cajas. Pasará a **Pendientes** para que decidas con la versión nueva.
-- **Sin stock:** la venta no tiene cajas suficientes. Queda pendiente y se aplicará sola cuando entre la compra o el cambio que falta. En la imagen de abajo se ve una venta sin stock.
+- **Sin stock:** la venta no tiene cajas suficientes. Queda pendiente y se aplicará sola cuando entre la recepción o el cambio que falta. En la imagen de abajo se ve una venta sin stock.
 - **No se lleva:** la serie no cuenta, el artículo no se sigue o es un abono. No mueve stock.
 - **Cliente excluido:** las ventas de ese cliente no pasan por el almacén. No cuentan.
 - **Artículo sin decidir:** es la primera vez que aparece ese artículo. Irá a **Pendientes** para que elijas **Seguir** o **Ignorar**.
@@ -58,7 +60,7 @@ Los cambios se registran **el mismo día**, sobre todo cuando se pasa de granel 
 
 En **Pendientes** hay tres bloques:
 
-1. **Ventas sin stock.** Se aplican solas cuando entra el stock que falta (una compra o un cambio). Si acaba de entrar, pulsa **Reintentar ahora**.
+1. **Ventas sin stock.** Se aplican solas cuando entra el stock que falta (una recepción o un cambio). Si acaba de entrar, pulsa **Reintentar ahora**.
 2. **Artículos nuevos sin decidir.** Elige **Seguir este artículo** si quieres llevar su stock (y di en qué variedad va) o **Ignorarlo** si no se va a seguir.
 3. **Albaranes cambiados en Hispatec.** Pulsa **Aplicar la versión nueva**. Se abre una vista previa con lo que se deshace, lo que se rehace y las ventas que pasarán a pendientes. Escribe el **motivo** y confirma. Si la versión no mueve stock, la app lo avisa en gris.
 
@@ -66,9 +68,9 @@ En **Pendientes** hay tres bloques:
 
 ## 6. Corregir un error
 
-- **Si el error está en Hispatec** (una compra o una venta): corrígelo en Hispatec y vuelve a importar el archivo. La app detecta el albarán como **Modificado en Hispatec** y te deja aplicar la versión nueva desde **Pendientes** con su vista previa y su motivo.
+- **Si el error está en Hispatec** (una recepción o una venta): corrígelo en Hispatec y vuelve a importar el archivo. La app detecta el albarán como **Modificado en Hispatec** y te deja aplicar la versión nueva desde **Pendientes** con su vista previa y su motivo.
 - **Si el error es de una operación hecha en la app** (un cambio, un destrío o un ajuste): entra en **Movimientos**, abre la operación y pulsa **Anular el cambio**, **Anular el destrío** o **Anular el ajuste**. Antes de confirmar se enseña qué vuelve y qué desaparece, y el motivo es obligatorio.
-- No uses **Movimientos** para “arreglar” una compra o una venta de Hispatec: para esas, corrige el archivo y reimporta.
+- No uses **Movimientos** para “arreglar” una recepción o una venta de Hispatec: para esas, corrige el archivo y reimporta.
 
 ![Vista previa antes de anular un cambio](guia/06-movimientos-1440.png)
 
@@ -93,7 +95,7 @@ En **Pendientes** hay tres bloques:
 
 ## 9. Preguntas frecuentes
 
-- **«La venta no descuenta.»** Mira en **Pendientes → Ventas sin stock**. Suele faltar la compra o el cambio que la abastece. Cuando entre, se aplica sola; si ya ha entrado, pulsa **Reintentar ahora**.
+- **«La venta no descuenta.»** Mira en **Pendientes → Ventas sin stock**. Suele faltar la recepción o el cambio que la abastece. Cuando entre, se aplica sola; si ya ha entrado, pulsa **Reintentar ahora**.
 - **«Sale un artículo raro.»** Está en **Pendientes → Artículos nuevos sin decidir**. Pulsa **Seguir este artículo** si lo vas a llevar o **Ignorarlo** si no. Así dejará de aparecer en futuras importaciones.
 - **«El stock no cuadra con la cámara.»** Abre la partida y pulsa **Ajuste**, o abre la variedad en el ordenador y usa **Ajuste**. Elige **Recuento**, escribe las cajas que faltan o sobran, revisa y confirma. El motivo **Recuento** deja claro que es una diferencia de inventario.
 
@@ -101,7 +103,7 @@ En **Pendientes** hay tres bloques:
 
 ## Recordatorios rápidos
 
-- Las compras y las ventas se importan juntas; la app pone el orden.
+- Las recepciones y las ventas se importan juntas; la app pone el orden.
 - Un albarán no se borra: se corrige en Hispatec y se aplica la versión nueva.
 - Los cambios, destríos y ajustes se pueden deshacer desde **Movimientos**, siempre con vista previa y motivo.
 - El parte se copia tal cual; no hace falta retocarlo.
