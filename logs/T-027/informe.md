@@ -1,9 +1,9 @@
 # T-027 — Informe de entrega
 
-1. **Rama:** `ticket/T-027-correcciones`, creada desde `main` = `5eea049`; commits `7b01359` (ticket sin editar) y el commit de esta entrega.
+1. **Rama:** `ticket/T-027-correcciones`, creada desde `main` = `5eea049` y rebasada sobre `main` = `c1cbdbe`; commits `2786386` (ticket sin editar), `e8abf07`, `a97659e` y `3edd6fb` (corrección de todo o nada).
 2. **Entrega:** `src/CorreccionService.js` nuevo (versiones, cascada, anulaciones de ajustes), `VERSIONES_DOCUMENTO` en `Repository`, guardado de versiones en `ImportacionService`, cinco API en `Código`/`Seguridad`, `API_PUBLICA`, `DATA_MODEL` y `BUSINESS_RULES`.
-3. **Pruebas:** `node test/run_all.js` → **34 suites, 365 pruebas, 0 fallos**; T-027 → 10/10; `t020` 18/18 y `t023` 8/8. Salida completa en `logs/T-027/tests.txt`.
-4. **Aceptación:** los 11 puntos verificados (detalle en `logs/T-027/aceptacion.md`), incluidos cascada con ventas/cambios, pendientes, imposible, 30 semillas, anulación de ajustes y rendimiento con 5.000 movimientos.
+3. **Pruebas:** `node test/run_all.js` → **37 suites, 373 pruebas, 0 fallos**; T-027 → 12/12; `t020` 18/18 y `t023` 8/8. Salida completa en `logs/T-027/tests.txt`.
+4. **Aceptación:** los 11 puntos originales verificados (detalle en `logs/T-027/aceptacion.md`), más la corrección de todo o nada por albarán (pruebas 11 y 12), incluidas cascada con ventas/cambios, pendientes, imposible, 30 semillas, anulación de ajustes y rendimiento con 5.000 movimientos.
 5. **Dudas:** se listan abajo todos los cambios y decisiones no pedidos literalmente en el ticket; no se añadió ningún método a `MovementService`.
 
 ## git status
@@ -52,3 +52,36 @@ Los dos archivos de `logs/T-025/` son de la tarea anterior y ya estaban sin segu
 - **Métodos añadidos a `MovementService.js`:** **ninguno**. La cascada usa únicamente `_cargarEstado`, `_aplicar`, `_persistir` y el lock ya existentes.
 - **`ImportacionService`:** además del guardado de versiones se añade el método privado `_registrarVersionesModificadas_` y la comprobación de proveedor indicada; no se toca el parser ni la firma.
 - **`Repository`:** se añade solo la hoja `VERSIONES_DOCUMENTO` y sus métodos de lectura/escritura.
+
+## Corrección
+
+### Rebase sobre `main` = `c1cbdbe`
+
+Se reaplicó T-027 sobre `c1cbdbe` (T-029 y T-030 incluidos). Los conflictos aparecieron solo en `src/Código.js` y `src/Seguridad.js`; se resolvieron conservando las dos partes: los `require`/globales de T-029 (`InicioService`, `ParteService`) y los de T-027 (`CorreccionService`), y las entradas de `PERMISOS_API` de T-029/T-030 junto con las de T-027. `docs/API_PUBLICA.md` se auto-fusionó. No hubo conflictos en otros archivos.
+
+Antes de la corrección: **37 suites, 371 pruebas, 0 fallos**, ya sobre `c1cbdbe`.
+
+### Todo o nada por albarán
+
+- Una salida dependiente de la cascada se rehace **entera o no se rehace**. Si cualquier línea no tiene stock, se revierte el estado completo del albarán, no queda ninguna salida activa y el documento queda en `PENDIENTE_REVISION` (nunca `CONFIRMADO_PARCIAL` por falta de stock).
+- `ventas_a_pendientes` de la vista previa lista **todas** las líneas del albarán, no solo la que falta.
+- La versión nueva de una `SALIDA` corregida ya era todo o nada; se mantiene y se añade prueba explícita.
+- Prueba nueva 11: compra de 3 artículos, venta de las 3 líneas y versión nueva que quita uno. Las 3 líneas van a PENDIENTES, no queda salida activa, el documento queda `PENDIENTE_REVISION`, el stock total es 20 y, cuando entra stock del artículo quitado, `reintentarPendientes` aplica la venta entera.
+- Prueba nueva 12: versión nueva de una venta sin stock: las 2 líneas quedan pendientes, ninguna se aplica y el documento queda `PENDIENTE_REVISION`.
+- Resultado final: **37 suites, 373 pruebas, 0 fallos**; `t027_correcciones` 12/12. Salida en `logs/T-027/tests.txt`.
+
+### git log --oneline -5
+
+```text
+3edd6fb fix(T-027): todo o nada en salidas dependientes de la cascada
+a97659e fix(T-027): completar vista previa y detalle de versiones
+e8abf07 feat(T-027): correcciones Hispatec con versiones y cascada
+2786386 docs(T-027): anadir ticket de correcciones desde Hispatec
+c1cbdbe docs(T-030): completar informe de entrega
+```
+
+### Dudas
+
+- **Número de línea en PENDIENTES:** como `MOVIMIENTOS` no guarda el número de línea original del CSV, las filas de PENDIENTES de una salida dependiente usan el ordinal 1..N de sus movimientos. Se crean todas las filas y con la serie/número del documento, pero el campo `linea` puede no coincidir con el número de línea de Hispatec si la venta tenía huecos. No se añadió ninguna columna a `MOVIMIENTOS`.
+- **Sin otros cambios de comportamiento:** esta corrección solo cambia el rehacer de salidas dependientes en `CorreccionService` (incluida la versión nueva de salida, que ya era todo o nada), añade las pruebas 11/12 y actualiza `aceptacion.md`, `tests.txt` e `informe.md`. No se toca `MovementService.js` ni ningún otro archivo de producción.
+- **`reintentarPendientes`:** se apoya en la agrupación por documento de T-008; al entrar el stock que faltaba, aplica las 3 líneas de la venta en una sola operación. Si en el futuro T-008 cambia esa agrupación, esta prueba lo detectaría.
