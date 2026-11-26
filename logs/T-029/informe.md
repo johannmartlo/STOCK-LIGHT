@@ -37,14 +37,32 @@ Pendientes: 2 ventas sin stock · Importado hasta: C 26/11 · V 26/11
 
 ## git status
 
+Salida capturada tras el commit de trabajo `804580f`, antes del commit que añade este informe.
+
 ```text
-@@GIT_STATUS@@
+On branch ticket/T-029-parte-noche
+Your branch is ahead of 'origin/main' by 2 commits.
+  (use "git push" to publish your local commits)
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	logs/T-011/fusion.md
+	logs/T-026/fusion.md
+
+nothing added to commit but untracked files present (use "git add" to track)
 ```
+
+`logs/T-011/fusion.md` y `logs/T-026/fusion.md` son archivos pendientes de tickets
+anteriores; no forman parte de T-029 y no se han incluido en ningún commit.
 
 ## git log --oneline -5
 
 ```text
-@@GIT_LOG@@
+804580f feat(T-029): parte de stock de la noche en servidor
+d78536d docs(tickets): anadir T-029 parte de noche
+1581b23 docs(T-024): anadir seccion de correccion al informe
+7ec78c3 fix(T-024): correcciones de existencias, nombres legibles, desglose, buscador movil, WhatsApp y rol CONSULTA
+0b458ba docs(T-024): completar informe de entrega
 ```
 
 ## Dudas (cambios no pedidos por el ticket)
