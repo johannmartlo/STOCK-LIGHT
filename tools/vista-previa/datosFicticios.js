@@ -358,6 +358,7 @@ function crearEntornoVistaPrevia() {
 
   return {
     env,
+    catalogoSvc,
     inicioSvc,
     importacionSvc,
     pendientesSvc,

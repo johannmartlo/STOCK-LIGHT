@@ -189,6 +189,7 @@
       stockInicialTexto: '',
       stockInicialPreview: null,
       pendientesData: null,
+      gruposComerciales: [],
       confirmarDecisionClave: null
     };
 
@@ -1059,20 +1060,36 @@
         } else {
           listaSeg.innerHTML = gruposSeg.map(function (g) {
             const confirmandoEsta = SLImp.confirmarDecisionClave && SLImp.confirmarDecisionClave.clave === g.clave;
-            const accionesHtml = confirmandoEsta
-              ? (
-                '<div class="sl-pend-actions" data-solo-escritura="1">' +
-                '<span style="font-size:13px;color:var(--sl-amber)">¿Confirmar <b>' + esc(SLImp.confirmarDecisionClave.decision === 'SEGUIR' ? 'seguir este artículo' : 'ignorarlo') + '</b>?</span>' +
-                '<button type="button" class="sl-btn" data-confirmar-decision="' + esc(SLImp.confirmarDecisionClave.decision) + '" data-art="' + esc(g.articulo) + '" data-env="' + esc(g.envase) + '" data-solo-escritura="1">Sí, confirmar</button>' +
+            let accionesHtml = '';
+            if (confirmandoEsta && SLImp.confirmarDecisionClave.decision === 'SEGUIR') {
+              const gruposOpts = (SLImp.gruposComerciales || []).map(function (grp) {
+                return '<option value="' + esc(grp) + '">' + esc(nombreLegible(grp)) + '</option>';
+              }).join('');
+              accionesHtml =
+                '<div class="sl-seguir-dialog" id="pendDialogoSeguir" data-solo-escritura="1">' +
+                '<div style="font-size:13px;font-weight:600">¿En qué variedad va ' + esc(nombreLegible(g.articulo)) + '?</div>' +
+                '<div class="sl-pend-actions">' +
+                '<select id="selGrupoSeguir" class="sl-select-inline" aria-label="Variedad destino">' +
+                gruposOpts +
+                '<option value="">Sin agrupar</option>' +
+                '</select>' +
+                '<button type="button" class="sl-btn" data-confirmar-decision="SEGUIR" data-art="' + esc(g.articulo) + '" data-env="' + esc(g.envase) + '" data-solo-escritura="1">Sí, seguir</button>' +
                 '<button type="button" class="sl-ghost" data-cancelar-decision="1" data-solo-escritura="1">Cancelar</button>' +
-                '</div>'
-              )
-              : (
+                '</div></div>';
+            } else if (confirmandoEsta) {
+              accionesHtml =
+                '<div class="sl-pend-actions" data-solo-escritura="1">' +
+                '<span style="font-size:13px;color:var(--sl-amber)">¿Confirmar <b>ignorarlo</b>?</span>' +
+                '<button type="button" class="sl-btn" data-confirmar-decision="IGNORAR" data-art="' + esc(g.articulo) + '" data-env="' + esc(g.envase) + '" data-solo-escritura="1">Sí, confirmar</button>' +
+                '<button type="button" class="sl-ghost" data-cancelar-decision="1" data-solo-escritura="1">Cancelar</button>' +
+                '</div>';
+            } else {
+              accionesHtml =
                 '<div class="sl-pend-actions" data-solo-escritura="1">' +
                 '<button type="button" class="sl-btn" data-pedir-decision="SEGUIR" data-clave="' + esc(g.clave) + '" data-solo-escritura="1">Seguir este artículo</button>' +
                 '<button type="button" class="sl-ghost" data-pedir-decision="IGNORAR" data-clave="' + esc(g.clave) + '" data-solo-escritura="1">Ignorarlo</button>' +
-                '</div>'
-              );
+                '</div>';
+            }
             return (
               '<div class="sl-pend-item">' +
               '<div class="sl-pend-item-head">' +
@@ -1105,7 +1122,9 @@
               const dec = btn.getAttribute('data-confirmar-decision');
               const art = btn.getAttribute('data-art');
               const env = btn.getAttribute('data-env');
-              ejecutarDecisionSeguimiento(art, env, dec);
+              const sel = document.getElementById('selGrupoSeguir');
+              const grupo = (dec === 'SEGUIR' && sel) ? String(sel.value || '') : '';
+              ejecutarDecisionSeguimiento(art, env, dec, grupo);
             });
           });
         }
@@ -1151,6 +1170,37 @@
       aplicarRol(SL.rol);
     }
 
+    function extraerGruposComerciales(config) {
+      const filas = (config && Array.isArray(config.agrupaciones)) ? config.agrupaciones : [];
+      const activas = filas
+        .filter(function (f) {
+          if (!f) return false;
+          const act = f.activo !== undefined ? f.activo : f.activa;
+          if (act === false) return false;
+          const s = String(act === undefined || act === null ? 'TRUE' : act).trim().toUpperCase();
+          return s !== 'FALSE' && s !== 'NO' && s !== '0';
+        })
+        .filter(function (f) {
+          return String(f.agrupacion || '').trim().toUpperCase() === 'COMERCIAL';
+        })
+        .sort(function (a, b) {
+          const oa = Number.isFinite(Number(a.orden)) ? Number(a.orden) : Number.MAX_SAFE_INTEGER;
+          const ob = Number.isFinite(Number(b.orden)) ? Number(b.orden) : Number.MAX_SAFE_INTEGER;
+          return oa - ob;
+        });
+
+      const vistos = new Set();
+      const grupos = [];
+      activas.forEach(function (f) {
+        const g = String(f.grupo || '').trim();
+        const k = g.toUpperCase();
+        if (!g || k === 'SIN CLASIFICAR' || k === 'SIN AGRUPAR' || vistos.has(k)) return;
+        vistos.add(k);
+        grupos.push(g);
+      });
+      return grupos;
+    }
+
     function cargarPendientes() {
       setVisibilidad('pendErrorBox', false);
       setVisibilidad('pendCargando', true);
@@ -1158,10 +1208,29 @@
         setVisibilidad('pendCargando', false);
         return Promise.resolve();
       }
-      return window.SLBridge.call('apiListarPendientes', { estado: 'PENDIENTE' })
-        .then(function (data) {
+      const pGrupos = SLImp.gruposComerciales.length > 0
+        ? Promise.resolve(SLImp.gruposComerciales)
+        : window.SLBridge.call('apiGetConfiguracionCatalogo')
+          .then(function (cfg) {
+            SLImp.gruposComerciales = extraerGruposComerciales(cfg);
+            return SLImp.gruposComerciales;
+          })
+          .catch(function () {
+            if (SL.inicio && Array.isArray(SL.inicio.variedades)) {
+              SLImp.gruposComerciales = SL.inicio.variedades
+                .map(function (v) { return v.grupo; })
+                .filter(function (g) { return g && g.toUpperCase() !== 'SIN AGRUPAR'; });
+            }
+            return SLImp.gruposComerciales;
+          });
+
+      return Promise.all([
+        window.SLBridge.call('apiListarPendientes', { estado: 'PENDIENTE' }),
+        pGrupos
+      ])
+        .then(function (resArr) {
           setVisibilidad('pendCargando', false);
-          renderPendientes(data);
+          renderPendientes(resArr[0]);
         })
         .catch(function (err) {
           setVisibilidad('pendCargando', false);
@@ -1202,16 +1271,17 @@
         });
     }
 
-    function ejecutarDecisionSeguimiento(articulo, envase, decision) {
+    function ejecutarDecisionSeguimiento(articulo, envase, decision, grupo) {
       SLImp.confirmarDecisionClave = null;
       setVisibilidad('pendErrorBox', false);
-      return window.SLBridge.call('apiDecidirSeguimiento', articulo, envase, decision)
+      return window.SLBridge.call('apiDecidirSeguimiento', articulo, envase, decision, grupo || '')
         .then(function (res) {
           const box = document.getElementById('pendFeedbackBox');
           if (box) {
             if (decision === 'SEGUIR') {
               const ap = Number((res && res.aplicados && res.aplicados.total) || 0);
-              box.textContent = nombreLegible(articulo) + ' · ' + nombreLegible(envase) + ' marcado como seguido. Líneas aplicadas: ' + fmt(ap) + '.';
+              const grpTxt = grupo ? (' en ' + nombreLegible(grupo)) : ' en Sin agrupar';
+              box.textContent = nombreLegible(articulo) + ' · ' + nombreLegible(envase) + ' marcado como seguido' + grpTxt + '. Líneas aplicadas: ' + fmt(ap) + '.';
             } else {
               const ig = Number((res && res.ignorados && res.ignorados.total) || 0);
               box.textContent = nombreLegible(articulo) + ' · ' + nombreLegible(envase) + ' ignorado (' + fmt(ig) + ' líneas descartadas).';

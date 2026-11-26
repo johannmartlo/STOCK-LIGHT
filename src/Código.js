@@ -934,31 +934,39 @@ function apiUpsertExcepcionCatalogo(excepcion, options = {}) {
 }
 
 /**
- * Decide el seguimiento (SEGUIR o IGNORAR) de una combinación artículo + envase desconocida
+ * Decide el seguimiento (SEGUIR o IGNORAR) de una combinación artículo + envase desconocida,
+ * opcionalmente asignando los atributos de un grupo de la agrupación COMERCIAL,
  * y reintenta pendientes (T-028). Categoría: ESCRITURA; rol mínimo ENCARGADO.
  * @param {string} articulo
  * @param {string} envase
  * @param {'SEGUIR'|'IGNORAR'} decision
- * @param {Object} [options]
+ * @param {string|Object} [grupo='']
+ * @param {Object} [options={}]
  * @returns {Object}
  */
-function apiDecidirSeguimiento(articulo, envase, decision, options = {}) {
+function apiDecidirSeguimiento(articulo, envase, decision, grupo = '', options = {}) {
   exigirSesionApi_();
-  const user = usuarioActual_(options && options.session);
+  let grupoNombre = grupo;
+  let opts = options;
+  if (grupoNombre && typeof grupoNombre === 'object') {
+    opts = grupoNombre;
+    grupoNombre = '';
+  }
+  const user = usuarioActual_(opts && opts.session);
   const SvcClass = (typeof SeguimientoService !== 'undefined')
     ? SeguimientoService
     : (typeof require !== 'undefined' ? require('./SeguimientoService').SeguimientoService : null);
   if (!SvcClass) throw new Error('SeguimientoService no está disponible en este entorno de ejecución.');
-  const repo = options.repository || new SheetsRepository();
+  const repo = (opts && opts.repository) || new SheetsRepository();
   const service = new SvcClass({
     repository: repo,
-    movementService: options.movementService,
-    catalogoService: options.catalogoService,
-    pendientesService: options.pendientesService,
-    lockService: options.lockService,
-    configCatalogo: options.configCatalogo
+    movementService: opts && opts.movementService,
+    catalogoService: opts && opts.catalogoService,
+    pendientesService: opts && opts.pendientesService,
+    lockService: opts && opts.lockService,
+    configCatalogo: opts && opts.configCatalogo
   });
-  return service.decidirSeguimiento(articulo, envase, decision, user);
+  return service.decidirSeguimiento(articulo, envase, decision, grupoNombre, user);
 }
 
 function _resolveOperationalSafetyService(options = {}) {

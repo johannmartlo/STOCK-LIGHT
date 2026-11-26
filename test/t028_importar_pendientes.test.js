@@ -132,7 +132,7 @@ runTest('1. decidirSeguimiento(SEGUIR) crea excepción SI, aplica pendientes y c
     lockService: env.lock
   });
 
-  const res = segSvc.decidirSeguimiento('CALABACIN NUEVO', 'CAJA VERDE', 'SEGUIR', 'Carlos');
+  const res = segSvc.decidirSeguimiento('CALABACIN NUEVO', 'CAJA VERDE', 'SEGUIR', '', 'Carlos');
   assert.strictEqual(res.success, true);
   assert.strictEqual(res.valor, 'SI');
   assert.strictEqual(res.aplicados.SEGUIMIENTO_DESCONOCIDO, 1);
@@ -334,6 +334,51 @@ runTest('7. CONSULTA no tiene botones de confirmar, reintentar, decidir ni marca
   assert.strictEqual(clasesBody.has('sl-rol-admin'), true);
   assert.strictEqual(escEstado[0].hidden, false);
   assert.strictEqual(admEstado[0].hidden, false);
+});
+
+// --------------------------------------------------------------------------
+// 8. AMPLIACIÓN: SEGUIR con grupo ROSA clasifica las cajas en ROSA y no en «Sin agrupar»
+// --------------------------------------------------------------------------
+runTest('8. decidirSeguimiento(SEGUIR, ROSA) escribe atributos del filtro y obtenerInicio() las pone en ROSA', () => {
+  const env = crearEntorno();
+  env.repo.saveAtributos([
+    { nombre: 'SEGUIMIENTO', descripcion: 'Seguimiento en stock', activo: true },
+    { nombre: 'FAMILIA', descripcion: 'Familia comercial', activo: true }
+  ]);
+  env.repo.saveReglasClasificacion([
+    { id: 'R-TOM', atributo: 'SEGUIMIENTO', valor: 'SI', prioridad: 1, articulo_contiene: 'TOMATE', activo: true },
+    { id: 'R-ROSA', atributo: 'FAMILIA', valor: 'ROSA', prioridad: 10, articulo_contiene: 'ROSA', activo: true }
+  ]);
+  env.repo.saveAgrupaciones([
+    { agrupacion: 'COMERCIAL', orden: 1, grupo: 'ROSA', subgrupo: '', filtro: 'FAMILIA=ROSA', activo: true, color: '#EC4899', dias_aviso: 4, stock_bajo: '' },
+    { agrupacion: 'COMERCIAL', orden: 2, grupo: 'MORESCO', subgrupo: '', filtro: 'FAMILIA=MORESCO', activo: true, color: '#4FA37C', dias_aviso: 4, stock_bajo: '' }
+  ]);
+
+  const { catalogoSvc, pendSvc } = crearCompraConDesconocido(env, 'CHERRY PERA NUEVO', 'CARTON 40X30', '508', 42);
+
+  const res = conContextoDePrueba_('Mario', 'ENCARGADO', () =>
+    codigo.apiDecidirSeguimiento('CHERRY PERA NUEVO', 'CARTON 40X30', 'SEGUIR', 'ROSA', {
+      repository: env.repo,
+      movementService: env.movService,
+      catalogoService: catalogoSvc,
+      pendientesService: pendSvc,
+      lockService: env.lock
+    })
+  );
+
+  assert.strictEqual(res.success, true);
+  assert.strictEqual(res.grupo, 'ROSA');
+  assert.strictEqual(res.aplicados.SEGUIMIENTO_DESCONOCIDO, 1);
+
+  const inicio = conContextoDePrueba_('Mario', 'CONSULTA', () =>
+    codigo.apiObtenerInicio({ repository: env.repo, reloj: () => '2026-11-26' })
+  );
+
+  const varRosa = inicio.variedades.find(v => v.grupo === 'ROSA');
+  const varSinAgrupar = inicio.variedades.find(v => v.grupo === 'Sin agrupar');
+  assert.ok(varRosa, 'Debe existir la variedad ROSA en obtenerInicio()');
+  assert.strictEqual(varRosa.cajas, 42, 'Las 42 cajas deben caer en la variedad ROSA');
+  assert.strictEqual(varSinAgrupar, undefined, 'No debe haber cajas en Sin agrupar');
 });
 
 console.log('\n================================================================');

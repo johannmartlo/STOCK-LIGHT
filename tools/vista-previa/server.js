@@ -181,7 +181,10 @@ function despacharApi(fnName, args) {
       return ctx.pendientesSvc.marcarPendienteResuelto(targetArgs[0], targetArgs[1] || '', usuario);
     }
     if (targetFn === 'apiDecidirSeguimiento') {
-      return ctx.seguimientoSvc.decidirSeguimiento(targetArgs[0], targetArgs[1], targetArgs[2], usuario);
+      return ctx.seguimientoSvc.decidirSeguimiento(targetArgs[0], targetArgs[1], targetArgs[2], targetArgs[3] || '', usuario);
+    }
+    if (targetFn === 'apiGetConfiguracionCatalogo') {
+      return ctx.catalogoSvc.obtenerConfiguracion();
     }
     if (targetFn === 'apiPrevisualizarStockInicial') {
       return ctx.stockInicialSvc.previsualizar(targetArgs[0]);
