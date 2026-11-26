@@ -102,3 +102,22 @@ nothing added to commit but untracked files present (use "git add" to track)
 - **`test/t028_importar_pendientes.test.js` (prueba 12)**: verifica que un archivo ficticio con cabecera `Almacen;FechaRecepcion;Recepción;DescripcionArticulo;Envase;NroEnvases` soltado después de unas ventas queda primero al ordenar (`ordenarArchivosImportacion`), así como los casos de `tipoCsv` y nombre de archivo.
 - **Pruebas (`logs/T-028/tests.txt`)**: `node test/run_all.js` → **37/37 suites, 373 pruebas, 0 fallos**.
 - **Dudas**: ninguna.
+
+## Rebase sobre 45b9480
+- **Conflictos resueltos (conservando ambas partes)**:
+  - `src/Código.js`: conservados los `require` y asignaciones globales de `CorreccionService` y `Exclusiones` (de `main`, T-027 y T-031) junto con `SeguimientoService` (de T-028).
+  - `src/Seguridad.js`: conservados `apiAplicarVersion` y `apiAnularAjuste` (de `main`) junto con `apiDecidirSeguimiento` (de T-028) en `PERMISOS_API`.
+- **Ajuste `lineasClienteExcluido` (`src/ui/app.html`)**: si `preview.lineasClienteExcluido > 0`, se muestra en la tarjeta del archivo una fila gris «N líneas de clientes excluidos · no cuentan» (con `pluraliza` y sin `+0`/`−0`). «Aplicar la versión nueva» en Pendientes sigue desactivado con «Disponible pronto». Prueba 13 añadida en `test/t028_importar_pendientes.test.js`.
+- **Pruebas (`logs/T-028/tests.txt`)**: `node test/run_all.js` → **39/39 suites, 396 pruebas, 0 fallos** (incluye `t027_correcciones.test.js`, `t028_importar_pendientes.test.js` y `t031_exclusiones.test.js`).
+
+### `git log --oneline -5`
+```text
+3406165 feat(T-028): mostrar lineasClienteExcluido en previsualizacion de importar
+f5b5d5e fix(T-028): clasificar CSV de RECEPCIONES como entradas antes que ventas
+995c42b docs(T-028): anadir seccion de correccion al informe
+abd055a fix(T-028): previsualizacion multiarchivo, plurales, ceros sin signo y texto vacio
+78f0d45 docs(T-028): documentar ampliacion de variedad en informe
+```
+
+### Dudas
+- **Barra segmentada en `src/ui/app.html`**: se sumó `nClienteExcluido` al tramo gris (`#71717A`) de la barra segmentada para mantener coherencia visual con la fila gris de clientes excluidos.
