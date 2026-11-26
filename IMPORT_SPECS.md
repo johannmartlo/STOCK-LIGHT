@@ -146,9 +146,14 @@ DescripcionArticulo;Envase;NroEnvases;NroPalets;Numero;Partida;Cantidad;...
 - Se reconoce como `RECEPCIONES` si están `Almacen`, `FechaRecepcion`, `Recepción`,
   `DescripcionArticulo`, `Envase` y `NroEnvases`.
 - Una fila es de datos si tiene `FechaRecepcion`, `Recepción` y `DescripcionArticulo`.
-- El proveedor no es una columna: viene en la fila anterior `NombreProveedor: ...`. Una
-  línea sin proveedor anterior es `ERROR_DATOS`. Las filas de empresa, separadores y finales
-  se saltan.
+- El proveedor puede venir de dos formas:
+  1. **Columna `NombreProveedor`** (variante IT, T-035): se usa el valor de la celda.
+  2. **Fila de grupo** `NombreProveedor: ...` anterior a sus líneas: se usa el último
+     proveedor leído.
+  Si existe la columna y la celda tiene valor, gana la columna; si la celda está vacía o la
+  columna no existe, se usa el último grupo. Sin ninguna de las dos, la línea es
+  `ERROR_DATOS`. La columna `NombreProveedor` es opcional: no cambia las columnas
+  obligatorias de detección. Las filas de empresa, separadores y finales se saltan.
 - De `Recepción` se obtiene: serie (lo anterior a `/`, o `REC` si está vacío), número (entre
   `/` y el espacio) y línea (entre paréntesis). Ejemplos ficticios: `/11737 (1)` y
   `RNT27/26 (2)`.
@@ -161,9 +166,9 @@ DescripcionArticulo;Envase;NroEnvases;NroPalets;Numero;Partida;Cantidad;...
   sufijo final `KG`, `UNID` o `UND`). Si hay una equivalencia activa en
   `EQUIVALENCIAS_ARTICULO` se usa su `nombre_articulo`; si no, el nombre normalizado.
   Las equivalencias son solo de nombre de artículo, **nunca de envase**.
-- Una línea seguida cuyo artículo no ha aparecido en ventas (CATALOGO o MOVIMIENTOS de
-  salida) lleva el aviso `SIN_PAREJA_EN_VENTAS` en la previsualización. No bloquea la
-  importación.
+- Una línea seguida cuyo artículo no ha aparecido en ventas (CATALOGO, MOVIMIENTOS de salida
+  o PENDIENTES con `tipo_doc = SALIDA`, en cualquier estado) lleva el aviso
+  `SIN_PAREJA_EN_VENTAS` en la previsualización. No bloquea la importación.
 
 **Fuente única de entradas.** La propiedad `FUENTE_ENTRADAS` vale `COMPRAS` o
 `RECEPCIONES`. Con `RECEPCIONES`, un CSV de COMPRAS se rechaza en la previsualización con

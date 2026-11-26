@@ -254,6 +254,13 @@ function parsear(textoCsv) {
         continue;
       }
 
+      // T-035: el proveedor puede venir en la columna NombreProveedor. Si la
+      // celda está vacía (o la columna no existe), se usa el último grupo.
+      const proveedorColumna = String(valorDe(fila, 'NombreProveedor') || '').trim();
+      const proveedorLinea = proveedorColumna
+        ? (csvNormalizarNombre(proveedorColumna) || null)
+        : proveedorActual;
+
       const matchRecepcion = /^\s*([^/\s]*)\s*\/\s*([^\s(]+)\s*\(\s*(\d+)\s*\)\s*$/.exec(recepcionBruta);
       let serie = 'REC';
       let numero = null;
@@ -266,7 +273,7 @@ function parsear(textoCsv) {
         aviso(filaCsv, 'recepcion', recepcionBruta);
       }
 
-      const entidad = proveedorActual ? csvNormalizarNombre(proveedorActual) : null;
+      const entidad = proveedorLinea ? csvNormalizarNombre(proveedorLinea) : null;
       const articulo = csvNormalizarNombre(articuloBruto) || null;
       const envaseBruto = valorDe(fila, 'Envase');
       const envase = csvNormalizarNombre(envaseBruto) || null;

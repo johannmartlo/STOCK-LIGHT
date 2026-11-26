@@ -181,6 +181,13 @@ class ImportacionService {
       if (String(movimiento.tipo_movimiento || '').toUpperCase() !== 'SALIDA') continue;
       if (movimiento.codigo_articulo) articulos.add(this._normalizar_(movimiento.codigo_articulo));
     }
+    // T-035: una venta pendiente también cuenta como pareja, aunque todavía no
+    // haya generado movimiento.
+    const pendientes = this.repo && typeof this.repo.getPendientes === 'function' ? this.repo.getPendientes() : [];
+    for (const pendiente of pendientes) {
+      if (String(pendiente.tipo_doc || '').toUpperCase() !== 'SALIDA') continue;
+      if (pendiente.articulo) articulos.add(this._normalizar_(pendiente.articulo));
+    }
     return articulos;
   }
 
