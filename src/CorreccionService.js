@@ -257,10 +257,30 @@ class CorreccionService {
     if (!doc) return { ok: false, motivo: 'DOCUMENTO_NO_ENCONTRADO' };
 
     const lineasNuevas = this._parseLineasVersion_(version);
+    if (lineasNuevas.length === 0) return { ok: false, motivo: 'VERSION_SIN_LINEAS' };
     const lineasNuevasOk = lineasNuevas.filter(linea => this._lineaEsOk_(linea));
-    if (lineasNuevasOk.length === 0) return { ok: false, motivo: 'VERSION_SIN_LINEAS_OK' };
 
     const viejas = this._lineasViejas_(datos, doc, tipo);
+    if (viejas.lineas.length === 0) {
+      // T-031: un documento totalmente excluido no tiene movimientos, pero guarda
+      // su versión de partida (o la última versión aplicada sin movimientos).
+      const versionBase = datos.versiones
+        .filter(v => String(v.id_documento || '') === String(doc.id_documento || ''))
+        .filter(v => {
+          const estado = String(v.estado || '').trim().toUpperCase();
+          return estado === 'BASE' || estado === 'APLICADA';
+        })
+        .sort((a, b) => String(b.fecha_alta || '').localeCompare(String(a.fecha_alta || '')))[0];
+      if (versionBase) {
+        const lineasBase = this._parseLineasVersion_(versionBase);
+        if (lineasBase.length > 0) {
+          viejas.lineas = lineasBase.map((linea, indice) => Object.assign({}, linea, {
+            linea: linea.linea === undefined || linea.linea === null ? indice + 1 : linea.linea,
+            id_capa: ''
+          }));
+        }
+      }
+    }
     if (viejas.lineas.length === 0) return { ok: false, motivo: 'DOCUMENTO_SIN_VERSION_ACTIVA' };
 
     return {
@@ -660,14 +680,15 @@ class CorreccionService {
 
       const docFinal = documentos.find(d => String(d.id_documento || '') === String(doc.id_documento || ''));
       if (docFinal) {
+        const primeraNueva = ctx.lineasNuevas.length > 0 ? ctx.lineasNuevas[0] : null;
         docFinal.firma_lineas = nuevaFirma;
-        docFinal.entidad_nombre = (ctx.lineasNuevasOk[0] && ctx.lineasNuevasOk[0].entidad) || docFinal.entidad_nombre;
-        docFinal.total_lineas = ctx.lineasNuevasOk.length;
+        docFinal.entidad_nombre = (primeraNueva && primeraNueva.entidad) || docFinal.entidad_nombre;
+        docFinal.total_lineas = ctx.lineasNuevas.length;
         docFinal.total_cajas = ctx.lineasNuevasOk.reduce((total, linea) => total + Math.abs(Number(linea.cajas) || 0), 0);
         docFinal.estado_proceso = faltaStock
           ? 'PENDIENTE_REVISION'
           : 'CONFIRMADO';
-        docFinal.fecha_documento = ctx.lineasNuevasOk[0] ? (ctx.lineasNuevasOk[0].fecha || docFinal.fecha_documento) : docFinal.fecha_documento;
+        docFinal.fecha_documento = (primeraNueva && primeraNueva.fecha) || docFinal.fecha_documento;
       }
 
       operacionesRehechas.push({
@@ -982,12 +1003,13 @@ class CorreccionService {
 
       const docFinal = documentos.find(d => String(d.id_documento || '') === String(doc.id_documento || ''));
       if (docFinal) {
+        const primeraNueva = ctx.lineasNuevas.length > 0 ? ctx.lineasNuevas[0] : null;
         docFinal.firma_lineas = nuevaFirma;
-        docFinal.entidad_nombre = (ctx.lineasNuevasOk[0] && ctx.lineasNuevasOk[0].entidad) || docFinal.entidad_nombre;
-        docFinal.total_lineas = ctx.lineasNuevasOk.length;
+        docFinal.entidad_nombre = (primeraNueva && primeraNueva.entidad) || docFinal.entidad_nombre;
+        docFinal.total_lineas = ctx.lineasNuevas.length;
         docFinal.total_cajas = ctx.lineasNuevasOk.reduce((total, linea) => total + Math.abs(Number(linea.cajas) || 0), 0);
         docFinal.estado_proceso = 'CONFIRMADO';
-        docFinal.fecha_documento = ctx.lineasNuevasOk[0] ? (ctx.lineasNuevasOk[0].fecha || docFinal.fecha_documento) : docFinal.fecha_documento;
+        docFinal.fecha_documento = (primeraNueva && primeraNueva.fecha) || docFinal.fecha_documento;
       }
     }
 
@@ -1058,9 +1080,13 @@ class CorreccionService {
     if (!ctx.ok) return { posible: false, motivo: ctx.motivo };
     const plan = this._ejecutarCascada_(datos, ctx, 'PREVISUALIZACION');
     if (!plan.posible) return { posible: false, motivo: plan.motivo };
+    const sinMovimientosStock = ctx.lineasNuevasOk.length === 0;
     return {
       posible: true,
       motivo: '',
+      mensaje: sinMovimientosStock ? 'La versión nueva no mueve stock' : '',
+      aviso: sinMovimientosStock ? 'La versión nueva no mueve stock' : '',
+      sin_movimientos_stock: sinMovimientosStock,
       lineas_cambian: plan.lineas_cambian,
       operaciones_rehechas: plan.operaciones_rehechas,
       partidas_cambian: plan.partidas_cambian,
@@ -1140,6 +1166,9 @@ class CorreccionService {
         id_pendiente: idPendiente,
         id_version: ctx.version.id_version,
         id_documento: ctx.doc.id_documento || '',
+        mensaje: ctx.lineasNuevasOk.length === 0 ? 'La versión nueva no mueve stock' : '',
+        aviso: ctx.lineasNuevasOk.length === 0 ? 'La versión nueva no mueve stock' : '',
+        sin_movimientos_stock: ctx.lineasNuevasOk.length === 0,
         movimientosGenerados: plan.movimientosNuevos.map(mov => mov.id_movimiento),
         lineas_cambian: plan.lineas_cambian,
         operaciones_rehechas: plan.operaciones_rehechas,

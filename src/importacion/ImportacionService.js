@@ -246,7 +246,7 @@ class ImportacionService {
     const documentos = this._agrupar_(clasificadas);
 
     const lineasPorClave = new Map();
-    for (const linea of parseado.lineas) {
+    for (const linea of clasificadas) {
       const clave = JSON.stringify([linea.tipoDoc || null, linea.serie || null, linea.numero || null]);
       if (!lineasPorClave.has(clave)) lineasPorClave.set(clave, []);
       lineasPorClave.get(clave).push(linea);
@@ -348,6 +348,38 @@ class ImportacionService {
   }
 
   /**
+   * Construye las líneas que se guardan en VERSIONES_DOCUMENTO, con el estado
+   * real de clasificación. Nunca marca como OK una línea sin clasificar.
+   * @param {Object} documento
+   * @param {string} tipoDoc
+   * @param {string} serie
+   * @param {string} numero
+   * @returns {Array<Object>}
+   * @private
+   */
+  _lineasVersionDocumento_(documento, tipoDoc, serie, numero) {
+    const lineas = (documento && Array.isArray(documento.lineasTodas)) ? documento.lineasTodas : [];
+    return lineas.map(linea => {
+      const estado = linea.estado || 'ERROR_DATOS';
+      return {
+        tipoDoc: linea.tipoDoc || tipoDoc,
+        serie: linea.serie !== undefined ? linea.serie : serie,
+        numero: linea.numero !== undefined ? linea.numero : numero,
+        linea: linea.linea === undefined ? '' : linea.linea,
+        fecha: linea.fecha || (documento && documento.fecha) || '',
+        entidad: linea.entidad || '',
+        articulo: linea.articulo || '',
+        envase: linea.envase || '',
+        cajas: linea.cajas === undefined ? '' : linea.cajas,
+        kg: linea.kg === undefined ? '' : linea.kg,
+        estado,
+        seguimiento: estado,
+        origenDato: linea.origenDato || 'CSV'
+      };
+    });
+  }
+
+  /**
    * Guarda la versión nueva de un documento MODIFICADO_EN_ERP y mantiene una sola
    * fila PENDIENTES por documento (T-027 regla 1).
    * @param {Array<Object>} items
@@ -386,9 +418,7 @@ class ImportacionService {
         pendiente = candidatos[0] || null;
       }
 
-      const lineasBase = (Array.isArray(doc.lineasOk) && doc.lineasOk.length > 0)
-        ? doc.lineasOk
-        : (Array.isArray(doc.lineasTodas) ? doc.lineasTodas : []);
+      const lineasBase = Array.isArray(doc.lineasOk) ? doc.lineasOk : [];
       const cajasNuevo = lineasBase.reduce((acc, linea) => acc + Math.abs(Number(linea.cajas) || 0), 0);
       const cajasImportado = Number(existente.total_cajas || 0);
       const diferencia = cajasNuevo - cajasImportado;
@@ -427,23 +457,7 @@ class ImportacionService {
         pendiente.fecha_resolucion = '';
       }
 
-      const lineasVersion = ((Array.isArray(doc.lineasOk) && doc.lineasOk.length > 0)
-        ? doc.lineasOk
-        : (Array.isArray(doc.lineasTodas) ? doc.lineasTodas : [])).map(linea => ({
-        tipoDoc: linea.tipoDoc || tipoDoc,
-        serie: linea.serie !== undefined ? linea.serie : serie,
-        numero: linea.numero !== undefined ? linea.numero : numero,
-        linea: linea.linea === undefined ? '' : linea.linea,
-        fecha: linea.fecha || doc.fecha || '',
-        entidad: linea.entidad || '',
-        articulo: linea.articulo || '',
-        envase: linea.envase || '',
-        cajas: linea.cajas === undefined ? '' : linea.cajas,
-        kg: linea.kg === undefined ? '' : linea.kg,
-        estado: linea.estado || 'OK',
-        seguimiento: linea.estado || 'OK',
-        origenDato: linea.origenDato || 'CSV'
-      }));
+      const lineasVersion = this._lineasVersionDocumento_(doc, tipoDoc, serie, numero);
 
       const lineasJson = JSON.stringify(lineasVersion);
       const versionesDeEstePendiente = versiones.filter(v =>
@@ -752,6 +766,37 @@ class ImportacionService {
       importacion.documentos_nuevos = Number(importacion.documentos_nuevos || 0) + registros.length;
       if (typeof this.repo.saveImportaciones === 'function') {
         this.repo.saveImportaciones(listaImportaciones);
+      }
+
+      // T-031 × T-027: un documento totalmente excluido guarda también su versión
+      // de partida. No tiene movimientos, pero permite corregirlo después.
+      if (typeof this.repo.getVersionesDocumento === 'function') {
+        const versionesBase = soloExcluidos.map((documento, indice) => {
+          const tipoDoc = documento.tipoDoc === 'ENTRADA' ? 'ENTRADA' : 'SALIDA';
+          return {
+            id_version: this._nuevoId_('VER'),
+            id_pendiente: '',
+            id_documento: registros[indice].id_documento,
+            firma_lineas: documento.firma || '',
+            lineas_json: JSON.stringify(this._lineasVersionDocumento_(
+              documento,
+              tipoDoc,
+              documento.serie,
+              documento.numero
+            )),
+            fecha_alta: ahora,
+            estado: 'BASE',
+            fecha_resolucion: '',
+            usuario: usuario || 'SISTEMA',
+            motivo: 'VERSION_INICIAL'
+          };
+        });
+        const versiones = this.repo.getVersionesDocumento() || [];
+        if (typeof this.repo.saveVersionesDocumento === 'function') {
+          this.repo.saveVersionesDocumento(versiones.concat(versionesBase));
+        } else if (typeof this.repo.appendVersionesDocumento === 'function') {
+          this.repo.appendVersionesDocumento(versionesBase);
+        }
       }
     }
 
