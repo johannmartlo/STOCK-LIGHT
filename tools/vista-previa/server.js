@@ -27,6 +27,7 @@ function incluirParcial(nombre) {
 function renderIndexHtml(query) {
   const estado = query.get('estado') || 'normal';
   const vista = query.get('vista') || '';
+  const accion = query.get('accion') || '';
   const mostrarToolbar = query.get('toolbar') !== '0';
   const rolQuery = String(query.get('rol') || '').trim().toUpperCase();
   const rolEfectivo = ['CONSULTA', 'ENCARGADO', 'ADMIN'].includes(rolQuery)
@@ -54,6 +55,7 @@ function renderIndexHtml(query) {
   ${autoLoginScript}
   var previewEstado = ${JSON.stringify(estado)};
   var previewVista = ${JSON.stringify(vista)};
+  var previewAccion = ${JSON.stringify(accion)};
 
   function makeRunner(okCb, errCb) {
     function callBackend(fnName, args) {
@@ -102,7 +104,36 @@ function renderIndexHtml(query) {
       setTimeout(function () {
         if (previewVista === 'importar') window.SLApp.abrirImportar('csv');
         else if (previewVista === 'stock_inicial') window.SLApp.abrirImportar('stock_inicial');
-        else if (previewVista === 'pendientes') window.SLApp.abrirPendientes();
+        else if (previewVista === 'pendientes') {
+          window.SLApp.abrirPendientes();
+          if (previewAccion === 'version' && window.SLPendientes) {
+            setTimeout(function () { window.SLPendientes.abrirVersion('PEND-PREV-4'); }, 450);
+          }
+        } else if (previewVista === 'movimientos') {
+          window.SLApp.abrirMovimientos();
+          if (previewAccion === 'detalle' || previewAccion === 'imposible') {
+            setTimeout(function () {
+              window.SLBridge.call('apiListarMovimientos', { limite: 500 }).then(function (res) {
+                var elementos = [];
+                ((res && res.grupos) || []).forEach(function (g) {
+                  elementos = elementos.concat(g.elementos || []);
+                });
+                var tx = null;
+                if (previewAccion === 'imposible') {
+                  tx = elementos.filter(function (t) { return t.tipo === 'cambio' && t.anulable === false; })[0];
+                } else {
+                  tx = elementos.filter(function (t) {
+                    return ['salida', 'entrada', 'ajuste', 'destrio'].indexOf(t.tipo) >= 0 && t.anulable === true;
+                  })[0];
+                }
+                if (tx && window.SLMov) window.SLMov.abrirDetalle(tx.tipo + '|' + tx.id);
+              });
+            }, 400);
+          }
+        } else if (previewVista === 'parte') window.SLApp.abrirParte();
+        else if (previewVista === 'buscar') {
+          window.SLApp.abrirBuscar('rosa');
+        }
       }, 150);
     }
 
@@ -164,6 +195,42 @@ function despacharApi(fnName, args) {
     }
     if (targetFn === 'apiObtenerPartida') {
       return ctx.inicioSvc.obtenerPartida(targetArgs[0]);
+    }
+    if (targetFn === 'apiListarMovimientos') {
+      return ctx.operacionesSvc.listarMovimientos(targetArgs[0] || {});
+    }
+    if (targetFn === 'apiBuscar') {
+      return ctx.operacionesSvc.buscar(targetArgs[0]);
+    }
+    if (targetFn === 'apiPrevisualizarAnulacion') {
+      return ctx.operacionesSvc.previsualizarAnulacion(targetArgs[0], targetArgs[1]);
+    }
+    if (targetFn === 'apiObtenerParte') {
+      return ctx.parteSvc.generarParte(targetArgs[0] || {});
+    }
+    if (targetFn === 'apiListarVersionesPendientes') {
+      return ctx.correccionSvc.listarVersionesPendientes();
+    }
+    if (targetFn === 'apiPrevisualizarVersion') {
+      return ctx.correccionSvc.previsualizarVersion(targetArgs[0]);
+    }
+    if (targetFn === 'apiAplicarVersion') {
+      return ctx.correccionSvc.aplicarVersion(targetArgs[0], targetArgs[1], usuario);
+    }
+    if (targetFn === 'apiPrevisualizarAnularAjuste') {
+      return ctx.correccionSvc.previsualizarAnularAjuste(targetArgs[0]);
+    }
+    if (targetFn === 'apiAnularAjuste') {
+      return ctx.correccionSvc.anularAjuste(targetArgs[0], targetArgs[1], usuario);
+    }
+    if (targetFn === 'apiAnularEntrada') {
+      return ctx.safetySvc.anularEntrada(targetArgs[0] || {}, usuario);
+    }
+    if (targetFn === 'apiAnularSalida') {
+      return ctx.safetySvc.anularSalida(targetArgs[0] || {}, usuario);
+    }
+    if (targetFn === 'apiAnularReproceso') {
+      return ctx.env.movService.anularReproceso(targetArgs[0], usuario);
     }
     if (targetFn === 'apiPrevisualizarImportacionCsv') {
       return ctx.importacionSvc.previsualizar(targetArgs[0]);

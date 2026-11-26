@@ -76,3 +76,573 @@
     </section>
   </div>
 </section>
+
+<!-- T-034 · «Aplicar la versión nueva»: vista previa y confirmación -->
+<style>
+  .sl-ver-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(3, 4, 7, .72);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: max(4vh, 18px) 12px 18px;
+    box-sizing: border-box;
+  }
+  .sl-ver-dialog {
+    width: min(720px, 100%);
+    max-height: min(88vh, 860px);
+    background: var(--sl-panel);
+    border: 1px solid var(--sl-line-strong);
+    border-radius: 16px;
+    box-shadow: 0 40px 90px rgba(0, 0, 0, .6);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sl-ver-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--sl-line);
+    flex: none;
+  }
+  .sl-ver-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .sl-ver-cuerpo {
+    padding: 14px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .sl-ver-aviso-gris {
+    background: var(--sl-elevated);
+    border: 1px solid var(--sl-line);
+    border-radius: 11px;
+    padding: 10px 12px;
+    color: var(--sl-text-secondary);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .sl-ver-bloque {
+    background: var(--sl-bg);
+    border: 1px solid var(--sl-line);
+    border-radius: 12px;
+    padding: 11px 12px;
+  }
+  .sl-ver-bloque h3 {
+    margin: 0 0 7px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: var(--sl-text-label);
+    text-transform: uppercase;
+  }
+  .sl-ver-bloque ul {
+    margin: 0;
+    padding-left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12.5px;
+    color: var(--sl-text-secondary);
+  }
+  .sl-ver-bloque li b {
+    color: var(--sl-text);
+  }
+  .sl-ver-bloque.peligro {
+    background: rgba(248, 113, 113, .07);
+    border-color: rgba(248, 113, 113, .35);
+  }
+  .sl-ver-bloque.peligro h3 {
+    color: var(--sl-red);
+  }
+  .sl-ver-bloque.peligro li b {
+    color: var(--sl-red);
+  }
+  .sl-ver-linea {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, .05);
+  }
+  .sl-ver-linea:last-child {
+    border-bottom: 0;
+  }
+  .sl-ver-linea .sl-ver-antes {
+    color: var(--sl-text-secondary);
+    text-decoration: line-through;
+  }
+  .sl-ver-linea .sl-ver-despues {
+    color: var(--sl-text);
+    font-weight: 600;
+  }
+  .sl-ver-etiqueta {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    color: var(--sl-text-label);
+    text-transform: uppercase;
+  }
+  .sl-ver-venta {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12.5px;
+    padding: 4px 0;
+  }
+  .sl-ver-venta b {
+    color: var(--sl-text);
+  }
+  .sl-ver-motivo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: none;
+  }
+  .sl-ver-motivo label {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .sl-ver-motivo input {
+    width: 100%;
+    height: 40px;
+    padding: 0 11px;
+    border-radius: 10px;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-bg);
+    color: var(--sl-text);
+    font: 500 13px var(--sl-font);
+  }
+  .sl-ver-error {
+    border: 1px solid rgba(248, 113, 113, .35);
+    background: rgba(248, 113, 113, .08);
+    color: var(--sl-red);
+    border-radius: 11px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .sl-ver-pie {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--sl-line);
+    flex: none;
+  }
+  .sl-ver-boton-peligro {
+    height: 40px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 10px;
+    background: #EF4444;
+    color: #fff;
+    font: 700 13px var(--sl-font);
+    cursor: pointer;
+  }
+  .sl-ver-boton-peligro:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+  .sl-ver-cargando {
+    padding: 26px 10px;
+    text-align: center;
+    color: var(--sl-text-secondary);
+    font-size: 13px;
+  }
+  @media (max-width: 560px) {
+    .sl-ver-overlay {
+      padding: 8px;
+    }
+    .sl-ver-dialog {
+      max-height: calc(100vh - 16px);
+      border-radius: 12px;
+    }
+  }
+</style>
+
+<div id="pendVersionOverlay" class="sl-ver-overlay sl-hidden" role="presentation">
+  <div class="sl-ver-dialog" role="dialog" aria-modal="true" aria-labelledby="pendVersionTitulo">
+    <div class="sl-ver-head">
+      <h2 id="pendVersionTitulo">Aplicar la versión nueva</h2>
+      <button type="button" id="pendVersionCerrar" class="sl-icon-btn" aria-label="Cerrar" style="width:34px;height:34px;border-radius:9px">
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </button>
+    </div>
+    <div id="pendVersionCuerpo" class="sl-ver-cuerpo"></div>
+    <div id="pendVersionPie" class="sl-ver-pie sl-hidden">
+      <button type="button" id="pendVersionCancelar" class="sl-ghost" style="height:40px;padding:0 14px;border-radius:10px;font-size:13px;font-weight:600">Cancelar</button>
+      <button type="button" class="sl-ver-boton-peligro" id="pendVersionConfirmar" data-confirmar-version="1" disabled>Aplicar la versión</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    'use strict';
+
+    var MOTIVOS = {
+      DOCUMENTO_SIN_VERSION_ACTIVA: 'El documento ya no tiene una versión anterior que se pueda rehacer.',
+      PENDIENTE_NO_PENDIENTE: 'Este aviso de cambio ya está resuelto.',
+      VERSION_NO_PENDIENTE: 'La versión nueva ya se aplicó o se descartó.',
+      VERSION_NO_ENCONTRADA: 'No se encuentra la versión nueva de este albarán.',
+      VERSION_SIN_LINEAS: 'La versión nueva no tiene líneas que aplicar.',
+      PENDIENTE_NO_ENCONTRADO: 'No se encuentra el aviso de cambio.',
+      DOCUMENTO_NO_ENCONTRADO: 'No se encuentra el albarán en el libro.',
+      STOCK_INSUFICIENTE: 'No hay stock suficiente para rehacer las operaciones que dependen de este albarán.',
+      AJUSTE_CON_CONSUMOS: 'El ajuste ya tiene consumos y no se puede anular.',
+      AJUSTE_DIRIGIDO_NO_SOPORTADO_EN_CASCADA: 'Este ajuste va dirigido a una partida y no se puede rehacer en cascada.',
+      TIPO_NO_SOPORTADO: 'Este tipo de movimiento no se puede anular desde aquí.',
+      ID_REQUERIDO: 'Falta el identificador del movimiento.'
+    };
+
+    var estadoVersion = {
+      idPendiente: '',
+      preview: null,
+      aplicando: false
+    };
+
+    function esc(valor) {
+      if (valor === null || valor === undefined) return '';
+      return String(valor)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function fmt(valor) {
+      return String(Math.round(Number(valor) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function fmtSigned(valor) {
+      var numero = Math.round(Number(valor) || 0);
+      if (numero > 0) return '+' + fmt(numero);
+      if (numero < 0) return '−' + fmt(Math.abs(numero));
+      return '0';
+    }
+
+    function motivoVersionLegible(codigo) {
+      var texto = String(codigo === null || codigo === undefined ? '' : codigo).trim();
+      if (!texto) return 'No se puede aplicar la versión nueva.';
+      if (MOTIVOS[texto]) return MOTIVOS[texto];
+      if (/stock insuficiente/i.test(texto)) return MOTIVOS.STOCK_INSUFICIENTE;
+      if (/capa destino/i.test(texto) && /consum/i.test(texto)) {
+        return 'No se puede rehacer la operación: una de sus partidas ya se ha usado después.';
+      }
+      if (/consumid/i.test(texto)) return 'No se puede anular: tiene consumos posteriores.';
+      if (/consumo/i.test(texto) && /no se puede anular/i.test(texto)) return MOTIVOS.AJUSTE_CON_CONSUMOS;
+      return texto;
+    }
+
+    function validarMotivo(motivo) {
+      return String(motivo === null || motivo === undefined ? '' : motivo).trim().length >= 5;
+    }
+
+    function puedeConfirmarVersion(preview, motivo) {
+      return !!(preview && preview.posible === true && validarMotivo(motivo));
+    }
+
+    function textoLinea(parte) {
+      if (!parte) return '—';
+      var trozos = [
+        String(parte.articulo || '').trim(),
+        String(parte.envase || '').trim()
+      ].filter(Boolean);
+      var cajas = Number(parte.cajas || 0);
+      return trozos.join(' · ') + (trozos.length ? ' · ' : '') + fmt(cajas) + ' cj';
+    }
+
+    function renderLineasCambian(lineas) {
+      var filas = Array.isArray(lineas) ? lineas : [];
+      if (filas.length === 0) return '<li>Sin cambios en las líneas.</li>';
+      return filas.map(function (linea) {
+        var antes = linea && linea.antes ? textoLinea(linea.antes) : '';
+        var despues = linea && linea.despues ? textoLinea(linea.despues) : '';
+        var cambios = (linea && Array.isArray(linea.cambios)) ? linea.cambios : [];
+        var etiqueta = 'Línea ' + esc(linea && linea.linea !== undefined && linea.linea !== null && linea.linea !== '' ? linea.linea : '—');
+        var cuerpo = '';
+        if (!antes && despues) cuerpo = '<span class="sl-ver-despues">Nueva: ' + esc(despues) + '</span>';
+        else if (antes && !despues) cuerpo = '<span class="sl-ver-antes">Se quita: ' + esc(antes) + '</span>';
+        else {
+          cuerpo = '<span class="sl-ver-antes">' + esc(antes) + '</span>' +
+            '<span class="sl-ver-despues">' + esc(despues) + '</span>';
+        }
+        var detalleCambios = cambios.filter(function (c) {
+          return c !== 'nueva' && c !== 'eliminada';
+        }).join(', ');
+        return '<li><div class="sl-ver-linea">' +
+          '<span class="sl-ver-etiqueta">' + etiqueta + (detalleCambios ? ' · ' + esc(detalleCambios) : '') + '</span>' +
+          cuerpo + '</div></li>';
+      }).join('');
+    }
+
+    function renderOperaciones(operaciones) {
+      var filas = Array.isArray(operaciones) ? operaciones : [];
+      if (filas.length === 0) return '<li>No hay operaciones dependientes que rehacer.</li>';
+      return filas.map(function (op) {
+        return '<li><b>' + esc(op.texto || op.id || op.tipo || 'Operación') + '</b></li>';
+      }).join('');
+    }
+
+    function renderPartidas(partidas) {
+      var filas = Array.isArray(partidas) ? partidas : [];
+      if (filas.length === 0) return '<li>Sin cambios en las partidas.</li>';
+      return filas.map(function (p) {
+        var antes = p && p.antes ? Number(p.antes.cajas_restantes || 0) : 0;
+        var despues = p && p.despues ? Number(p.despues.cajas_restantes || 0) : 0;
+        var nombre = [p && p.articulo, p && p.envase].filter(Boolean).join(' · ') || (p && p.id_capa) || 'Partida';
+        return '<li><b>' + esc(nombre) + '</b> · ' + esc(fmt(antes)) + ' → ' + esc(fmt(despues)) + ' cj</li>';
+      }).join('');
+    }
+
+    function renderVentasPendientes(ventas) {
+      var filas = Array.isArray(ventas) ? ventas : [];
+      if (filas.length === 0) {
+        return '<div class="sl-ver-bloque"><h3>Ventas que pasarán a pendientes</h3><ul><li>Ninguna venta queda pendiente.</li></ul></div>';
+      }
+      var porDocumento = {};
+      var orden = [];
+      filas.forEach(function (v) {
+        var clave = [v.serie || '', v.numero || ''].filter(Boolean).join('/') || v.id_documento || 'Albarán';
+        if (!porDocumento[clave]) {
+          porDocumento[clave] = [];
+          orden.push(clave);
+        }
+        porDocumento[clave].push(v);
+      });
+      var html = orden.map(function (clave) {
+        var lineas = porDocumento[clave].map(function (v) {
+          return '<div class="sl-ver-venta"><span><b>' + esc(v.articulo || '') + '</b> · ' + esc(v.envase || '') + '</span><span class="sl-mono" style="color:var(--sl-red)">' + esc(fmt(v.cajas)) + ' cj</span></div>';
+        }).join('');
+        return '<li style="list-style:none;margin-left:-16px"><b>' + esc(clave) + '</b>' + lineas + '</li>';
+      }).join('');
+      return '<div class="sl-ver-bloque peligro"><h3>Ventas que pasarán a pendientes</h3><ul>' + html + '</ul></div>';
+    }
+
+    function renderPreviewVersion(preview, opciones) {
+      opciones = opciones || {};
+      if (preview === null || preview === undefined) {
+        return '<div class="sl-ver-cargando" data-preview-pendiente="1">Calculando la vista previa de la versión nueva…</div>';
+      }
+      if (preview.posible === false) {
+        return '<div class="sl-ver-error" data-preview-imposible="1"><b>No se puede aplicar</b><br>' +
+          esc(motivoVersionLegible(preview.motivo)) + '</div>';
+      }
+
+      var bloques = [];
+      if (preview.sin_movimientos_stock) {
+        bloques.push('<div class="sl-ver-aviso-gris" data-sin-movimientos-stock="1">La versión nueva no mueve stock</div>');
+      }
+      bloques.push(
+        '<div class="sl-ver-bloque"><h3>Líneas: antes → después</h3><ul>' +
+        renderLineasCambian(preview.lineas_cambian) + '</ul></div>'
+      );
+      bloques.push(
+        '<div class="sl-ver-bloque"><h3>Operaciones que se rehacen</h3><ul>' +
+        renderOperaciones(preview.operaciones_rehechas) + '</ul></div>'
+      );
+      bloques.push(
+        '<div class="sl-ver-bloque"><h3>Partidas que cambian</h3><ul>' +
+        renderPartidas(preview.partidas_cambian) + '</ul></div>'
+      );
+      bloques.push(renderVentasPendientes(preview.ventas_a_pendientes));
+      if (Array.isArray(preview.efecto_variedades) && preview.efecto_variedades.length > 0) {
+        bloques.push(
+          '<div class="sl-ver-bloque"><h3>Efecto por variedad</h3><ul>' +
+          preview.efecto_variedades.map(function (v) {
+            return '<li><b>' + esc(v.variedad) + '</b> ' + esc(fmtSigned(v.cajas)) + ' cj</li>';
+          }).join('') + '</ul></div>'
+        );
+      }
+      if (!opciones.esConsulta) {
+        bloques.push(
+          '<div class="sl-ver-motivo">' +
+          '<label for="pendVersionMotivo">Motivo de la corrección (obligatorio)</label>' +
+          '<input id="pendVersionMotivo" type="text" data-version-motivo="1" placeholder="Escribe el motivo…" autocomplete="off">' +
+          '</div>'
+        );
+      }
+      return bloques.join('');
+    }
+
+    function mostrarPie(visible) {
+      if (typeof document === 'undefined') return;
+      var pie = document.getElementById('pendVersionPie');
+      if (pie) pie.classList.toggle('sl-hidden', !visible);
+    }
+
+    function pintarPreview(preview) {
+      estadoVersion.preview = preview || null;
+      if (typeof document === 'undefined') return;
+      var cuerpo = document.getElementById('pendVersionCuerpo');
+      if (!cuerpo) return;
+      cuerpo.innerHTML = renderPreviewVersion(preview);
+      var posible = !!(preview && preview.posible === true);
+      mostrarPie(posible);
+      var boton = document.getElementById('pendVersionConfirmar');
+      if (boton) boton.disabled = true;
+    }
+
+    function abrirVersion(idPendiente) {
+      if (typeof document === 'undefined') return;
+      if (!idPendiente) return;
+      if (document.body && document.body.classList && document.body.classList.contains('sl-rol-consulta')) return;
+      estadoVersion.idPendiente = String(idPendiente);
+      estadoVersion.preview = null;
+      estadoVersion.aplicando = false;
+      var overlay = document.getElementById('pendVersionOverlay');
+      var cuerpo = document.getElementById('pendVersionCuerpo');
+      if (overlay) overlay.classList.remove('sl-hidden');
+      if (cuerpo) cuerpo.innerHTML = renderPreviewVersion(null);
+      mostrarPie(false);
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        pintarPreview({ posible: false, motivo: 'No hay conexión con el servidor.' });
+        return;
+      }
+      window.SLBridge.call('apiPrevisualizarVersion', estadoVersion.idPendiente)
+        .then(function (preview) {
+          pintarPreview(preview);
+        })
+        .catch(function (err) {
+          pintarPreview({ posible: false, motivo: err && err.message ? err.message : String(err) });
+        });
+    }
+
+    function cerrarVersion() {
+      if (typeof document === 'undefined') return;
+      var overlay = document.getElementById('pendVersionOverlay');
+      if (overlay) overlay.classList.add('sl-hidden');
+      estadoVersion.idPendiente = '';
+      estadoVersion.preview = null;
+      estadoVersion.aplicando = false;
+    }
+
+    function confirmarVersion() {
+      if (typeof document === 'undefined' || estadoVersion.aplicando) return;
+      if (!estadoVersion.preview || estadoVersion.preview.posible !== true) return;
+      var input = document.getElementById('pendVersionMotivo');
+      var motivo = input ? String(input.value || '').trim() : '';
+      if (!validarMotivo(motivo)) {
+        if (input) {
+          input.setAttribute('aria-invalid', 'true');
+          input.focus();
+        }
+        return;
+      }
+      estadoVersion.aplicando = true;
+      var boton = document.getElementById('pendVersionConfirmar');
+      if (boton) boton.disabled = true;
+      window.SLBridge.call('apiAplicarVersion', estadoVersion.idPendiente, motivo)
+        .then(function (res) {
+          if (res && res.success === false) {
+            estadoVersion.aplicando = false;
+            var cuerpo = document.getElementById('pendVersionCuerpo');
+            if (cuerpo) {
+              cuerpo.innerHTML = '<div class="sl-ver-error">' +
+                esc(res.message || res.mensaje || res.status || 'No se pudo aplicar la versión nueva.') +
+                '</div>' + renderPreviewVersion(estadoVersion.preview);
+            }
+            mostrarPie(true);
+            if (boton) boton.disabled = !validarMotivo(motivo);
+            return;
+          }
+          cerrarVersion();
+          var feedback = document.getElementById('pendFeedbackBox');
+          if (feedback) {
+            var pendientes = Number(res && res.ventas_a_pendientes && res.ventas_a_pendientes.length || 0);
+            feedback.textContent = pendientes > 0
+              ? ('Versión aplicada. ' + pendientes + (pendientes === 1 ? ' línea queda pendiente' : ' líneas quedan pendientes') + ' de stock.')
+              : 'Versión aplicada correctamente.';
+            feedback.classList.remove('sl-hidden');
+          }
+          if (window.SLApp && typeof window.SLApp.cargarInicio === 'function') {
+            window.SLApp.cargarInicio({ silencioso: true });
+          }
+          if (window.SLApp && typeof window.SLApp.cargarPendientes === 'function') {
+            window.SLApp.cargarPendientes();
+          }
+        })
+        .catch(function (err) {
+          estadoVersion.aplicando = false;
+          var cuerpo = document.getElementById('pendVersionCuerpo');
+          if (cuerpo) {
+            cuerpo.innerHTML = '<div class="sl-ver-error">' +
+              esc(err && err.message ? err.message : String(err)) +
+              '</div>' + renderPreviewVersion(estadoVersion.preview);
+          }
+          mostrarPie(true);
+          if (boton) boton.disabled = !validarMotivo(motivo);
+        });
+    }
+
+    function inicializar() {
+      if (typeof document === 'undefined') return;
+      var lista = document.getElementById('pendListaModificados');
+      if (lista) {
+        lista.addEventListener('click', function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest('[data-aplicar-version]') : null;
+          if (btn) abrirVersion(btn.getAttribute('data-aplicar-version'));
+        });
+      }
+      var overlay = document.getElementById('pendVersionOverlay');
+      if (overlay) {
+        overlay.addEventListener('click', function (e) {
+          if (e.target === overlay) cerrarVersion();
+        });
+      }
+      var cerrar = document.getElementById('pendVersionCerrar');
+      if (cerrar) cerrar.addEventListener('click', cerrarVersion);
+      var cancelar = document.getElementById('pendVersionCancelar');
+      if (cancelar) cancelar.addEventListener('click', cerrarVersion);
+      var confirmar = document.getElementById('pendVersionConfirmar');
+      if (confirmar) confirmar.addEventListener('click', confirmarVersion);
+      var cuerpo = document.getElementById('pendVersionCuerpo');
+      if (cuerpo) {
+        cuerpo.addEventListener('input', function (e) {
+          if (!e.target || !e.target.matches || !e.target.matches('[data-version-motivo]')) return;
+          var boton = document.getElementById('pendVersionConfirmar');
+          if (boton) boton.disabled = !validarMotivo(e.target.value);
+        });
+      }
+      if (typeof document.addEventListener === 'function') {
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') {
+            var visible = overlay && !overlay.classList.contains('sl-hidden');
+            if (visible) cerrarVersion();
+          }
+        });
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.SLPendientes = {
+        abrirVersion: abrirVersion,
+        cerrarVersion: cerrarVersion,
+        confirmarVersion: confirmarVersion,
+        renderPreviewVersion: renderPreviewVersion,
+        motivoVersionLegible: motivoVersionLegible,
+        validarMotivo: validarMotivo,
+        puedeConfirmarVersion: puedeConfirmarVersion,
+        _estado: estadoVersion
+      };
+    }
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializar);
+      else inicializar();
+    }
+  })();
+</script>

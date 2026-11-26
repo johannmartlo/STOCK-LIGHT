@@ -15,6 +15,10 @@ const { ImportacionService } = require('../../src/importacion/ImportacionService
 const { PendientesService } = require('../../src/importacion/PendientesService');
 const { StockInicialService } = require('../../src/importacion/StockInicialService');
 const { SeguimientoService } = require('../../src/SeguimientoService');
+const { OperacionesService } = require('../../src/OperacionesService');
+const { ParteService } = require('../../src/ParteService');
+const { CorreccionService } = require('../../src/CorreccionService');
+const { OperationalSafetyService } = require('../../src/OperationalSafetyService');
 const { hoyMadrid } = require('../../src/Fechas');
 const { crearServicioAcceso_ } = require('../../src/Seguridad');
 
@@ -228,6 +232,43 @@ function crearEntornoVistaPrevia() {
     }, 'Ana');
   }
 
+  // 3.b. Ejemplos para Movimientos (T-034): un movimiento anulado y un cambio no anulable.
+  const capaRosa500 = env.repo.getCapasFifo()
+    .find(c => c.codigo_articulo === 'TOMATE ROSA 500G' && Number(c.cajas_restantes) >= 5);
+  if (capaRosa500) {
+    env.movService.registrarSalida({
+      id_documento: 'DOC-REC-S-5',
+      tipo_documento: 'SALIDA',
+      serie: 'AVT27',
+      numero: '704',
+      fecha_documento: hoy,
+      entidad_nombre: 'MERCADO CENTRAL',
+      origen_dato: 'CSV',
+      firma_lineas: 'FIRMA-S-5'
+    }, [
+      { codigo_articulo: capaRosa500.codigo_articulo, codigo_envase: capaRosa500.codigo_envase, cajas: 5 }
+    ], 'Juan Alberto');
+  }
+
+  const entradaAnulada = env.movService.registrarEntrada({
+    id_documento: 'DOC-REC-E-ANUL',
+    tipo_documento: 'COMPRA',
+    serie: 'ACT27',
+    numero: '399',
+    fecha_documento: hoy,
+    entidad_nombre: 'FINCA SOLANA',
+    origen_dato: 'CSV',
+    firma_lineas: 'FIRMA-E-ANUL'
+  }, [
+    { codigo_articulo: 'TOMATE COCKTAIL I M', codigo_envase: 'IFCO 8X300', cajas: 12, partida: 'PR-ANUL' }
+  ], 'Juan Alberto');
+  if (entradaAnulada && entradaAnulada.success !== false) {
+    const idMovEntradaAnulada = (entradaAnulada.movimientosGenerados || [])[0];
+    if (idMovEntradaAnulada) {
+      env.movService.anularEntrada({ id_movimiento: idMovEntradaAnulada, motivo: 'Albarán duplicado en Hispatec' }, 'Juan Alberto');
+    }
+  }
+
   // 4. Pendientes con los tres bloques poblados (STOCK_INSUFICIENTE, SEGUIMIENTO_DESCONOCIDO, MODIFICADO_EN_ERP)
   env.repo.appendPendientes([
     {
@@ -290,17 +331,46 @@ function crearEntornoVistaPrevia() {
       tipo_doc: 'SALIDA',
       serie: 'AVT27',
       numero: '701',
-      linea: '',
+      linea: 1,
       fecha_negocio: sumarDias(hoy, -1),
       entidad: 'FRUTAS DEL NORTE',
-      articulo: '',
-      envase: '',
+      articulo: 'TOMATE RAMA EXTRA M',
+      envase: 'CARTON 40X30',
       cajas: 15,
       kg: '',
       motivo: 'MODIFICADO_EN_ERP',
       estado: 'PENDIENTE',
       fecha_alta: new Date().toISOString(),
       fecha_resolucion: ''
+    }
+  ]);
+
+  // 4.b. Versión nueva ficticia para «Aplicar la versión nueva» (T-034).
+  // La venta AVT27/701 pasa de 80 a 999 cajas: la vista previa enseña que la venta
+  // entera quedará pendiente por falta de stock, sin aplicar ninguna línea.
+  env.repo.appendVersionesDocumento([
+    {
+      id_version: 'VER-PREV-1',
+      id_pendiente: 'PEND-PREV-4',
+      id_documento: 'DOC-REC-S-2',
+      firma_lineas: 'FIRMA-S-2',
+      lineas_json: JSON.stringify([
+        {
+          linea: 1,
+          articulo: 'TOMATE RAMA EXTRA M',
+          envase: 'CARTON 40X30',
+          cajas: 999,
+          fecha: sumarDias(hoy, -1),
+          entidad: 'FRUTAS DEL NORTE',
+          kg: 0,
+          estado: 'OK'
+        }
+      ]),
+      fecha_alta: new Date().toISOString(),
+      estado: 'PENDIENTE',
+      fecha_resolucion: '',
+      usuario: 'Hispatec',
+      motivo: 'MODIFICADO_EN_ERP'
     }
   ]);
 
@@ -355,6 +425,28 @@ function crearEntornoVistaPrevia() {
     pendientesService: pendientesSvc,
     reloj: () => hoy
   });
+  const operacionesSvc = new OperacionesService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: catalogoSvc
+  });
+  const parteSvc = new ParteService({
+    repository: env.repo,
+    inicioService: inicioSvc,
+    reloj: () => hoy
+  });
+  const correccionSvc = new CorreccionService({
+    repository: env.repo,
+    movementService: env.movService,
+    catalogoService: catalogoSvc,
+    pendientesService: pendientesSvc,
+    lockService: env.lock
+  });
+  const safetySvc = new OperationalSafetyService({
+    repository: env.repo,
+    movementService: env.movService,
+    lockService: env.lock
+  });
 
   return {
     env,
@@ -364,6 +456,10 @@ function crearEntornoVistaPrevia() {
     pendientesSvc,
     seguimientoSvc,
     stockInicialSvc,
+    operacionesSvc,
+    parteSvc,
+    correccionSvc,
+    safetySvc,
     accesoSvc,
     tokenPreview,
     sesionInicial

@@ -80,9 +80,13 @@
           Pendientes
           <span id="navPendientesConsultaBadge" class="sl-nav-badge sl-hidden">0</span>
         </button>
-        <button type="button" class="sl-nav" data-proxima-version="1">
+        <button type="button" id="navMovimientos" class="sl-nav">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg>
           Movimientos
+        </button>
+        <button type="button" id="navParte" class="sl-nav">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"></path></svg>
+          Parte
         </button>
       </nav>
 
@@ -104,6 +108,12 @@
           <span>Stock Light</span>
         </span>
         <div class="sl-user-actions">
+          <button type="button" id="btnBuscarGlobalMob" class="sl-icon-btn" style="width:36px;height:36px;border-radius:10px" aria-label="Buscar" title="Buscar (Ctrl+K)">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          </button>
+          <button type="button" id="btnParteMob" class="sl-icon-btn" style="width:36px;height:36px;border-radius:10px" aria-label="Parte de la noche" title="Parte de la noche">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"></path></svg>
+          </button>
           <span id="lblUsuarioAvatarMob" class="sl-avatar">SL</span>
           <button type="button" id="btnSalirMob" class="sl-btn-salir-pill" style="display: none;" title="Cerrar sesión">Salir</button>
         </div>
@@ -113,6 +123,9 @@
       <?!= include_('ui/partida') ?>
       <?!= include_('ui/importar') ?>
       <?!= include_('ui/pendientes') ?>
+      <?!= include_('ui/movimientos') ?>
+      <?!= include_('ui/buscar') ?>
+      <?!= include_('ui/parte') ?>
     </main>
   </div>
 

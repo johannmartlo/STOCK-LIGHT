@@ -1,0 +1,542 @@
+<style>
+  /* T-034 · Búsqueda global ⌘K / Ctrl+K (todo el CSS vive aquí) */
+  .sl-buscar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(3, 4, 7, .72);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: max(8vh, 24px) 12px 24px;
+    box-sizing: border-box;
+  }
+  .sl-buscar-dialog {
+    width: min(660px, 100%);
+    background: var(--sl-panel);
+    border: 1px solid var(--sl-line-strong);
+    border-radius: 14px;
+    box-shadow: 0 40px 90px rgba(0, 0, 0, .6);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: min(78vh, 720px);
+  }
+  .sl-buscar-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 15px;
+    border-bottom: 1px solid var(--sl-line);
+    flex: none;
+  }
+  .sl-buscar-top svg {
+    color: var(--sl-text-secondary);
+    flex: none;
+  }
+  .sl-buscar-input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--sl-text);
+    font: 500 16px var(--sl-font);
+    height: 30px;
+  }
+  .sl-buscar-input::placeholder {
+    color: var(--sl-text-label);
+  }
+  .sl-buscar-esc {
+    flex: none;
+    font: 600 10.5px var(--sl-font);
+    color: var(--sl-text-secondary);
+    border: 1px solid var(--sl-line-strong);
+    border-radius: 6px;
+    padding: 3px 7px;
+    cursor: pointer;
+    background: transparent;
+  }
+  .sl-buscar-resultados {
+    padding: 7px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sl-buscar-grupo-titulo {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    color: var(--sl-text-label);
+    padding: 10px 12px 5px;
+    text-transform: uppercase;
+  }
+  .sl-buscar-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 11px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--sl-text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .sl-buscar-item:hover,
+  .sl-buscar-item.sl-buscar-activo {
+    background: rgba(255, 255, 255, .06);
+  }
+  .sl-buscar-item-punto {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--sl-line-strong);
+    flex: none;
+  }
+  .sl-buscar-item-texto {
+    flex: 1;
+    min-width: 0;
+  }
+  .sl-buscar-item-texto b {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sl-buscar-item-texto span {
+    display: block;
+    font-size: 12px;
+    color: var(--sl-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sl-buscar-item-dato {
+    flex: none;
+    font-family: var(--sl-mono);
+    font-size: 12px;
+    color: var(--sl-text-secondary);
+  }
+  .sl-buscar-vacio,
+  .sl-buscar-inicial,
+  .sl-buscar-cargando {
+    padding: 26px 16px;
+    text-align: center;
+    color: var(--sl-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .sl-buscar-pie {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 10px 15px;
+    border-top: 1px solid var(--sl-line);
+    color: var(--sl-text-label);
+    font-size: 11.5px;
+    flex: none;
+  }
+  .sl-buscar-pie kbd {
+    font-family: var(--sl-mono);
+    font-size: 10.5px;
+    border: 1px solid var(--sl-line-strong);
+    border-radius: 5px;
+    padding: 1px 5px;
+    color: var(--sl-text-secondary);
+  }
+  @media (max-width: 560px) {
+    .sl-buscar-overlay {
+      padding: 8px;
+    }
+    .sl-buscar-dialog {
+      max-height: calc(100vh - 16px);
+      border-radius: 12px;
+    }
+    .sl-buscar-pie {
+      gap: 8px;
+      font-size: 10.5px;
+    }
+  }
+</style>
+
+<div id="buscarOverlay" class="sl-buscar-overlay sl-hidden" role="presentation">
+  <div class="sl-buscar-dialog" role="dialog" aria-modal="true" aria-labelledby="buscarTitulo">
+    <div class="sl-buscar-top">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <label id="buscarTitulo" for="buscarInput" style="position:absolute;left:-9999px">Buscar</label>
+      <input id="buscarInput" class="sl-buscar-input" type="search" placeholder="Buscar variedad, partida, albarán o cambio…" autocomplete="off" spellcheck="false">
+      <button type="button" id="buscarCerrar" class="sl-buscar-esc" aria-label="Cerrar búsqueda">Esc</button>
+    </div>
+    <div id="buscarResultados" class="sl-buscar-resultados" role="listbox" aria-label="Resultados de búsqueda">
+      <div class="sl-buscar-inicial">Escribe para buscar en variedades, partidas, albaranes y cambios.<br>No distingue mayúsculas ni acentos.</div>
+    </div>
+    <div class="sl-buscar-pie">
+      <span><kbd>↑</kbd> <kbd>↓</kbd> moverse</span>
+      <span><kbd>Intro</kbd> abrir</span>
+      <span><kbd>Esc</kbd> cerrar</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    'use strict';
+
+    var estado = {
+      abierto: false,
+      consulta: '',
+      temporizador: null,
+      peticion: 0,
+      grupos: [],
+      items: [],
+      activo: -1,
+      respuesta: null,
+      buscando: false
+    };
+
+    function esc(valor) {
+      if (valor === null || valor === undefined) return '';
+      return String(valor)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function fmt(valor) {
+      return String(Math.round(Number(valor) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function normalizar(texto) {
+      return String(texto === null || texto === undefined ? '' : texto)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    }
+
+    function etiquetaFecha(fecha) {
+      var texto = String(fecha || '').trim();
+      var m = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? (m[3] + '/' + m[2]) : texto;
+    }
+
+    function construirGrupos(res) {
+      var respuesta = res || {};
+      var grupos = [];
+      var items = [];
+
+      function anadir(clave, titulo, filas, transformar) {
+        var lista = Array.isArray(filas) ? filas : [];
+        if (lista.length === 0) return;
+        var grupo = { clave: clave, titulo: titulo, items: [] };
+        lista.forEach(function (fila) {
+          var item = transformar(fila);
+          item.tipo = clave;
+          item.indice = items.length;
+          items.push(item);
+          grupo.items.push(item);
+        });
+        grupos.push(grupo);
+      }
+
+      anadir('variedades', 'Variedades', respuesta.variedades, function (v) {
+        return {
+          id: v.id || v.grupo,
+          titulo: v.grupo || v.id || 'Variedad',
+          detalle: 'Variedad',
+          dato: fmt(v.cajas) + ' cj',
+          color: '#F5A3B5',
+          datos: v
+        };
+      });
+      anadir('partidas', 'Partidas', respuesta.partidas, function (p) {
+        return {
+          id: p.id,
+          titulo: (p.articulo || 'Partida') + (p.envase ? ' · ' + p.envase : ''),
+          detalle: [p.proveedor, p.fecha ? etiquetaFecha(p.fecha) : ''].filter(Boolean).join(' · '),
+          dato: fmt(p.cajas) + ' cj',
+          color: '#EC4899',
+          datos: p
+        };
+      });
+      anadir('albaranes', 'Albaranes', respuesta.albaranes, function (a) {
+        return {
+          id: a.id,
+          titulo: [a.serie, a.numero].filter(Boolean).join('/') || a.id || 'Albarán',
+          detalle: [a.entidad, a.fecha ? etiquetaFecha(a.fecha) : ''].filter(Boolean).join(' · '),
+          dato: 'albarán',
+          color: '#9DBBF5',
+          datos: a
+        };
+      });
+      anadir('cambios', 'Cambios', respuesta.cambios, function (c) {
+        return {
+          id: c.id,
+          titulo: c.texto || 'Cambio',
+          detalle: c.fecha ? etiquetaFecha(c.fecha) : '',
+          dato: 'cambio',
+          color: '#F28CC4',
+          datos: c
+        };
+      });
+
+      return { grupos: grupos, items: items };
+    }
+
+    function renderResultadosHtml(vista, consulta, activo) {
+      if (!vista || vista.items.length === 0) {
+        return '<div class="sl-buscar-vacio">Sin resultados para «' + esc(consulta) + '».</div>';
+      }
+      return vista.grupos.map(function (grupo) {
+        var items = grupo.items.map(function (item) {
+          var clase = item.indice === activo ? ' sl-buscar-activo' : '';
+          return (
+            '<button type="button" class="sl-buscar-item' + clase + '" data-buscar-idx="' + item.indice + '" role="option" aria-selected="' + (item.indice === activo ? 'true' : 'false') + '">' +
+            '<span class="sl-buscar-item-punto" style="background:' + esc(item.color) + '"></span>' +
+            '<span class="sl-buscar-item-texto"><b>' + esc(item.titulo) + '</b><span>' + esc(item.detalle || '') + '</span></span>' +
+            '<span class="sl-buscar-item-dato">' + esc(item.dato || '') + '</span>' +
+            '</button>'
+          );
+        }).join('');
+        return '<div class="sl-buscar-grupo"><div class="sl-buscar-grupo-titulo">' + esc(grupo.titulo) + '</div>' + items + '</div>';
+      }).join('');
+    }
+
+    function pintarResultados() {
+      if (typeof document === 'undefined') return;
+      var cont = document.getElementById('buscarResultados');
+      if (!cont) return;
+      if (estado.buscando) {
+        cont.innerHTML = '<div class="sl-buscar-cargando">Buscando…</div>';
+        return;
+      }
+      if (!estado.consulta) {
+        cont.innerHTML = '<div class="sl-buscar-inicial">Escribe para buscar en variedades, partidas, albaranes y cambios.<br>No distingue mayúsculas ni acentos.</div>';
+        return;
+      }
+      cont.innerHTML = renderResultadosHtml(
+        { grupos: estado.grupos, items: estado.items },
+        estado.consulta,
+        estado.activo
+      );
+    }
+
+    function actualizarActivo() {
+      if (typeof document === 'undefined') return;
+      var nodos = document.querySelectorAll('[data-buscar-idx]');
+      for (var i = 0; i < nodos.length; i++) {
+        var nodo = nodos[i];
+        var activo = Number(nodo.getAttribute('data-buscar-idx')) === estado.activo;
+        nodo.classList.toggle('sl-buscar-activo', activo);
+        nodo.setAttribute('aria-selected', activo ? 'true' : 'false');
+        if (activo && nodo.scrollIntoView) {
+          try { nodo.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+        }
+      }
+    }
+
+    function moverActivo(delta) {
+      if (estado.items.length === 0) return;
+      var siguiente = estado.activo + delta;
+      if (siguiente < 0) siguiente = estado.items.length - 1;
+      if (siguiente >= estado.items.length) siguiente = 0;
+      estado.activo = siguiente;
+      actualizarActivo();
+    }
+
+    function seleccionar(indice) {
+      var item = estado.items[indice];
+      if (!item) return;
+      cerrar();
+      irA(item);
+    }
+
+    function irA(item) {
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') return;
+
+      if (item.tipo === 'variedades') {
+        if (window.SLApp && typeof window.SLApp.mostrarVista === 'function') window.SLApp.mostrarVista('existencias');
+        window.SLBridge.call('apiObtenerInicio').then(function (data) {
+          var buscado = normalizar(item.id);
+          var variedad = ((data && data.variedades) || []).filter(function (v) {
+            return normalizar(v && v.grupo) === buscado;
+          })[0];
+          if (!variedad) return;
+          if (window.SLApp && typeof window.SLApp.renderInicio === 'function') window.SLApp.renderInicio(data);
+          if (window.SLApp && typeof window.SLApp.abrirVariedad === 'function') window.SLApp.abrirVariedad(variedad);
+        }).catch(function () {});
+        return;
+      }
+      if (item.tipo === 'partidas') {
+        if (window.SLApp && typeof window.SLApp.abrirPartida === 'function') window.SLApp.abrirPartida(item.id);
+        return;
+      }
+      if (item.tipo === 'albaranes') {
+        var alb = item.datos || {};
+        var filtro = alb.id || ([alb.serie, alb.numero].filter(Boolean).join('/'));
+        if (window.SLApp && typeof window.SLApp.abrirMovimientos === 'function') {
+          window.SLApp.abrirMovimientos({ texto: filtro });
+        }
+        return;
+      }
+      if (item.tipo === 'cambios') {
+        if (window.SLApp && typeof window.SLApp.abrirMovimientos === 'function') {
+          window.SLApp.abrirMovimientos({ tipo: 'cambio', texto: item.id });
+        }
+      }
+    }
+
+    function buscarTexto(texto) {
+      var consulta = String(texto || '').trim();
+      estado.consulta = consulta;
+      estado.respuesta = null;
+      estado.grupos = [];
+      estado.items = [];
+      estado.activo = -1;
+      if (!consulta) {
+        estado.buscando = false;
+        pintarResultados();
+        return;
+      }
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        estado.buscando = false;
+        pintarResultados();
+        return;
+      }
+      var peticion = ++estado.peticion;
+      estado.buscando = true;
+      pintarResultados();
+      window.SLBridge.call('apiBuscar', consulta).then(function (res) {
+        if (peticion !== estado.peticion) return;
+        var vista = construirGrupos(res);
+        estado.buscando = false;
+        estado.respuesta = res;
+        estado.grupos = vista.grupos;
+        estado.items = vista.items;
+        estado.activo = vista.items.length > 0 ? 0 : -1;
+        pintarResultados();
+      }).catch(function () {
+        if (peticion !== estado.peticion) return;
+        estado.buscando = false;
+        estado.grupos = [];
+        estado.items = [];
+        estado.activo = -1;
+        pintarResultados();
+      });
+    }
+
+    function programarBusqueda() {
+      if (estado.temporizador) clearTimeout(estado.temporizador);
+      estado.temporizador = setTimeout(function () {
+        var input = typeof document !== 'undefined' ? document.getElementById('buscarInput') : null;
+        buscarTexto(input ? input.value : estado.consulta);
+      }, 180);
+    }
+
+    function abrir(textoInicial) {
+      if (typeof document === 'undefined') return;
+      estado.abierto = true;
+      var overlay = document.getElementById('buscarOverlay');
+      var input = document.getElementById('buscarInput');
+      if (overlay) overlay.classList.remove('sl-hidden');
+      if (input) {
+        input.value = String(textoInicial || '');
+        if (input.focus) {
+          setTimeout(function () { try { input.focus(); input.select(); } catch (e) {} }, 30);
+        }
+      }
+      if (textoInicial) {
+        buscarTexto(textoInicial);
+      } else {
+        estado.consulta = '';
+        estado.grupos = [];
+        estado.items = [];
+        estado.activo = -1;
+        estado.buscando = false;
+        pintarResultados();
+      }
+    }
+
+    function cerrar() {
+      estado.abierto = false;
+      if (estado.temporizador) clearTimeout(estado.temporizador);
+      if (typeof document === 'undefined') return;
+      var overlay = document.getElementById('buscarOverlay');
+      if (overlay) overlay.classList.add('sl-hidden');
+    }
+
+    function estaAbierto() {
+      return estado.abierto;
+    }
+
+    function inicializar() {
+      if (typeof document === 'undefined') return;
+      var overlay = document.getElementById('buscarOverlay');
+      var input = document.getElementById('buscarInput');
+      var cerrarBtn = document.getElementById('buscarCerrar');
+      var resultados = document.getElementById('buscarResultados');
+      var lupaMob = document.getElementById('btnBuscarGlobalMob');
+
+      if (lupaMob) {
+        lupaMob.addEventListener('click', function () { abrir(''); });
+      }
+      if (cerrarBtn) cerrarBtn.addEventListener('click', cerrar);
+      if (overlay) {
+        overlay.addEventListener('click', function (e) {
+          if (e.target === overlay) cerrar();
+        });
+      }
+      if (input) {
+        input.addEventListener('input', programarBusqueda);
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'ArrowDown') { e.preventDefault(); moverActivo(1); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); moverActivo(-1); }
+          else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (estado.activo >= 0) seleccionar(estado.activo);
+            else if (estado.items.length > 0) seleccionar(0);
+          } else if (e.key === 'Escape') { e.preventDefault(); cerrar(); }
+        });
+      }
+      if (resultados) {
+        resultados.addEventListener('click', function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest('[data-buscar-idx]') : null;
+          if (btn) seleccionar(Number(btn.getAttribute('data-buscar-idx')));
+        });
+      }
+      if (typeof document.addEventListener === 'function') {
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && estado.abierto) {
+            e.preventDefault();
+            cerrar();
+          }
+        });
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.SLBuscar = {
+        abrir: abrir,
+        cerrar: cerrar,
+        estaAbierto: estaAbierto,
+        buscar: buscarTexto,
+        construirGrupos: construirGrupos,
+        renderResultadosHtml: renderResultadosHtml,
+        seleccionar: seleccionar,
+        normalizar: normalizar,
+        _estado: estado
+      };
+    }
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializar);
+      else inicializar();
+    }
+  })();
+</script>

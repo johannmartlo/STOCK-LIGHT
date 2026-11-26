@@ -1,0 +1,1272 @@
+<style>
+  /* T-034 · Historial de movimientos (todo el CSS de la pantalla vive aquí) */
+  #viewMovimientos {
+    max-width: 1120px;
+  }
+  .sl-hist-header {
+    align-items: flex-start;
+  }
+  .sl-hist-title-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+  }
+  .sl-hist-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .sl-hist-chip {
+    height: 34px;
+    padding: 0 13px;
+    border-radius: 999px;
+    border: 1px solid var(--sl-line-strong);
+    background: transparent;
+    color: var(--sl-text-secondary);
+    font: 600 12.5px var(--sl-font);
+    cursor: pointer;
+  }
+  .sl-hist-chip[aria-pressed="true"] {
+    background: var(--sl-text);
+    border-color: var(--sl-text);
+    color: var(--sl-bg);
+  }
+  .sl-hist-filtros {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--sl-panel);
+    border: 1px solid var(--sl-line);
+    border-radius: 16px;
+    padding: 12px;
+  }
+  .sl-hist-avanzados {
+    display: grid;
+    grid-template-columns: minmax(160px, 240px) minmax(0, 340px) minmax(0, 1fr);
+    gap: 8px;
+    align-items: end;
+  }
+  .sl-hist-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .sl-hist-campo > span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--sl-text-label);
+    text-transform: uppercase;
+  }
+  .sl-hist-fechas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    min-width: 0;
+  }
+  .sl-hist-input,
+  .sl-hist-select {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-bg);
+    color: var(--sl-text);
+    font: 500 13px var(--sl-font);
+    outline: none;
+  }
+  .sl-hist-input:focus,
+  .sl-hist-select:focus {
+    border-color: var(--sl-text-secondary);
+  }
+  .sl-hist-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .sl-hist-dia {
+    background: var(--sl-panel);
+    border: 1px solid var(--sl-line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .sl-hist-dia-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--sl-line);
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    color: var(--sl-text-label);
+  }
+  .sl-hist-dia-total {
+    font-family: var(--sl-mono);
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+  .sl-hist-items {
+    display: flex;
+    flex-direction: column;
+  }
+  .sl-hist-item-wrap {
+    border-bottom: 1px solid rgba(255, 255, 255, .05);
+  }
+  .sl-hist-item-wrap:last-child {
+    border-bottom: 0;
+  }
+  .sl-hist-item {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 48px 36px minmax(0, 1fr) auto 14px;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 18px;
+    border: 0;
+    background: transparent;
+    color: var(--sl-text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .sl-hist-item:hover {
+    background: rgba(255, 255, 255, .03);
+  }
+  .sl-hist-hora {
+    font-size: 12px;
+    color: var(--sl-text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sl-hist-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .sl-hist-texto {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sl-hist-titulo {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sl-hist-titulo.sl-hist-tachado {
+    text-decoration: line-through;
+    color: var(--sl-text-secondary);
+  }
+  .sl-hist-detalle {
+    display: block;
+    font-size: 12px;
+    color: var(--sl-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sl-hist-delta {
+    font-family: var(--sl-mono);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .sl-hist-flecha {
+    color: var(--sl-text-label);
+    font-size: 16px;
+    line-height: 1;
+  }
+  .sl-hist-enlace {
+    padding: 0 18px 10px 114px;
+  }
+  .sl-hist-enlace button {
+    border: 0;
+    background: transparent;
+    color: var(--sl-text-secondary);
+    font: 600 11.5px var(--sl-font);
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .sl-hist-enlace button:hover {
+    color: var(--sl-text);
+  }
+  .sl-hist-vacio,
+  .sl-hist-cargando {
+    padding: 26px 18px;
+    text-align: center;
+    color: var(--sl-text-secondary);
+    font-size: 13px;
+  }
+  .sl-hist-cargando {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .sl-hist-mas {
+    display: flex;
+    justify-content: center;
+  }
+  .sl-hist-mas button {
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 10px;
+    border: 1px solid var(--sl-line-strong);
+    background: transparent;
+    color: var(--sl-text);
+    font: 600 13px var(--sl-font);
+    cursor: pointer;
+  }
+  .sl-hist-alert {
+    border-radius: 12px;
+    border: 1px solid var(--sl-line-strong);
+    padding: 11px 13px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--sl-text-secondary);
+  }
+  .sl-hist-alert.error {
+    border-color: rgba(248, 113, 113, .35);
+    background: rgba(248, 113, 113, .08);
+    color: var(--sl-red);
+  }
+  .sl-hist-alert.muted {
+    background: var(--sl-elevated);
+  }
+  .sl-hist-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 4, 7, .68);
+    backdrop-filter: blur(4px);
+    z-index: 900;
+  }
+  .sl-hist-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(460px, 100%);
+    height: 100%;
+    background: var(--sl-panel);
+    border-left: 1px solid var(--sl-line-strong);
+    z-index: 901;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -30px 0 80px rgba(0, 0, 0, .45);
+  }
+  .sl-hist-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--sl-line);
+  }
+  .sl-hist-panel-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sl-hist-panel-cuerpo {
+    padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sl-hist-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+    margin-bottom: 16px;
+  }
+  .sl-hist-meta > div {
+    min-width: 0;
+  }
+  .sl-hist-meta span {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    color: var(--sl-text-label);
+    text-transform: uppercase;
+  }
+  .sl-hist-meta b {
+    display: block;
+    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .sl-hist-meta .sl-hist-ancho {
+    grid-column: 1 / -1;
+  }
+  .sl-hist-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 4px;
+  }
+  .sl-hist-preview-titulo {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .sl-hist-preview-bloque {
+    background: var(--sl-bg);
+    border: 1px solid var(--sl-line);
+    border-radius: 12px;
+    padding: 11px 12px;
+  }
+  .sl-hist-preview-bloque h4 {
+    margin: 0 0 7px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    color: var(--sl-text-label);
+    text-transform: uppercase;
+  }
+  .sl-hist-preview-bloque ul {
+    margin: 0;
+    padding-left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12.5px;
+    color: var(--sl-text-secondary);
+  }
+  .sl-hist-preview-bloque li b {
+    color: var(--sl-text);
+  }
+  .sl-hist-motivo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .sl-hist-motivo label {
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .sl-hist-motivo input {
+    width: 100%;
+    height: 40px;
+    padding: 0 11px;
+    border-radius: 10px;
+    border: 1px solid var(--sl-line-strong);
+    background: var(--sl-bg);
+    color: var(--sl-text);
+    font: 500 13px var(--sl-font);
+  }
+  .sl-hist-boton-peligro {
+    height: 42px;
+    width: 100%;
+    border: 0;
+    border-radius: 11px;
+    background: #EF4444;
+    color: #fff;
+    font: 700 13.5px var(--sl-font);
+    cursor: pointer;
+  }
+  .sl-hist-boton-peligro:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+  .sl-hist-preview-pendiente {
+    font-size: 13px;
+    color: var(--sl-text-secondary);
+    padding: 8px 0;
+  }
+  .sl-hist-enlace-detalle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 9px;
+    border: 1px solid var(--sl-line-strong);
+    background: transparent;
+    color: var(--sl-text);
+    font: 600 12px var(--sl-font);
+    cursor: pointer;
+  }
+  @media (max-width: 760px) {
+    .sl-hist-avanzados {
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+    .sl-hist-item {
+      grid-template-columns: 38px 32px minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 11px 14px;
+    }
+    .sl-hist-flecha {
+      display: none;
+    }
+    .sl-hist-detalle {
+      max-width: 100%;
+    }
+    .sl-hist-enlace {
+      padding: 0 14px 9px 94px;
+    }
+    .sl-hist-dia-head {
+      padding: 10px 14px;
+    }
+    .sl-hist-panel {
+      top: auto;
+      bottom: 0;
+      width: 100%;
+      height: auto;
+      max-height: 92vh;
+      border-left: 0;
+      border-top: 1px solid var(--sl-line-strong);
+      border-radius: 18px 18px 0 0;
+    }
+  }
+  @media (max-width: 420px) {
+    .sl-hist-fechas {
+      grid-template-columns: 1fr;
+    }
+    .sl-hist-item {
+      grid-template-columns: 34px 30px minmax(0, 1fr) auto;
+      gap: 8px;
+      padding: 10px 12px;
+    }
+    .sl-hist-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      font-size: 13px;
+    }
+    .sl-hist-enlace {
+      padding-left: 84px;
+    }
+    .sl-hist-meta {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sl-hist-item,
+    .sl-hist-panel {
+      transition: none !important;
+    }
+  }
+</style>
+
+<section id="viewMovimientos" class="sl-page-wrap sl-hidden" aria-label="Movimientos">
+  <header class="sl-page-header sl-hist-header">
+    <div class="sl-hist-title-wrap">
+      <button type="button" id="btnVolverMovimientos" class="sl-icon-btn" aria-label="Volver a existencias">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+      </button>
+      <div style="min-width:0">
+        <h1 class="sl-page-title">Historial</h1>
+        <p class="sl-page-sub">Todo lo que ha cambiado el stock. Nada se borra: anular deja su propia línea.</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="sl-hist-filtros">
+    <div id="histChips" class="sl-hist-chips" role="group" aria-label="Filtrar por tipo"></div>
+    <div class="sl-hist-avanzados">
+      <label class="sl-hist-campo">
+        <span>Variedad</span>
+        <select id="histVariedad" class="sl-hist-select" aria-label="Filtrar por variedad">
+          <option value="">Todas las variedades</option>
+        </select>
+      </label>
+      <div class="sl-hist-campo">
+        <span>Fechas</span>
+        <div class="sl-hist-fechas">
+          <label class="sl-hist-campo">
+            <span>Desde</span>
+            <input id="histDesde" class="sl-hist-input" type="date" aria-label="Desde">
+          </label>
+          <label class="sl-hist-campo">
+            <span>Hasta</span>
+            <input id="histHasta" class="sl-hist-input" type="date" aria-label="Hasta">
+          </label>
+        </div>
+      </div>
+      <label class="sl-hist-campo">
+        <span>Texto</span>
+        <input id="histTexto" class="sl-hist-input" type="search" placeholder="Artículo, albarán, persona…" aria-label="Buscar en movimientos">
+      </label>
+    </div>
+  </div>
+
+  <div id="histError" class="sl-hist-alert error sl-hidden" role="alert"></div>
+  <div id="histCargando" class="sl-hist-cargando sl-hidden" aria-busy="true">Cargando movimientos…</div>
+  <div id="histLista" class="sl-hist-lista"></div>
+  <div id="histVacio" class="sl-hist-vacio sl-hidden">No hay movimientos con estos filtros.</div>
+  <div id="histMasWrap" class="sl-hist-mas sl-hidden">
+    <button type="button" id="histCargarMas">Cargar más movimientos</button>
+  </div>
+  <div id="histCentinela" aria-hidden="true" style="height:1px"></div>
+</section>
+
+<div id="histBackdrop" class="sl-hist-backdrop sl-hidden"></div>
+<aside id="histPanel" class="sl-hist-panel sl-hidden" role="dialog" aria-modal="true" aria-labelledby="histPanelTitulo">
+  <div class="sl-hist-panel-head">
+    <h2 id="histPanelTitulo">Detalle</h2>
+    <button type="button" id="histCerrarPanel" class="sl-icon-btn" aria-label="Cerrar detalle" style="width:36px;height:36px;border-radius:10px">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </button>
+  </div>
+  <div id="histPanelCuerpo" class="sl-hist-panel-cuerpo"></div>
+</aside>
+
+<script>
+  (function () {
+    'use strict';
+
+    var CATEGORIAS = [
+      { id: 'todo', nombre: 'Todo', tipos: null },
+      { id: 'entradas', nombre: 'Entradas', tipos: ['entrada', 'stock inicial'] },
+      { id: 'salidas', nombre: 'Salidas', tipos: ['salida'] },
+      { id: 'cambios', nombre: 'Cambios', tipos: ['cambio', 'anulacion'] },
+      { id: 'destrio', nombre: 'Destrío', tipos: ['destrio'] },
+      { id: 'ajustes', nombre: 'Ajustes', tipos: ['ajuste'] }
+    ];
+
+    var ICONOS = {
+      entrada: { sym: '+', bg: 'rgba(50,213,131,.12)', fg: '#4ADE80', color: '#4ADE80', titulo: 'entrada' },
+      'stock inicial': { sym: '+', bg: 'rgba(50,213,131,.12)', fg: '#4ADE80', color: '#4ADE80', titulo: 'stock inicial' },
+      salida: { sym: '−', bg: 'rgba(91,141,239,.14)', fg: '#9DBBF5', color: '#9DBBF5', titulo: 'salida' },
+      cambio: { sym: '⇄', bg: 'rgba(230,75,155,.14)', fg: '#F28CC4', color: '#F28CC4', titulo: 'cambio' },
+      destrio: { sym: '−', bg: 'rgba(249,112,102,.12)', fg: '#F87171', color: '#F87171', titulo: 'destrío' },
+      ajuste: { sym: '±', bg: 'rgba(253,176,34,.12)', fg: '#FBBF24', color: '#FBBF24', titulo: 'ajuste' },
+      anulacion: { sym: '↺', bg: '#1F1F23', fg: '#A1A1AA', color: '#A1A1AA', titulo: 'anulación' }
+    };
+
+    var MOTIVOS = {
+      DOCUMENTO_SIN_VERSION_ACTIVA: 'El documento ya no tiene una versión anterior que se pueda rehacer.',
+      PENDIENTE_NO_PENDIENTE: 'Este aviso de cambio ya está resuelto.',
+      VERSION_NO_PENDIENTE: 'La versión nueva ya se aplicó o se descartó.',
+      VERSION_NO_ENCONTRADA: 'No se encuentra la versión nueva de este albarán.',
+      VERSION_SIN_LINEAS: 'La versión nueva no tiene líneas que aplicar.',
+      PENDIENTE_NO_ENCONTRADO: 'No se encuentra el aviso de cambio.',
+      DOCUMENTO_NO_ENCONTRADO: 'No se encuentra el albarán en el libro.',
+      STOCK_INSUFICIENTE: 'No hay stock suficiente para deshacer este movimiento.',
+      AJUSTE_CON_CONSUMOS: 'Este ajuste ya tiene consumos posteriores y no se puede anular.',
+      AJUSTE_DIRIGIDO_NO_SOPORTADO_EN_CASCADA: 'Este ajuste va dirigido a una partida y no se puede rehacer en cascada.',
+      NO_SE_PUEDE_ANULAR: 'No se puede anular: tiene consumos posteriores.',
+      TIPO_NO_SOPORTADO: 'Este tipo de movimiento no se puede anular desde aquí.',
+      ID_REQUERIDO: 'Falta el identificador del movimiento.'
+    };
+
+    var estado = {
+      categoria: 'todo',
+      filtros: { tipo: null, variedad: '', desde: '', hasta: '', texto: '' },
+      cursor: null,
+      siguiente: null,
+      cargando: false,
+      iniciado: false,
+      grupos: [],
+      elementos: {},
+      panelClave: '',
+      panelTransaccion: null,
+      preview: null,
+      errorPreview: '',
+      variedadesCargadas: false
+    };
+
+    function esc(valor) {
+      if (valor === null || valor === undefined) return '';
+      return String(valor)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function fmt(valor) {
+      return String(Math.round(Number(valor) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function fmtSigned(valor) {
+      var numero = Math.round(Number(valor) || 0);
+      if (numero > 0) return '+' + fmt(numero);
+      if (numero < 0) return '−' + fmt(Math.abs(numero));
+      return '0';
+    }
+
+    function normalizar(texto) {
+      return String(texto === null || texto === undefined ? '' : texto)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    }
+
+    function hoyIso() {
+      var ahora = new Date();
+      var mes = String(ahora.getMonth() + 1).padStart(2, '0');
+      var dia = String(ahora.getDate()).padStart(2, '0');
+      return ahora.getFullYear() + '-' + mes + '-' + dia;
+    }
+
+    function formatearDia(fecha, hoy) {
+      var texto = String(fecha || '').trim();
+      var m = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return texto || 'Sin fecha';
+      var dias = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+      var dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+      if (isNaN(dt.getTime())) return texto;
+      var etiqueta = dias[dt.getUTCDay()] + ' ' + m[3] + '/' + m[2];
+      return String(hoy || '') === texto ? 'HOY · ' + etiqueta : etiqueta;
+    }
+
+    function formatearHora(fechaHora) {
+      var texto = String(fechaHora || '').trim();
+      if (!texto) return '—';
+      var m = texto.match(/T(\d{2}:\d{2})/);
+      if (m) return m[1];
+      m = texto.match(/^(\d{2}:\d{2})/);
+      if (m) return m[1];
+      var fecha = new Date(texto);
+      if (!isNaN(fecha.getTime())) {
+        return String(fecha.getHours()).padStart(2, '0') + ':' + String(fecha.getMinutes()).padStart(2, '0');
+      }
+      return '—';
+    }
+
+    function formatearFechaHora(fechaHora) {
+      var texto = String(fechaHora || '').trim();
+      if (!texto) return '—';
+      var m = texto.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+      if (m) return m[3] + '/' + m[2] + ' · ' + m[4] + ':' + m[5];
+      return texto;
+    }
+
+    function motivoLegible(codigo) {
+      var texto = String(codigo === null || codigo === undefined ? '' : codigo).trim();
+      if (!texto) return 'No se puede completar la operación.';
+      if (MOTIVOS[texto]) return MOTIVOS[texto];
+      if (/stock insuficiente/i.test(texto)) return MOTIVOS.STOCK_INSUFICIENTE;
+      if (/capa destino/i.test(texto) && /consum/i.test(texto)) {
+        return 'No se puede anular el cambio: una de sus partidas de destino ya se ha usado después.';
+      }
+      if (/consumid/i.test(texto)) return 'No se puede anular: tiene consumos posteriores.';
+      if (/consumo/i.test(texto) && /no se puede anular/i.test(texto)) return MOTIVOS.AJUSTE_CON_CONSUMOS;
+      if (/ya (fue|está|esta) anulad/i.test(texto)) return 'Este movimiento ya está anulado.';
+      if (/no se puede anular/i.test(texto)) return texto;
+      return texto;
+    }
+
+    function icono(tipo) {
+      return ICONOS[String(tipo || '').toLowerCase()] || ICONOS.ajuste;
+    }
+
+    function categoriaDe(tipo) {
+      var t = String(tipo || '').toLowerCase();
+      for (var i = 0; i < CATEGORIAS.length; i++) {
+        var cat = CATEGORIAS[i];
+        if (cat.tipos && cat.tipos.indexOf(t) >= 0) return cat.id;
+      }
+      return 'todo';
+    }
+
+    function esConsulta() {
+      try {
+        return !!(typeof document !== 'undefined' && document.body &&
+          document.body.classList && document.body.classList.contains('sl-rol-consulta'));
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function validarMotivo(motivo) {
+      return String(motivo === null || motivo === undefined ? '' : motivo).trim().length >= 5;
+    }
+
+    function puedeConfirmarAnulacion(preview, motivo) {
+      return !!(preview && preview.posible === true && validarMotivo(motivo));
+    }
+
+    function claveElemento(t) {
+      return String(t && t.tipo || '') + '|' + String(t && t.id || '');
+    }
+
+    function totalDia(elementos) {
+      return (Array.isArray(elementos) ? elementos : []).reduce(function (total, t) {
+        if (!t || t.tipo === 'anulacion' || t.anulado) return total;
+        return total + Number(t.cajas || 0);
+      }, 0);
+    }
+
+    function lineaPartida(partida) {
+      var trozos = [fmt(Math.abs(Number(partida && partida.cajas || 0))) + ' cj'];
+      if (partida && partida.articulo) trozos.push(partida.articulo);
+      if (partida && partida.envase) trozos.push(partida.envase);
+      return trozos.join(' · ');
+    }
+
+    function renderListaPartidas(lista, vacio) {
+      var filas = Array.isArray(lista) ? lista : [];
+      if (filas.length === 0) return '<li>' + esc(vacio) + '</li>';
+      return filas.map(function (p) {
+        return '<li><b>' + esc(lineaPartida(p)) + '</b></li>';
+      }).join('');
+    }
+
+    function renderPreviewAnulacion(preview, opciones) {
+      opciones = opciones || {};
+      if (opciones.esConsulta) return '';
+      if (preview === null || preview === undefined) {
+        return '<div class="sl-hist-preview-pendiente" data-preview-pendiente="1">Calculando la vista previa de la anulación…</div>';
+      }
+      if (preview.posible === false) {
+        return (
+          '<div class="sl-hist-alert error" data-preview-imposible="1">' +
+          '<b>No se puede anular</b><br>' + esc(motivoLegible(preview.motivo)) +
+          '</div>'
+        );
+      }
+
+      var tituloBoton = 'Anular el movimiento';
+      if (opciones.tipo === 'entrada' || opciones.tipo === 'stock inicial') tituloBoton = 'Anular la entrada';
+      else if (opciones.tipo === 'salida') tituloBoton = 'Anular la salida';
+      else if (opciones.tipo === 'cambio') tituloBoton = 'Anular el cambio';
+      else if (opciones.tipo === 'destrio') tituloBoton = 'Anular el destrío';
+      else if (opciones.tipo === 'ajuste') tituloBoton = 'Anular el ajuste';
+
+      var variedades = (preview.efecto_variedades || []).map(function (v) {
+        return '<li><b>' + esc(v.variedad) + '</b> ' + esc(fmtSigned(v.cajas)) + ' cj</li>';
+      }).join('');
+
+      var desaparecen = Array.isArray(preview.partidas_desaparecen) ? preview.partidas_desaparecen : [];
+      var bajan = Array.isArray(preview.partidas_bajan) ? preview.partidas_bajan : [];
+      var bajasHtml = '';
+      if (desaparecen.length > 0) {
+        bajasHtml += '<li><b>Desaparecen</b></li>' + renderListaPartidas(desaparecen, '');
+      }
+      if (bajan.length > 0) {
+        bajasHtml += '<li><b>Bajan</b></li>' + renderListaPartidas(bajan, '');
+      }
+      if (!bajasHtml) bajasHtml = '<li>No desaparece ni baja ninguna partida.</li>';
+
+      return (
+        '<div class="sl-hist-preview" data-preview-posible="1">' +
+        '<h3 class="sl-hist-preview-titulo">Lo que cambiará al anular</h3>' +
+        '<div class="sl-hist-preview-bloque">' +
+        '<h4>Vuelven</h4><ul>' + renderListaPartidas(preview.partidas_vuelven, 'No vuelve ninguna caja.') + '</ul>' +
+        '</div>' +
+        '<div class="sl-hist-preview-bloque">' +
+        '<h4>Desaparecen o bajan</h4><ul>' + bajasHtml + '</ul></div>' +
+        '<div class="sl-hist-preview-bloque">' +
+        '<h4>Efecto por variedad</h4><ul>' +
+        (variedades || '<li>Sin cambios de stock.</li>') +
+        '</ul></div>' +
+        '<div class="sl-hist-motivo">' +
+        '<label for="histMotivoAnulacion">Motivo de la anulación (obligatorio)</label>' +
+        '<input id="histMotivoAnulacion" type="text" data-hist-motivo="1" placeholder="Escribe el motivo…" autocomplete="off">' +
+        '<button type="button" class="sl-hist-boton-peligro" data-confirmar-anulacion="1" disabled>' + esc(tituloBoton) + '</button>' +
+        '</div>' +
+        '</div>'
+      );
+    }
+
+    function renderDetalleHtml(t, opciones) {
+      opciones = opciones || {};
+      if (!t) return '<div class="sl-hist-alert error">Movimiento no encontrado.</div>';
+      var ic = icono(t.tipo);
+      var meta = [
+        ['Tipo', ic.titulo || t.tipo],
+        ['Documento', t.documento || '—'],
+        ['Usuario', t.usuario || '—'],
+        ['Fecha y hora', formatearFechaHora(t.fecha_hora)],
+        ['Variedad', (t.variedades && t.variedades.length ? t.variedades.join(' · ') : (t.variedad || '—'))],
+        ['Cajas', fmtSigned(t.cajas)]
+      ];
+      var metaHtml = meta.map(function (fila, idx) {
+        var clase = idx === 1 ? ' class="sl-hist-ancho"' : '';
+        return '<div' + clase + '><span>' + esc(fila[0]) + '</span><b>' + esc(fila[1]) + '</b></div>';
+      }).join('');
+
+      var cuerpo = '<div class="sl-hist-meta">' + metaHtml + '</div>';
+      if (t.detalle) {
+        cuerpo += '<div class="sl-hist-preview-bloque" style="margin-bottom:14px"><h4>Detalle</h4><div style="font-size:12.5px;color:var(--sl-text-secondary)">' + esc(t.detalle) + '</div></div>';
+      }
+      if (t.tipo === 'anulacion' && t.anula_id) {
+        cuerpo += '<button type="button" class="sl-hist-enlace-detalle" data-abrir-original="' + esc(t.anula_id) + '">Ver el movimiento anulado</button>';
+      } else if (t.anulado) {
+        cuerpo += '<div class="sl-hist-alert muted" style="margin-bottom:14px">Este movimiento está anulado.' +
+          (t.anulado_por ? ' <button type="button" class="sl-hist-enlace-detalle" data-abrir-anulacion="' + esc(t.anulado_por) + '">Ver la anulación</button>' : '') +
+          '</div>';
+      }
+
+      if (t.tipo !== 'anulacion' && !t.anulado && !opciones.esConsulta) {
+        cuerpo += renderPreviewAnulacion(opciones.preview, {
+          tipo: t.tipo,
+          esConsulta: false
+        });
+      }
+      return cuerpo;
+    }
+
+    function renderItem(t) {
+      var ic = icono(t.tipo);
+      var deltaColor = ic.color;
+      if (t.anulado || t.tipo === 'anulacion') deltaColor = 'var(--sl-text-secondary)';
+      var tituloClase = t.anulado ? 'sl-hist-titulo sl-hist-tachado' : 'sl-hist-titulo';
+      var detalle = String(t.detalle || '');
+      if (t.usuario && detalle.indexOf(String(t.usuario)) < 0) {
+        detalle = [detalle, t.usuario].filter(Boolean).join(' · ');
+      }
+      var clave = claveElemento(t);
+      var enlace = '';
+      if (t.tipo !== 'anulacion' && t.anulado && t.anulado_por) {
+        enlace = '<div class="sl-hist-enlace"><button type="button" data-hist-abrir="' + esc(t.anulado_por) + '">Ver la anulación</button></div>';
+      } else if (t.tipo === 'anulacion' && t.anula_id) {
+        enlace = '<div class="sl-hist-enlace"><button type="button" data-hist-abrir="' + esc(t.anula_id) + '">Ver el movimiento original</button></div>';
+      }
+      return (
+        '<div class="sl-hist-item-wrap">' +
+        '<button type="button" class="sl-hist-item" data-hist-clave="' + esc(clave) + '" aria-label="Abrir detalle de ' + esc(t.texto || t.tipo) + '">' +
+        '<span class="sl-hist-hora">' + esc(formatearHora(t.fecha_hora)) + '</span>' +
+        '<span class="sl-hist-icon" style="background:' + esc(ic.bg) + ';color:' + esc(ic.fg) + '">' + esc(ic.sym) + '</span>' +
+        '<span class="sl-hist-texto">' +
+        '<span class="' + tituloClase + '">' + esc(t.texto || t.tipo) + '</span>' +
+        '<span class="sl-hist-detalle">' + esc(detalle || t.documento || '') + '</span>' +
+        '</span>' +
+        '<span class="sl-hist-delta" style="color:' + deltaColor + '">' + esc(fmtSigned(t.cajas)) + '</span>' +
+        '<span class="sl-hist-flecha" aria-hidden="true">›</span>' +
+        '</button>' + enlace +
+        '</div>'
+      );
+    }
+
+    function renderLista() {
+      var cont = typeof document !== 'undefined' ? document.getElementById('histLista') : null;
+      if (!cont) return;
+      var hoy = hoyIso();
+      cont.innerHTML = (estado.grupos || []).map(function (grupo) {
+        var elementos = (grupo.elementos || []).map(renderItem).join('');
+        var total = totalDia(grupo.elementos);
+        var color = total > 0 ? 'var(--sl-green)' : (total < 0 ? 'var(--sl-text-secondary)' : 'var(--sl-text-label)');
+        return (
+          '<section class="sl-hist-dia">' +
+          '<header class="sl-hist-dia-head"><span>' + esc(formatearDia(grupo.fecha, hoy)) + '</span>' +
+          '<span class="sl-hist-dia-total" style="color:' + color + '">' + esc(fmtSigned(total)) + ' cj</span></header>' +
+          '<div class="sl-hist-items">' + elementos + '</div>' +
+          '</section>'
+        );
+      }).join('');
+    }
+
+    function pintarEstado() {
+      if (typeof document === 'undefined') return;
+      var cargando = document.getElementById('histCargando');
+      var vacio = document.getElementById('histVacio');
+      var mas = document.getElementById('histMasWrap');
+      var error = document.getElementById('histError');
+      if (cargando) cargando.classList.toggle('sl-hidden', !estado.cargando);
+      if (vacio) vacio.classList.toggle('sl-hidden', estado.cargando || estado.grupos.length > 0);
+      if (mas) mas.classList.toggle('sl-hidden', estado.cargando || !estado.siguiente);
+      if (error) {
+        error.textContent = estado.errorPreview || '';
+        error.classList.toggle('sl-hidden', !estado.errorPreview);
+      }
+    }
+
+    function renderChips() {
+      var cont = typeof document !== 'undefined' ? document.getElementById('histChips') : null;
+      if (!cont) return;
+      cont.innerHTML = CATEGORIAS.map(function (cat) {
+        var activo = estado.categoria === cat.id;
+        return '<button type="button" class="sl-hist-chip" data-hist-categoria="' + esc(cat.id) + '" aria-pressed="' + (activo ? 'true' : 'false') + '">' + esc(cat.nombre) + '</button>';
+      }).join('');
+    }
+
+    function filtrosServidor() {
+      var filtros = { limite: 50 };
+      var tipo = estado.filtros.tipo;
+      if (Array.isArray(tipo) && tipo.length > 0) filtros.tipo = tipo.slice();
+      else if (typeof tipo === 'string' && tipo) filtros.tipo = tipo;
+      if (estado.filtros.variedad) filtros.variedad = estado.filtros.variedad;
+      if (estado.filtros.desde) filtros.desde = estado.filtros.desde;
+      if (estado.filtros.hasta) filtros.hasta = estado.filtros.hasta;
+      if (estado.filtros.texto) filtros.texto = estado.filtros.texto;
+      if (estado.cursor !== null && estado.cursor !== undefined) filtros.cursor = estado.cursor;
+      return filtros;
+    }
+
+    function cargarVariedades() {
+      if (estado.variedadesCargadas || !window.SLBridge || typeof window.SLBridge.call !== 'function') return;
+      estado.variedadesCargadas = true;
+      window.SLBridge.call('apiObtenerInicio').then(function (data) {
+        var select = typeof document !== 'undefined' ? document.getElementById('histVariedad') : null;
+        if (!select) return;
+        var actual = select.value || '';
+        var variedades = (data && Array.isArray(data.variedades)) ? data.variedades : [];
+        var vistos = {};
+        var opciones = '<option value="">Todas las variedades</option>';
+        variedades.forEach(function (v) {
+          var grupo = String(v && v.grupo || '').trim();
+          if (!grupo || vistos[normalizar(grupo)] || normalizar(grupo) === 'sin agrupar') return;
+          vistos[normalizar(grupo)] = true;
+          opciones += '<option value="' + esc(grupo) + '">' + esc(grupo) + '</option>';
+        });
+        select.innerHTML = opciones;
+        select.value = actual;
+      }).catch(function () {});
+    }
+
+    function cargarPagina() {
+      if (estado.cargando) return;
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        estado.errorPreview = 'No hay conexión con el servidor.';
+        pintarEstado();
+        return;
+      }
+      estado.cargando = true;
+      estado.errorPreview = '';
+      pintarEstado();
+      window.SLBridge.call('apiListarMovimientos', filtrosServidor())
+        .then(function (res) {
+          estado.cargando = false;
+          var grupos = (res && Array.isArray(res.grupos)) ? res.grupos : [];
+          if (!estado.iniciado) estado.grupos = [];
+          grupos.forEach(function (grupo) {
+            var fecha = grupo && grupo.fecha ? grupo.fecha : '';
+            var destino = null;
+            for (var i = 0; i < estado.grupos.length; i++) {
+              if (estado.grupos[i].fecha === fecha) { destino = estado.grupos[i]; break; }
+            }
+            if (!destino) {
+              destino = { fecha: fecha, elementos: [] };
+              estado.grupos.push(destino);
+            }
+            (grupo.elementos || []).forEach(function (t) {
+              destino.elementos.push(t);
+              estado.elementos[claveElemento(t)] = t;
+            });
+          });
+          estado.siguiente = res && res.siguiente_cursor !== undefined ? res.siguiente_cursor : null;
+          estado.iniciado = true;
+          estado.cursor = estado.siguiente;
+          renderLista();
+          pintarEstado();
+        })
+        .catch(function (err) {
+          estado.cargando = false;
+          estado.errorPreview = err && err.message ? err.message : String(err);
+          pintarEstado();
+        });
+    }
+
+    function recargar() {
+      estado.cursor = null;
+      estado.siguiente = null;
+      estado.iniciado = false;
+      estado.grupos = [];
+      estado.elementos = {};
+      estado.errorPreview = '';
+      renderLista();
+      cargarPagina();
+    }
+
+    function aplicarFiltrosUI() {
+      var select = typeof document !== 'undefined' ? document.getElementById('histVariedad') : null;
+      var desde = typeof document !== 'undefined' ? document.getElementById('histDesde') : null;
+      var hasta = typeof document !== 'undefined' ? document.getElementById('histHasta') : null;
+      var texto = typeof document !== 'undefined' ? document.getElementById('histTexto') : null;
+      estado.filtros.variedad = select ? String(select.value || '') : '';
+      estado.filtros.desde = desde ? String(desde.value || '') : '';
+      estado.filtros.hasta = hasta ? String(hasta.value || '') : '';
+      estado.filtros.texto = texto ? String(texto.value || '').trim() : '';
+      var cat = CATEGORIAS.filter(function (c) { return c.id === estado.categoria; })[0] || CATEGORIAS[0];
+      estado.filtros.tipo = cat.tipos;
+      recargar();
+    }
+
+    function cargar(filtros) {
+      filtros = filtros || {};
+      estado.categoria = 'todo';
+      estado.filtros = {
+        tipo: filtros.tipo && filtros.tipo !== 'todo' ? (Array.isArray(filtros.tipo) ? filtros.tipo : [filtros.tipo]) : null,
+        variedad: filtros.variedad || '',
+        desde: filtros.desde || '',
+        hasta: filtros.hasta || '',
+        texto: filtros.texto || ''
+      };
+      if (filtros.tipo && filtros.tipo !== 'todo') {
+        var cat = categoriaDe(Array.isArray(filtros.tipo) ? filtros.tipo[0] : filtros.tipo);
+        estado.categoria = cat;
+      }
+      if (typeof document !== 'undefined') {
+        var select = document.getElementById('histVariedad');
+        var desde = document.getElementById('histDesde');
+        var hasta = document.getElementById('histHasta');
+        var texto = document.getElementById('histTexto');
+        if (select) select.value = estado.filtros.variedad;
+        if (desde) desde.value = estado.filtros.desde;
+        if (hasta) hasta.value = estado.filtros.hasta;
+        if (texto) texto.value = estado.filtros.texto;
+      }
+      renderChips();
+      cargarVariedades();
+      recargar();
+    }
+
+    function buscarElemento(idOClave) {
+      var clave = String(idOClave || '');
+      if (estado.elementos[clave]) return estado.elementos[clave];
+      var encontrado = null;
+      Object.keys(estado.elementos).some(function (k) {
+        var t = estado.elementos[k];
+        if (String(t.id || '') === clave) { encontrado = t; return true; }
+        return false;
+      });
+      return encontrado;
+    }
+
+    function apiPreview(t) {
+      if (t.tipo === 'ajuste' || t.tipo === 'destrio') {
+        return window.SLBridge.call('apiPrevisualizarAnularAjuste', t.id);
+      }
+      var tipo = (t.tipo === 'entrada' || t.tipo === 'stock inicial') ? 'ENTRADA' : (t.tipo === 'salida' ? 'SALIDA' : 'REPROCESO');
+      return window.SLBridge.call('apiPrevisualizarAnulacion', tipo, t.id);
+    }
+
+    function abrirDetalle(idOClave) {
+      var t = buscarElemento(idOClave);
+      if (!t) return;
+      estado.panelClave = claveElemento(t);
+      estado.panelTransaccion = t;
+      estado.preview = null;
+      estado.errorPreview = '';
+      var panel = typeof document !== 'undefined' ? document.getElementById('histPanel') : null;
+      var backdrop = typeof document !== 'undefined' ? document.getElementById('histBackdrop') : null;
+      var titulo = typeof document !== 'undefined' ? document.getElementById('histPanelTitulo') : null;
+      var cuerpo = typeof document !== 'undefined' ? document.getElementById('histPanelCuerpo') : null;
+      if (titulo) titulo.textContent = t.texto || 'Detalle';
+      if (cuerpo) cuerpo.innerHTML = renderDetalleHtml(t, { esConsulta: esConsulta(), preview: null });
+      if (panel) panel.classList.remove('sl-hidden');
+      if (backdrop) backdrop.classList.remove('sl-hidden');
+
+      if (esConsulta() || t.tipo === 'anulacion' || t.anulado) return;
+      apiPreview(t).then(function (preview) {
+        if (estado.panelClave !== claveElemento(t)) return;
+        estado.preview = preview;
+        if (cuerpo) {
+          cuerpo.innerHTML = renderDetalleHtml(t, { esConsulta: false, preview: preview });
+        }
+      }).catch(function (err) {
+        if (estado.panelClave !== claveElemento(t)) return;
+        estado.preview = { posible: false, motivo: err && err.message ? err.message : String(err) };
+        if (cuerpo) {
+          cuerpo.innerHTML = renderDetalleHtml(t, { esConsulta: false, preview: estado.preview });
+        }
+      });
+    }
+
+    function cerrarDetalle() {
+      estado.panelClave = '';
+      estado.panelTransaccion = null;
+      estado.preview = null;
+      var panel = typeof document !== 'undefined' ? document.getElementById('histPanel') : null;
+      var backdrop = typeof document !== 'undefined' ? document.getElementById('histBackdrop') : null;
+      if (panel) panel.classList.add('sl-hidden');
+      if (backdrop) backdrop.classList.add('sl-hidden');
+    }
+
+    function apiAnular(t, motivo) {
+      if (t.tipo === 'ajuste' || t.tipo === 'destrio') {
+        return window.SLBridge.call('apiAnularAjuste', t.id, motivo);
+      }
+      if (t.tipo === 'cambio') {
+        return window.SLBridge.call('apiAnularReproceso', t.id);
+      }
+      if (t.tipo === 'salida') {
+        return window.SLBridge.call('apiAnularSalida', { id_documento: t.id, motivo: motivo });
+      }
+      return window.SLBridge.call('apiAnularEntrada', { id_movimiento: t.id, motivo: motivo });
+    }
+
+    function confirmarAnulacion() {
+      var t = estado.panelTransaccion;
+      if (!t || !estado.preview || estado.preview.posible !== true) return;
+      var input = typeof document !== 'undefined' ? document.getElementById('histMotivoAnulacion') : null;
+      var motivo = input ? String(input.value || '').trim() : '';
+      if (!validarMotivo(motivo)) {
+        if (input) {
+          input.focus();
+          input.setAttribute('aria-invalid', 'true');
+        }
+        return;
+      }
+      var boton = typeof document !== 'undefined' ? document.querySelector('[data-confirmar-anulacion="1"]') : null;
+      if (boton) boton.disabled = true;
+      estado.errorPreview = '';
+      apiAnular(t, motivo)
+        .then(function (res) {
+          if (res && res.success === false) {
+            estado.errorPreview = res.message || res.mensaje || res.status || 'No se pudo anular.';
+            pintarEstado();
+            var cuerpo = document.getElementById('histPanelCuerpo');
+            if (cuerpo) cuerpo.innerHTML = renderDetalleHtml(t, { esConsulta: false, preview: estado.preview });
+            return;
+          }
+          cerrarDetalle();
+          if (window.SLApp && typeof window.SLApp.mostrarAviso === 'function') {
+            window.SLApp.mostrarAviso('Anulación registrada');
+          }
+          if (window.SLApp && typeof window.SLApp.cargarInicio === 'function') {
+            window.SLApp.cargarInicio({ silencioso: true });
+          }
+          recargar();
+        })
+        .catch(function (err) {
+          estado.errorPreview = err && err.message ? err.message : String(err);
+          pintarEstado();
+          var cuerpo = document.getElementById('histPanelCuerpo');
+          if (cuerpo) cuerpo.innerHTML = renderDetalleHtml(t, { esConsulta: false, preview: estado.preview });
+        });
+    }
+
+    function setVisible(visible) {
+      var seccion = typeof document !== 'undefined' ? document.getElementById('viewMovimientos') : null;
+      if (seccion) seccion.classList.toggle('sl-hidden', !visible);
+      if (!visible) cerrarDetalle();
+    }
+
+    function inicializar() {
+      if (typeof document === 'undefined') return;
+      renderChips();
+      var volver = document.getElementById('btnVolverMovimientos');
+      if (volver) {
+        volver.addEventListener('click', function () {
+          if (window.SLApp && typeof window.SLApp.volverAExistencias === 'function') window.SLApp.volverAExistencias();
+        });
+      }
+      var chips = document.getElementById('histChips');
+      if (chips) {
+        chips.addEventListener('click', function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest('[data-hist-categoria]') : null;
+          if (!btn) return;
+          var cat = btn.getAttribute('data-hist-categoria') || 'todo';
+          if (estado.categoria === cat) return;
+          estado.categoria = cat;
+          renderChips();
+          aplicarFiltrosUI();
+        });
+      }
+      var select = document.getElementById('histVariedad');
+      if (select) select.addEventListener('change', aplicarFiltrosUI);
+      var desde = document.getElementById('histDesde');
+      if (desde) desde.addEventListener('change', aplicarFiltrosUI);
+      var hasta = document.getElementById('histHasta');
+      if (hasta) hasta.addEventListener('change', aplicarFiltrosUI);
+      var texto = document.getElementById('histTexto');
+      var temporizador = null;
+      if (texto) {
+        texto.addEventListener('input', function () {
+          if (temporizador) clearTimeout(temporizador);
+          temporizador = setTimeout(aplicarFiltrosUI, 280);
+        });
+      }
+      var mas = document.getElementById('histCargarMas');
+      if (mas) mas.addEventListener('click', cargarPagina);
+      var lista = document.getElementById('histLista');
+      if (lista) {
+        lista.addEventListener('click', function (e) {
+          var boton = e.target && e.target.closest ? e.target.closest('[data-hist-clave], [data-hist-abrir]') : null;
+          if (!boton) return;
+          var clave = boton.getAttribute('data-hist-clave');
+          if (clave) { abrirDetalle(clave); return; }
+          var id = boton.getAttribute('data-hist-abrir');
+          if (id) abrirDetalle(id);
+        });
+      }
+      var panel = document.getElementById('histPanel');
+      if (panel) {
+        panel.addEventListener('click', function (e) {
+          var original = e.target && e.target.closest ? e.target.closest('[data-abrir-original]') : null;
+          if (original) { abrirDetalle(original.getAttribute('data-abrir-original')); return; }
+          var anulacion = e.target && e.target.closest ? e.target.closest('[data-abrir-anulacion]') : null;
+          if (anulacion) { abrirDetalle(anulacion.getAttribute('data-abrir-anulacion')); return; }
+          var confirmar = e.target && e.target.closest ? e.target.closest('[data-confirmar-anulacion]') : null;
+          if (confirmar) confirmarAnulacion();
+        });
+        panel.addEventListener('input', function (e) {
+          if (!e.target || !e.target.matches || !e.target.matches('[data-hist-motivo]')) return;
+          var boton = document.querySelector('[data-confirmar-anulacion="1"]');
+          if (boton) boton.disabled = !validarMotivo(e.target.value);
+        });
+      }
+      var cerrar = document.getElementById('histCerrarPanel');
+      if (cerrar) cerrar.addEventListener('click', cerrarDetalle);
+      var backdrop = document.getElementById('histBackdrop');
+      if (backdrop) backdrop.addEventListener('click', cerrarDetalle);
+
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('scroll', function () {
+          if (estado.cargando || !estado.siguiente) return;
+          var seccion = document.getElementById('viewMovimientos');
+          if (!seccion || seccion.classList.contains('sl-hidden')) return;
+          var documento = document.documentElement;
+          if (!documento) return;
+          if (window.innerHeight + window.scrollY >= documento.scrollHeight - 320) cargarPagina();
+        }, { passive: true });
+      }
+      if (typeof IntersectionObserver !== 'undefined') {
+        var centinela = document.getElementById('histCentinela');
+        if (centinela) {
+          var observer = new IntersectionObserver(function (entradas) {
+            if (entradas.some(function (x) { return x.isIntersecting; })) {
+              if (!estado.cargando && estado.siguiente) cargarPagina();
+            }
+          }, { rootMargin: '300px' });
+          observer.observe(centinela);
+        }
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.SLMov = {
+        setVisible: setVisible,
+        cargar: cargar,
+        recargar: recargar,
+        abrirDetalle: abrirDetalle,
+        cerrarDetalle: cerrarDetalle,
+        renderPreviewAnulacion: renderPreviewAnulacion,
+        renderDetalleHtml: renderDetalleHtml,
+        motivoLegible: motivoLegible,
+        validarMotivo: validarMotivo,
+        puedeConfirmarAnulacion: puedeConfirmarAnulacion,
+        formatearDia: formatearDia,
+        formatearHora: formatearHora,
+        formatearFechaHora: formatearFechaHora,
+        categoriaDe: categoriaDe,
+        totalDia: totalDia,
+        claveElemento: claveElemento,
+        _estado: estado
+      };
+    }
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializar);
+      else inicializar();
+    }
+  })();
+</script>

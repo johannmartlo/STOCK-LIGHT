@@ -1,0 +1,537 @@
+<style>
+  /* T-034 · Parte de la noche (todo el CSS vive aquí) */
+  #viewParte {
+    max-width: 860px;
+  }
+  .sl-parte-header {
+    align-items: flex-start;
+  }
+  .sl-parte-titulo-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+  }
+  .sl-parte-hoja {
+    background: var(--sl-panel);
+    border: 1px solid var(--sl-line);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .sl-parte-cabecera {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--sl-line);
+  }
+  .sl-parte-kicker {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .11em;
+    color: var(--sl-text-label);
+    text-transform: uppercase;
+  }
+  .sl-parte-fecha {
+    margin: 4px 0 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+  }
+  .sl-parte-hora {
+    font-size: 12.5px;
+    color: var(--sl-text-secondary);
+    margin-top: 2px;
+  }
+  .sl-parte-total {
+    text-align: right;
+    flex: none;
+  }
+  .sl-parte-total-num {
+    display: block;
+    font-family: var(--sl-mono);
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -.03em;
+  }
+  .sl-parte-total-lbl {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--sl-text-secondary);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .sl-parte-variedades {
+    display: flex;
+    flex-direction: column;
+  }
+  .sl-parte-variedad {
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, .05);
+  }
+  .sl-parte-variedad:last-child {
+    border-bottom: 0;
+  }
+  .sl-parte-var-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .sl-parte-var-nombre {
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+  .sl-parte-var-cajas {
+    font-family: var(--sl-mono);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .sl-parte-desglose {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 7px;
+    margin-top: 5px;
+    font-size: 11.5px;
+    color: var(--sl-text-secondary);
+    line-height: 1.35;
+  }
+  .sl-parte-desglose span {
+    white-space: nowrap;
+  }
+  .sl-parte-desglose b {
+    color: var(--sl-text);
+    font-family: var(--sl-mono);
+    font-weight: 600;
+  }
+  .sl-parte-sale {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--sl-amber);
+  }
+  .sl-parte-pie {
+    padding: 12px 18px;
+    border-top: 1px solid var(--sl-line);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--sl-text-secondary);
+  }
+  .sl-parte-pie b {
+    color: var(--sl-text);
+  }
+  .sl-parte-vacio {
+    padding: 28px 18px;
+    text-align: center;
+    color: var(--sl-text-secondary);
+    font-size: 13px;
+  }
+  .sl-parte-error {
+    background: rgba(248, 113, 113, .08);
+    border: 1px solid rgba(248, 113, 113, .35);
+    color: var(--sl-red);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  @media (min-width: 760px) {
+    .sl-parte-variedades {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .sl-parte-variedad {
+      border-bottom: 1px solid rgba(255, 255, 255, .05);
+    }
+    .sl-parte-variedad:nth-child(odd) {
+      border-right: 1px solid rgba(255, 255, 255, .05);
+    }
+  }
+  @media (max-width: 480px) {
+    .sl-parte-cabecera {
+      padding: 13px 14px;
+    }
+    .sl-parte-fecha {
+      font-size: 19px;
+    }
+    .sl-parte-total-num {
+      font-size: 26px;
+    }
+    .sl-parte-variedad {
+      padding: 10px 14px;
+    }
+    .sl-parte-var-nombre {
+      font-size: 13.5px;
+    }
+    .sl-parte-pie {
+      padding: 10px 14px;
+    }
+  }
+</style>
+
+<section id="viewParte" class="sl-page-wrap sl-hidden" aria-label="Parte de la noche">
+  <header class="sl-page-header sl-parte-header">
+    <div class="sl-parte-titulo-wrap">
+      <button type="button" id="btnVolverParte" class="sl-icon-btn" aria-label="Volver a existencias">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+      </button>
+      <div style="min-width:0">
+        <h1 class="sl-page-title">Parte de la noche</h1>
+        <p class="sl-page-sub">El resumen que se envía al canal. Se copia tal cual, sin cambiar nada.</p>
+      </div>
+    </div>
+    <button type="button" id="btnCopiarParte" class="sl-btn" style="height:38px;padding:0 14px;border-radius:10px;font-size:13px;font-weight:700">Copiar texto</button>
+  </header>
+
+  <div id="parteError" class="sl-parte-error sl-hidden" role="alert"></div>
+  <div id="parteCargando" class="sl-parte-vacio" aria-busy="true">Cargando el parte…</div>
+  <div id="parteHoja" class="sl-parte-hoja sl-hidden">
+    <div class="sl-parte-cabecera">
+      <div style="min-width:0">
+        <div class="sl-parte-kicker">Parte de stock</div>
+        <h2 id="parteFecha" class="sl-parte-fecha">—</h2>
+        <div id="parteHora" class="sl-parte-hora"></div>
+      </div>
+      <div class="sl-parte-total">
+        <span id="parteTotal" class="sl-parte-total-num">0</span>
+        <span class="sl-parte-total-lbl">cajas</span>
+      </div>
+    </div>
+    <div id="parteVariedades" class="sl-parte-variedades"></div>
+    <div id="partePie" class="sl-parte-pie"></div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    'use strict';
+
+    var estado = {
+      parte: null,
+      copiando: false,
+      textoCopiadoTimer: null
+    };
+
+    function esc(valor) {
+      if (valor === null || valor === undefined) return '';
+      return String(valor)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function fmt(valor) {
+      return String(Math.round(Number(valor) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function nombreLegible(texto) {
+      return String(texto === null || texto === undefined ? '' : texto)
+        .replace(/_/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function fmtFechaDdMm(fecha) {
+      var m = String(fecha || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? (m[3] + '/' + m[2]) : String(fecha || '');
+    }
+
+    function diasLegibles(dias) {
+      var n = Math.max(0, Math.round(Number(dias) || 0));
+      if (n === 0) return 'hoy';
+      if (n === 1) return '1 día';
+      return n + ' días';
+    }
+
+    function construirDesglose(variedad) {
+      var partidas = (variedad && Array.isArray(variedad.partidas)) ? variedad.partidas : [];
+      var mapa = {};
+      var orden = [];
+      partidas.forEach(function (p) {
+        if (!p) return;
+        var articulo = String(p.articulo || '').trim();
+        var envase = String(p.envase || '').trim();
+        var clave = articulo + '|' + envase;
+        if (!mapa[clave]) {
+          mapa[clave] = { articulo: articulo, envase: envase, cajas: 0 };
+          orden.push(clave);
+        }
+        mapa[clave].cajas += Number(p.cajas || 0);
+      });
+      return orden.map(function (clave) { return mapa[clave]; })
+        .sort(function (a, b) { return b.cajas - a.cajas; })
+        .map(function (item) {
+          return {
+            etiqueta: [nombreLegible(item.articulo), nombreLegible(item.envase)].filter(Boolean).join(' · '),
+            cajas: item.cajas
+          };
+        });
+    }
+
+    function textoPendientes(pendientes) {
+      if (!pendientes) return '';
+      var total = Number(pendientes.totalDocumentos !== undefined ? pendientes.totalDocumentos : pendientes.total) || 0;
+      if (total <= 0) return '';
+      var porMotivo = pendientes.porMotivo || {};
+      var stock = Number(porMotivo.STOCK_INSUFICIENTE || 0);
+      var desconocido = Number(porMotivo.SEGUIMIENTO_DESCONOCIDO || 0);
+      var modificado = Number(porMotivo.MODIFICADO_EN_ERP || 0);
+      var partes = [];
+      if (stock > 0) partes.push(stock + (stock === 1 ? ' venta sin stock' : ' ventas sin stock'));
+      if (desconocido > 0) partes.push(desconocido + (desconocido === 1 ? ' documento con seguimiento desconocido' : ' documentos con seguimiento desconocido'));
+      if (modificado > 0) partes.push(modificado + (modificado === 1 ? ' documento modificado en ERP' : ' documentos modificados en ERP'));
+      if (partes.length === 0) partes.push(total + (total === 1 ? ' documento pendiente' : ' documentos pendientes'));
+      return 'Pendientes: ' + partes.join(' · ');
+    }
+
+    function textoImportado(importadoHasta) {
+      var importado = importadoHasta || {};
+      var compras = fmtFechaDdMm(importado.compras) || '—';
+      var ventas = fmtFechaDdMm(importado.ventas) || '—';
+      return 'Importado hasta: C ' + compras + ' · V ' + ventas;
+    }
+
+    function render(parte) {
+      estado.parte = parte || null;
+      if (typeof document === 'undefined') return;
+      var hoja = document.getElementById('parteHoja');
+      var cargando = document.getElementById('parteCargando');
+      var error = document.getElementById('parteError');
+      if (cargando) cargando.classList.add('sl-hidden');
+      if (error) error.classList.add('sl-hidden');
+      if (!parte || !parte.datos) {
+        if (hoja) hoja.classList.add('sl-hidden');
+        if (error) {
+          error.textContent = 'No se pudo cargar el parte.';
+          error.classList.remove('sl-hidden');
+        }
+        return;
+      }
+
+      var datos = parte.datos || {};
+      var variedades = (datos.variedades || []).filter(function (v) { return Number(v && v.cajas || 0) > 0; });
+      var total = Number(datos.total || 0);
+
+      var fecha = document.getElementById('parteFecha');
+      var hora = document.getElementById('parteHora');
+      var totalEl = document.getElementById('parteTotal');
+      var lista = document.getElementById('parteVariedades');
+      var pie = document.getElementById('partePie');
+      if (fecha) fecha.textContent = parte.fecha || fmtFechaDdMm(datos.fecha_referencia) || '—';
+      if (hora) hora.textContent = parte.hora || '';
+      if (totalEl) totalEl.textContent = fmt(total);
+
+      if (lista) {
+        if (variedades.length === 0) {
+          lista.innerHTML = '<div class="sl-parte-vacio">No hay stock en cámara.</div>';
+        } else {
+          lista.innerHTML = variedades.map(function (v) {
+            var desglose = construirDesglose(v);
+            var desgloseHtml = desglose.map(function (item) {
+              return '<span>' + esc(item.etiqueta) + ' <b>' + esc(fmt(item.cajas)) + '</b></span>';
+            }).join('');
+            var sale = '';
+            if (v.sale_primero) {
+              sale = '<div class="sl-parte-sale">Sale primero: ' + esc(fmtFechaDdMm(v.sale_primero)) + ' (' + esc(diasLegibles(v.dias)) + ')</div>';
+            }
+            return (
+              '<article class="sl-parte-variedad">' +
+              '<div class="sl-parte-var-head">' +
+              '<span class="sl-parte-var-nombre">' + esc(nombreLegible(v.grupo)) + '</span>' +
+              '<span class="sl-parte-var-cajas">' + esc(fmt(v.cajas)) + '</span>' +
+              '</div>' +
+              (desgloseHtml ? '<div class="sl-parte-desglose">' + desgloseHtml + '</div>' : '') +
+              sale +
+              '</article>'
+            );
+          }).join('');
+        }
+      }
+      if (pie) {
+        var pendientes = textoPendientes(datos.pendientes);
+        var importado = textoImportado(datos.importado_hasta);
+        pie.innerHTML = (pendientes ? '<div><b>' + esc(pendientes) + '</b></div>' : '') + '<div>' + esc(importado) + '</div>';
+      }
+      if (hoja) hoja.classList.remove('sl-hidden');
+    }
+
+    function cargar() {
+      if (typeof document === 'undefined') return Promise.resolve();
+      var cargando = document.getElementById('parteCargando');
+      var hoja = document.getElementById('parteHoja');
+      var error = document.getElementById('parteError');
+      if (hoja) hoja.classList.add('sl-hidden');
+      if (error) error.classList.add('sl-hidden');
+      if (cargando) cargando.classList.remove('sl-hidden');
+      if (!window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        if (cargando) cargando.classList.add('sl-hidden');
+        if (error) {
+          error.textContent = 'No hay conexión con el servidor.';
+          error.classList.remove('sl-hidden');
+        }
+        return Promise.resolve();
+      }
+      return window.SLBridge.call('apiObtenerParte').then(function (parte) {
+        render(parte);
+        return parte;
+      }).catch(function (err) {
+        if (cargando) cargando.classList.add('sl-hidden');
+        if (error) {
+          error.textContent = err && err.message ? err.message : String(err);
+          error.classList.remove('sl-hidden');
+        }
+      });
+    }
+
+    function textoParaCopiar(parte) {
+      var objetivo = parte || estado.parte;
+      return objetivo && typeof objetivo.texto === 'string' ? objetivo.texto : '';
+    }
+
+    function copiarFallback(texto) {
+      return new Promise(function (resolve, reject) {
+        if (typeof document === 'undefined') {
+          reject(new Error('No se puede copiar sin navegador.'));
+          return;
+        }
+        var area = document.createElement('textarea');
+        area.value = texto;
+        area.setAttribute('readonly', 'readonly');
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        area.style.top = '0';
+        (document.body || document.documentElement).appendChild(area);
+        try {
+          area.select();
+          var ok = document.execCommand && document.execCommand('copy');
+          if (document.body && area.parentNode) document.body.removeChild(area);
+          if (ok) resolve();
+          else reject(new Error('No se pudo copiar.'));
+        } catch (e) {
+          if (document.body && area.parentNode) document.body.removeChild(area);
+          reject(e);
+        }
+      });
+    }
+
+    function mostrarCopiado() {
+      if (typeof document === 'undefined') return;
+      var btn = document.getElementById('btnCopiarParte');
+      if (!btn) return;
+      if (estado.textoCopiadoTimer) clearTimeout(estado.textoCopiadoTimer);
+      var original = btn.getAttribute('data-texto-original') || btn.textContent || 'Copiar texto';
+      btn.setAttribute('data-texto-original', original);
+      btn.textContent = 'Copiado';
+      estado.textoCopiadoTimer = setTimeout(function () {
+        btn.textContent = original;
+        estado.textoCopiadoTimer = null;
+      }, 1800);
+    }
+
+    function copiarTexto(parte) {
+      if (estado.copiando) return Promise.resolve('');
+      var texto = textoParaCopiar(parte);
+      if (!texto) return Promise.reject(new Error('El parte no tiene texto para copiar.'));
+      estado.copiando = true;
+      var promesa;
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          promesa = navigator.clipboard.writeText(texto);
+        } else {
+          promesa = copiarFallback(texto);
+        }
+      } catch (e) {
+        promesa = copiarFallback(texto);
+      }
+      return Promise.resolve(promesa).then(function () {
+        estado.copiando = false;
+        mostrarCopiado();
+        if (window.SLApp && typeof window.SLApp.mostrarAviso === 'function') {
+          window.SLApp.mostrarAviso('Copiado');
+        }
+        return texto;
+      }, function (err) {
+        estado.copiando = false;
+        return copiarFallback(texto).then(function () {
+          mostrarCopiado();
+          return texto;
+        }).catch(function () {
+          if (window.SLApp && typeof window.SLApp.mostrarAviso === 'function') {
+            window.SLApp.mostrarAviso('No se pudo copiar el parte', 'error');
+          }
+          throw err;
+        });
+      });
+    }
+
+    function setVisible(visible) {
+      if (typeof document === 'undefined') return;
+      var seccion = document.getElementById('viewParte');
+      if (seccion) seccion.classList.toggle('sl-hidden', !visible);
+    }
+
+    function inyectarAccesoExistencias() {
+      if (typeof document === 'undefined') return;
+      if (document.getElementById('btnAbrirParteDesk')) return;
+      var importar = document.querySelector('#contenidoExistencias .sl-desktop-only button[data-proxima-version][data-solo-escritura]');
+      if (!importar || !importar.parentNode) return;
+      var boton = document.createElement('button');
+      boton.type = 'button';
+      boton.id = 'btnAbrirParteDesk';
+      boton.className = 'sl-ghost';
+      boton.textContent = 'Parte de la noche';
+      boton.style.cssText = 'height:36px;padding:0 12px;border-radius:10px;font-size:13px;font-weight:600';
+      boton.addEventListener('click', function () {
+        if (window.SLApp && typeof window.SLApp.abrirParte === 'function') window.SLApp.abrirParte();
+      });
+      importar.parentNode.insertBefore(boton, importar.nextSibling);
+    }
+
+    function inicializar() {
+      if (typeof document === 'undefined') return;
+      var volver = document.getElementById('btnVolverParte');
+      if (volver) {
+        volver.addEventListener('click', function () {
+          if (window.SLApp && typeof window.SLApp.volverAExistencias === 'function') window.SLApp.volverAExistencias();
+        });
+      }
+      var copiar = document.getElementById('btnCopiarParte');
+      if (copiar) {
+        copiar.addEventListener('click', function () {
+          copiarTexto(estado.parte).catch(function () {});
+        });
+      }
+      var parteMob = document.getElementById('btnParteMob');
+      if (parteMob) {
+        parteMob.addEventListener('click', function () {
+          if (window.SLApp && typeof window.SLApp.abrirParte === 'function') window.SLApp.abrirParte();
+        });
+      }
+      inyectarAccesoExistencias();
+    }
+
+    if (typeof window !== 'undefined') {
+      window.SLParte = {
+        setVisible: setVisible,
+        cargar: cargar,
+        render: render,
+        copiarTexto: copiarTexto,
+        textoParaCopiar: textoParaCopiar,
+        textoPendientes: textoPendientes,
+        textoImportado: textoImportado,
+        construirDesglose: construirDesglose,
+        _estado: estado
+      };
+    }
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializar);
+      else inicializar();
+    }
+  })();
+</script>

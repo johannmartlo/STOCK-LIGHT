@@ -366,10 +366,12 @@
         existencias: 'navExistencias',
         partida: 'navExistencias',
         importar: 'navImportar',
-        pendientes: SL.rol === 'CONSULTA' ? 'navPendientes' : 'navImportar'
+        pendientes: SL.rol === 'CONSULTA' ? 'navPendientes' : 'navImportar',
+        movimientos: 'navMovimientos',
+        parte: 'navParte'
       };
       const activoId = mapa[vista] || 'navExistencias';
-      ['navExistencias', 'navImportar', 'navPendientes'].forEach(function (id) {
+      ['navExistencias', 'navImportar', 'navPendientes', 'navMovimientos', 'navParte'].forEach(function (id) {
         const el = document.getElementById(id);
         if (!el) return;
         if (id === activoId) el.setAttribute('aria-current', 'page');
@@ -383,6 +385,8 @@
       setVisibilidad('viewPartida', vista === 'partida');
       setVisibilidad('viewImportar', vista === 'importar');
       setVisibilidad('viewPendientes', vista === 'pendientes');
+      if (window.SLMov) window.SLMov.setVisible(vista === 'movimientos');
+      if (window.SLParte) window.SLParte.setVisible(vista === 'parte');
       actualizarNavActivo(vista);
     }
 
@@ -415,6 +419,20 @@
     function abrirPendientes() {
       mostrarVista('pendientes');
       cargarPendientes();
+    }
+
+    function abrirMovimientos(filtros) {
+      mostrarVista('movimientos');
+      if (window.SLMov) window.SLMov.cargar(filtros || {});
+    }
+
+    function abrirParte() {
+      mostrarVista('parte');
+      if (window.SLParte) window.SLParte.cargar();
+    }
+
+    function abrirBuscar(texto) {
+      if (window.SLBuscar) window.SLBuscar.abrir(texto || '');
     }
 
     function rangoFechasDocumentos(docs) {
@@ -1203,7 +1221,7 @@
               '<div class="sl-pend-actions" data-solo-escritura="1">' +
               '<input type="text" class="sl-input-inline" data-nota-pend="' + esc(idPend) + '" placeholder="Motivo de revisión…" aria-label="Motivo de revisión" data-solo-escritura="1">' +
               '<button type="button" class="sl-ghost" data-marcar-revisado="' + esc(idPend) + '" data-solo-escritura="1">Marcar revisado</button>' +
-              '<span class="sl-btn-disabled-wrap" data-solo-escritura="1"><button type="button" class="sl-ghost" disabled data-solo-escritura="1">Aplicar la versión nueva</button><span>Disponible pronto</span></span>' +
+              '<button type="button" class="sl-btn" data-aplicar-version="' + esc(idPend) + '" data-solo-escritura="1">Aplicar la versión nueva</button>' +
               '</div>' +
               '</div>'
             );
@@ -2243,6 +2261,13 @@
           });
           return;
         }
+        if (txt === 'Movimientos' || txt.indexOf('Ver todos') === 0) {
+          el.addEventListener('click', function (e) {
+            e.preventDefault();
+            abrirMovimientos();
+          });
+          return;
+        }
         el.addEventListener('click', function (e) {
           e.preventDefault();
           proximaVersion();
@@ -2255,6 +2280,18 @@
       if (navImp) navImp.addEventListener('click', function () { abrirImportar('csv'); });
       const navPend = document.getElementById('navPendientes');
       if (navPend) navPend.addEventListener('click', abrirPendientes);
+      const navMov = document.getElementById('navMovimientos');
+      if (navMov) navMov.addEventListener('click', function () { abrirMovimientos(); });
+      const navParte = document.getElementById('navParte');
+      if (navParte) navParte.addEventListener('click', abrirParte);
+
+      document.addEventListener('keydown', function (e) {
+        const tecla = String(e.key || '').toLowerCase();
+        if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && tecla === 'k') {
+          e.preventDefault();
+          abrirBuscar('');
+        }
+      });
 
       // Hacer clicable la tarjeta KPI "Por revisar" para abrir Pendientes
       const kpiPend = document.getElementById('kpiPendientes');
@@ -2518,6 +2555,10 @@
       agruparSeguimientoDesconocido,
       abrirImportar,
       abrirPendientes,
+      abrirMovimientos,
+      abrirParte,
+      abrirBuscar,
+      mostrarVista,
       procesarArchivosCsv,
       confirmarImportacionTodos,
       previsualizarStockInicial,
