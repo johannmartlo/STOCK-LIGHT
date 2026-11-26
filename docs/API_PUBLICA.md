@@ -109,6 +109,7 @@ no las expone.
 | `apiObtenerParte` | `src/Código.js` | LECTURA | Devuelve `{ fecha, hora, texto, html, datos }` del parte de stock de la noche; rol CONSULTA (T-029). |
 | `apiObtenerPartida` | `src/Código.js` | LECTURA | Devuelve origen, consumos y destinos de reproceso de una partida; rol CONSULTA (T-024). |
 | `apiListarExclusiones` | `src/Código.js` | LECTURA | Lista clientes excluidos y nombres comerciales fuera; rol CONSULTA (T-031). |
+| `apiListarEquivalencias` | `src/Código.js` | LECTURA | Lista las equivalencias de nombre de artículo para recepciones; rol CONSULTA (T-032). |
 | `apiConfirmarDocumentoRevisado` | `src/Código.js` | ESCRITURA | Confirma un documento revisado; usuario del servidor. |
 | `apiGetMaestroArticulos` | `src/Código.js` | LECTURA | Catálogo maestro de artículos. |
 | `apiGetMaestroEnvases` | `src/Código.js` | LECTURA | Catálogo maestro de envases. |
@@ -130,6 +131,8 @@ no las expone.
 | `setSpreadsheetIdConfig` | `src/Config.js` | ADMIN | Persiste el SPREADSHEET_ID. |
 | `getDriveFolderIdConfig` | `src/Config.js` | INTERNA | Lee el DRIVE_FOLDER_ID configurado. |
 | `setDriveFolderIdConfig` | `src/Config.js` | ADMIN | Persiste el DRIVE_FOLDER_ID. |
+| `getFuenteEntradasConfig` | `src/Config.js` | INTERNA | Lee la fuente de entradas (COMPRAS o RECEPCIONES); sin propiedad devuelve COMPRAS (T-032). |
+| `setFuenteEntradasConfig` | `src/Config.js` | INTERNA | Persiste FUENTE_ENTRADAS; la usa `adminConfigurarFuenteEntradas` (T-032). |
 | `resolveDatabaseSpreadsheet` | `src/Config.js` | INTERNA | Resuelve la hoja de cálculo de trabajo. |
 | `normalizeCommercialText` | `src/CommercialGroupResolver.js` | INTERNA | Normaliza texto comercial. |
 | `extraerCalibreYCategoria` | `src/CalibreCategoria.js` | INTERNA | Extrae calibre y categoría de un artículo. |
@@ -208,6 +211,8 @@ no las expone.
 | `adminConfigurarParte` | `src/Código.js` | ADMIN | Guarda los destinatarios y la hora del parte diario en ScriptProperties (T-029). |
 | `adminConfigurarClientesExcluidos` | `src/Exclusiones.js` | ADMIN | Añade patrones de clientes cuyas ventas no pasan por el almacén; idempotente (T-031). |
 | `adminConfigurarArticulosFuera` | `src/Exclusiones.js` | ADMIN | Crea o actualiza reglas de seguimiento NO para nombres comerciales fuera; idempotente (T-031). |
+| `adminConfigurarEquivalencias` | `src/Equivalencias.js` | ADMIN | Añade o actualiza equivalencias descripción de recepción → nombre de artículo; idempotente (T-032). |
+| `adminConfigurarFuenteEntradas` | `src/Código.js` | ADMIN | Cambia FUENTE_ENTRADAS entre COMPRAS y RECEPCIONES (T-032). |
 | `adminInstalarParteDiario` | `src/Código.js` | ADMIN | Instala o reinstala el disparador diario del parte a la hora configurada, en Europe/Madrid (T-029). |
 | `adminEnviarParteAhora` | `src/Código.js` | ADMIN | Envía el parte ahora por correo para probarlo desde el editor (T-029). |
 | `adminInstalarStockLight` | `src/Instalacion.js` | ADMIN | Puesta en marcha idempotente: provisiona hojas, siembra el catálogo si está vacío, instala la copia diaria y crea el primer ADMIN (T-011). |

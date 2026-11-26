@@ -9,14 +9,33 @@
 const CONFIG_KEYS = {
   SPREADSHEET_ID: 'SPREADSHEET_ID',
   DRIVE_FOLDER_ID: 'DRIVE_FOLDER_ID',
-  APP_ENV: 'APP_ENV'
+  APP_ENV: 'APP_ENV',
+  FUENTE_ENTRADAS: 'FUENTE_ENTRADAS'
 };
 
 // Prefijos ERP que cuentan para la importación de entradas y salidas (D-002).
-const PREFIJOS_SERIES_IMPORTACION = Object.freeze({
+const PREFIJOS_SERIES_IMPORTACION = {
   prefijosEntrada: Object.freeze(['ACT', 'NT']),
   prefijosSalida: Object.freeze(['AVT'])
+};
+// Lista propia de recepciones (T-032). No es enumerable para no cambiar el
+// contrato histórico de PREFIJOS_SERIES_IMPORTACION que usan las pruebas T-006B.
+Object.defineProperty(PREFIJOS_SERIES_IMPORTACION, 'prefijosRecepciones', {
+  value: Object.freeze(['REC', 'NT', 'RNT']),
+  enumerable: false,
+  configurable: false,
+  writable: false
 });
+Object.freeze(PREFIJOS_SERIES_IMPORTACION);
+
+const FUENTE_ENTRADAS = Object.freeze({
+  COMPRAS: 'COMPRAS',
+  RECEPCIONES: 'RECEPCIONES'
+});
+// Compatibilidad: las instalaciones antiguas no tienen la propiedad y siguen
+// importando COMPRAS. Las instalaciones nuevas deben fijar RECEPCIONES en el
+// paso de puesta en marcha.
+const FUENTE_ENTRADAS_POR_DEFECTO = FUENTE_ENTRADAS.COMPRAS;
 
 // Número máximo de documentos aplicables por tramo en una importación en lote (T-007).
 const UMBRAL_DOCUMENTOS_POR_TRAMO = 150;
@@ -198,11 +217,62 @@ function resolveDatabaseSpreadsheet(options = {}) {
   }
 }
 
+function normalizarFuenteEntradas_(valor) {
+  const texto = String(valor === null || valor === undefined ? '' : valor).trim().toUpperCase();
+  if (texto === FUENTE_ENTRADAS.COMPRAS) return FUENTE_ENTRADAS.COMPRAS;
+  if (texto === FUENTE_ENTRADAS.RECEPCIONES) return FUENTE_ENTRADAS.RECEPCIONES;
+  throw new Error(`FUENTE_ENTRADAS debe ser ${FUENTE_ENTRADAS.COMPRAS} o ${FUENTE_ENTRADAS.RECEPCIONES}.`);
+}
+
+/**
+ * Devuelve de dónde se importan las entradas: COMPRAS o RECEPCIONES.
+ * Si no hay propiedad configurada se mantiene COMPRAS para no romper
+ * instalaciones anteriores; las nuevas deben fijar RECEPCIONES.
+ * @param {Object} [options]
+ * @returns {'COMPRAS'|'RECEPCIONES'}
+ */
+function getFuenteEntradasConfig(options = {}) {
+  if (options.fuenteEntradas !== undefined && options.fuenteEntradas !== null && String(options.fuenteEntradas).trim() !== '') {
+    return normalizarFuenteEntradas_(options.fuenteEntradas);
+  }
+  const propService = options.propertiesService
+    || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null);
+  if (propService && typeof propService.getProperty === 'function') {
+    const valor = propService.getProperty(CONFIG_KEYS.FUENTE_ENTRADAS);
+    if (valor !== null && valor !== undefined && String(valor).trim() !== '') {
+      return normalizarFuenteEntradas_(valor);
+    }
+  }
+  return FUENTE_ENTRADAS_POR_DEFECTO;
+}
+
+/**
+ * Guarda FUENTE_ENTRADAS en ScriptProperties.
+ * @param {'COMPRAS'|'RECEPCIONES'} fuente
+ * @param {Object} [options]
+ * @returns {boolean}
+ */
+function setFuenteEntradasConfig(fuente, options = {}) {
+  const normalizada = normalizarFuenteEntradas_(fuente);
+  const propService = options.propertiesService
+    || (typeof PropertiesService !== 'undefined' ? PropertiesService.getScriptProperties() : null);
+  if (!propService || typeof propService.setProperty !== 'function') {
+    throw new Error('PropertiesService no está disponible para guardar FUENTE_ENTRADAS.');
+  }
+  propService.setProperty(CONFIG_KEYS.FUENTE_ENTRADAS, normalizada);
+  return true;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CONFIG_KEYS,
     PREFIJOS_SERIES_IMPORTACION,
     UMBRAL_DOCUMENTOS_POR_TRAMO,
+    FUENTE_ENTRADAS,
+    FUENTE_ENTRADAS_POR_DEFECTO,
+    normalizarFuenteEntradas_,
+    getFuenteEntradasConfig,
+    setFuenteEntradasConfig,
     getSpreadsheetIdConfig,
     setSpreadsheetIdConfig,
     getDriveFolderIdConfig,

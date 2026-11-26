@@ -21,6 +21,16 @@ const CSV_HISPATEC_COLUMNAS = {
       'NroEnvases',
       'NombreEnvase'
     ]
+  },
+  RECEPCIONES: {
+    obligatorias: [
+      'Almacen',
+      'FechaRecepcion',
+      'Recepción',
+      'DescripcionArticulo',
+      'Envase',
+      'NroEnvases'
+    ]
   }
 };
 // En Node cada archivo es un módulo; Apps Script comparte las funciones globales.
@@ -90,6 +100,7 @@ function detectarTipo(textoCsv) {
   const columnas = columnasDeCabecera_(textoCsv);
   const faltanCompras = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.COMPRAS.obligatorias);
   let faltanVentas = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.VENTAS.obligatorias);
+  const faltanRecepciones = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.RECEPCIONES.obligatorias);
 
   // Los informes antiguos traen NroPalets y Palet juntos. Si falta Palet pero
   // sigue NroPalets en el formato antiguo (con columna Numero), el fichero está
@@ -105,11 +116,17 @@ function detectarTipo(textoCsv) {
     faltanVentas.push('Palet');
   }
 
+  if (faltanRecepciones.length === 0) return 'RECEPCIONES';
   if (faltanCompras.length === 0) return 'COMPRAS';
   if (faltanVentas.length === 0) return 'VENTAS';
 
-  const candidato = faltanCompras.length <= faltanVentas.length ? 'COMPRAS' : 'VENTAS';
-  const faltan = candidato === 'COMPRAS' ? faltanCompras : faltanVentas;
+  const candidatos = [
+    { tipo: 'RECEPCIONES', faltan: faltanRecepciones },
+    { tipo: 'COMPRAS', faltan: faltanCompras },
+    { tipo: 'VENTAS', faltan: faltanVentas }
+  ].sort((a, b) => a.faltan.length - b.faltan.length);
+  const candidato = candidatos[0].tipo;
+  const faltan = candidatos[0].faltan;
   if (candidato === 'VENTAS' && faltan.length === 1 && normalizarColumnaCsv_(faltan[0]) === normalizarColumnaCsv_('Palet')) {
     // Compatibilidad con el formato antiguo incompleto (T-006).
     throw new Error('Cabecera CSV de Hispatec no reconocida: falta la columna Palet.');
@@ -173,6 +190,7 @@ function parsear(textoCsv) {
   });
   const errores = [];
   const lineas = [];
+  let proveedorActual = null;
 
   function tieneColumna(columna) {
     return indices[normalizarColumnaCsv_(columna)] !== undefined;
@@ -210,6 +228,74 @@ function parsear(textoCsv) {
     const fila = registros[i];
     const filaCsv = i + 1;
     if (!fila || fila.every(valor => String(valor).trim() === '')) continue;
+
+    if (tipo === 'RECEPCIONES') {
+      // El proveedor viene en una fila de grupo anterior a sus líneas.
+      let proveedorFila = null;
+      for (const celda of fila) {
+        const texto = String(celda === null || celda === undefined ? '' : celda).trim();
+        const matchProveedor = /^NombreProveedor\s*:\s*(.*)$/i.exec(texto);
+        if (matchProveedor) {
+          proveedorFila = matchProveedor[1];
+          break;
+        }
+      }
+      if (proveedorFila !== null) {
+        proveedorActual = csvNormalizarNombre(proveedorFila) || null;
+        continue;
+      }
+
+      const fechaBruta = valorDe(fila, 'FechaRecepcion');
+      const recepcionBruta = valorDe(fila, 'Recepción');
+      const articuloBruto = valorDe(fila, 'DescripcionArticulo');
+      // Solo son datos las filas con fecha, recepción y artículo. Empresa,
+      // separadores, totales y filas finales se saltan.
+      if (!String(fechaBruta).trim() || !String(recepcionBruta).trim() || !String(articuloBruto).trim()) {
+        continue;
+      }
+
+      const matchRecepcion = /^\s*([^/\s]*)\s*\/\s*([^\s(]+)\s*\(\s*(\d+)\s*\)\s*$/.exec(recepcionBruta);
+      let serie = 'REC';
+      let numero = null;
+      let linea = null;
+      if (matchRecepcion) {
+        serie = String(matchRecepcion[1] || '').trim() || 'REC';
+        numero = matchRecepcion[2];
+        linea = Number(matchRecepcion[3]);
+      } else {
+        aviso(filaCsv, 'recepcion', recepcionBruta);
+      }
+
+      const entidad = proveedorActual ? csvNormalizarNombre(proveedorActual) : null;
+      const articulo = csvNormalizarNombre(articuloBruto) || null;
+      const envaseBruto = valorDe(fila, 'Envase');
+      const envase = csvNormalizarNombre(envaseBruto) || null;
+      const partida = String(valorDe(fila, 'Partida') || '').trim() || null;
+      if (!entidad) aviso(filaCsv, 'entidad', '');
+      if (!articulo) aviso(filaCsv, 'articulo', articuloBruto);
+      if (!envase) aviso(filaCsv, 'envase', envaseBruto);
+
+      const lineaRecepcion = {
+        tipoDoc: 'ENTRADA',
+        serie: serie || null,
+        numero: numero || null,
+        linea,
+        fecha: fechaDe(fila, 'FechaRecepcion', filaCsv),
+        entidad,
+        articulo,
+        envase,
+        cajas: numeroDe(fila, 'NroEnvases', filaCsv, 'cajas'),
+        unidades: null,
+        kg: numeroOpcionalDe(fila, 'Cantidad', filaCsv, 'kg'),
+        codigoEnvaseHispatec: null,
+        partida,
+        origenDato: 'CSV',
+        filaCsv
+      };
+      if (!entidad) lineaRecepcion.errorDatos = 'Proveedor no encontrado';
+      lineas.push(lineaRecepcion);
+      continue;
+    }
 
     let serie;
     let numero;

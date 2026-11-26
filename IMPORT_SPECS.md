@@ -133,6 +133,43 @@ Las dos configuraciones se hacen desde el editor con
 `adminConfigurarClientesExcluidos(...)` y `adminConfigurarArticulosFuera(...)`, que son
 idempotentes y exigen ser propietario del script.
 
+### 2.6. Informe de RECEPCIONES de Hispatec (T-032, D-040)
+
+Las entradas se importan del informe de **recepción física** de Hispatec, no del informe de
+compras. La cabecera real tiene dos columnas sin nombre y estas columnas útiles:
+
+```text
+Almacen;FechaRecepcion;CodigoProveedor;Referencia;Recepción;Asociación;
+DescripcionArticulo;Envase;NroEnvases;NroPalets;Numero;Partida;Cantidad;...
+```
+
+- Se reconoce como `RECEPCIONES` si están `Almacen`, `FechaRecepcion`, `Recepción`,
+  `DescripcionArticulo`, `Envase` y `NroEnvases`.
+- Una fila es de datos si tiene `FechaRecepcion`, `Recepción` y `DescripcionArticulo`.
+- El proveedor no es una columna: viene en la fila anterior `NombreProveedor: ...`. Una
+  línea sin proveedor anterior es `ERROR_DATOS`. Las filas de empresa, separadores y finales
+  se saltan.
+- De `Recepción` se obtiene: serie (lo anterior a `/`, o `REC` si está vacío), número (entre
+  `/` y el espacio) y línea (entre paréntesis). Ejemplos ficticios: `/11737 (1)` y
+  `RNT27/26 (2)`.
+- La fecha es `FechaRecepcion` (nunca `FechaCreacion`), la entidad es el proveedor, las
+  cajas son `NroEnvases`, los kg son `Cantidad`, el envase es `Envase` y la **partida** es
+  `Partida`. La partida llega hasta la capa FIFO.
+- Cuentan las series `REC`, `NT` y `RNT`; es una lista propia de recepciones y no cambia la
+  lista de ventas.
+- El artículo de `DescripcionArticulo` se normaliza (mayúsculas, espacios colapsados, sin
+  sufijo final `KG`, `UNID` o `UND`). Si hay una equivalencia activa en
+  `EQUIVALENCIAS_ARTICULO` se usa su `nombre_articulo`; si no, el nombre normalizado.
+  Las equivalencias son solo de nombre de artículo, **nunca de envase**.
+- Una línea seguida cuyo artículo no ha aparecido en ventas (CATALOGO o MOVIMIENTOS de
+  salida) lleva el aviso `SIN_PAREJA_EN_VENTAS` en la previsualización. No bloquea la
+  importación.
+
+**Fuente única de entradas.** La propiedad `FUENTE_ENTRADAS` vale `COMPRAS` o
+`RECEPCIONES`. Con `RECEPCIONES`, un CSV de COMPRAS se rechaza en la previsualización con
+«Las entradas se importan con el informe de recepciones». Se cambia con
+`adminConfigurarFuenteEntradas(...)`.
+
 ---
 
 ## 3. Catálogo de Campos Dudosos o Dependientes de Formato

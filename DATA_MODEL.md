@@ -495,6 +495,17 @@ Una línea de venta cuya entidad contiene un patrón activo recibe el estado
 `CLIENTE_EXCLUIDO`: no genera movimientos, no va a `PENDIENTES` y se cuenta aparte en
 `IMPORTACIONES.lineas_cliente_excluido`.
 
+### 3.14. Tabla: `EQUIVALENCIAS_ARTICULO` (T-032)
+Traducción de la descripción de artículo del informe de recepciones al nombre que usa el
+informe de ventas. Solo afecta al nombre del artículo; el envase no se transforma.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `descripcion` | `VARCHAR(300)` | NO | Descripción de recepción normalizada: mayúsculas, espacios colapsados y sin sufijo `KG`/`UNID`/`UND`. |
+| `nombre_articulo` | `VARCHAR(300)` | NO | Nombre de artículo de venta que se usará en la línea. |
+| `activo` | `BOOLEAN` | NO | Solo las equivalencias activas se aplican. |
+| `nota` | `VARCHAR(300)` | SÍ | Nota libre para el responsable. |
+
 ---
 
 ## 4. Reconciliación y Reconstrucción de Stock

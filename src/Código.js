@@ -45,6 +45,8 @@ if (typeof require !== 'undefined') {
   try { correccionMod = require('./CorreccionService'); } catch (e) {}
   let exclusionesMod = null;
   try { exclusionesMod = require('./Exclusiones'); } catch (e) {}
+  let equivalenciasMod = null;
+  try { equivalenciasMod = require('./Equivalencias'); } catch (e) {}
   let seguimientoMod = null;
   try { seguimientoMod = require('./SeguimientoService'); } catch (e) {}
 
@@ -79,6 +81,13 @@ if (typeof require !== 'undefined') {
     global.leerClientesExcluidos_ = global.leerClientesExcluidos_ || exclusionesMod.leerClientesExcluidos_;
     global.esClienteExcluido_ = global.esClienteExcluido_ || exclusionesMod.esClienteExcluido_;
   }
+  if (equivalenciasMod) {
+    global.adminConfigurarEquivalencias = global.adminConfigurarEquivalencias || equivalenciasMod.adminConfigurarEquivalencias;
+    global.listarEquivalencias_ = global.listarEquivalencias_ || equivalenciasMod.listarEquivalencias_;
+    global.leerEquivalencias_ = global.leerEquivalencias_ || equivalenciasMod.leerEquivalencias_;
+    global.mapaEquivalencias_ = global.mapaEquivalencias_ || equivalenciasMod.mapaEquivalencias_;
+    global.normalizarDescripcionEquivalencia_ = global.normalizarDescripcionEquivalencia_ || equivalenciasMod.normalizarDescripcionEquivalencia_;
+  }
   if (seguimientoMod) global.SeguimientoService = global.SeguimientoService || seguimientoMod.SeguimientoService;
   global.processMovement = engMod.processMovement;
   global.buildStockKey = engMod.buildStockKey;
@@ -89,6 +98,9 @@ if (typeof require !== 'undefined') {
   global.getSpreadsheetIdConfig = confMod.getSpreadsheetIdConfig;
   global.setDriveFolderIdConfig = confMod.setDriveFolderIdConfig;
   global.getDriveFolderIdConfig = confMod.getDriveFolderIdConfig;
+  global.getFuenteEntradasConfig = confMod.getFuenteEntradasConfig;
+  global.setFuenteEntradasConfig = confMod.setFuenteEntradasConfig;
+  global.normalizarFuenteEntradas_ = confMod.normalizarFuenteEntradas_;
   global.resolveDatabaseSpreadsheet = confMod.resolveDatabaseSpreadsheet;
   global.DriveService = driveMod.DriveService;
   global.StockQueryService = queryMod.StockQueryService;
@@ -417,6 +429,22 @@ function adminConfigurarParte(destinatarios, hora = 21, options = {}) {
   propService.setProperty('PARTE_DESTINATARIOS', lista.join(','));
   propService.setProperty('PARTE_HORA', String(horaNum));
   return { destinatarios: lista, hora: horaNum };
+}
+
+/**
+ * Cambia la fuente de entradas entre COMPRAS y RECEPCIONES (T-032).
+ * Reservada al propietario del script.
+ *
+ * @param {'COMPRAS'|'RECEPCIONES'} fuente
+ * @param {Object} [options]
+ * @returns {{ fuente: string, anterior: string }}
+ */
+function adminConfigurarFuenteEntradas(fuente, options = {}) {
+  exigirPropietario_(options && options.session);
+  const anterior = getFuenteEntradasConfig(options);
+  const normalizada = normalizarFuenteEntradas_(fuente);
+  setFuenteEntradasConfig(normalizada, options);
+  return { fuente: normalizada, anterior };
 }
 
 /**
@@ -2196,6 +2224,21 @@ function apiListarExclusiones(options = {}) {
   return listar(repo);
 }
 
+/**
+ * Lista las equivalencias de nombre de artículo para recepciones (T-032).
+ * Categoría: LECTURA (rol mínimo CONSULTA).
+ *
+ * @param {Object} [options={}]
+ * @returns {{ equivalencias: Array<Object> }}
+ */
+function apiListarEquivalencias(options = {}) {
+  exigirSesionApi_();
+  const repo = options.repository || new SheetsRepository();
+  const listar = typeof listarEquivalencias_ === 'function' ? listarEquivalencias_ : null;
+  if (!listar) throw new Error('listarEquivalencias_ no está disponible en este entorno de ejecución.');
+  return listar(repo);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     initDatabase,
@@ -2294,6 +2337,10 @@ if (typeof module !== 'undefined' && module.exports) {
     adminConfigurarArticulosFuera: (typeof adminConfigurarArticulosFuera !== 'undefined')
       ? adminConfigurarArticulosFuera
       : (exclusionesMod ? exclusionesMod.adminConfigurarArticulosFuera : null),
+    adminConfigurarEquivalencias: (typeof adminConfigurarEquivalencias !== 'undefined')
+      ? adminConfigurarEquivalencias
+      : (equivalenciasMod ? equivalenciasMod.adminConfigurarEquivalencias : null),
+    adminConfigurarFuenteEntradas,
     enviarParteDiario_: (typeof enviarParteDiario_ !== 'undefined')
       ? enviarParteDiario_
       : (parteMod ? parteMod.enviarParteDiario_ : null),
@@ -2307,6 +2354,7 @@ if (typeof module !== 'undefined' && module.exports) {
     apiObtenerParte,
     apiObtenerPartida,
     apiListarExclusiones,
+    apiListarEquivalencias,
     apiGetMaestroArticulos,
     apiGetMaestroEnvases,
     apiSubirYAnalizarPdf,

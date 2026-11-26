@@ -25,6 +25,9 @@ const IMPORTACIONES_NORMALIZACION_NODE = typeof module !== 'undefined' && module
 const IMPORTACIONES_EXCLUSIONES_NODE = typeof module !== 'undefined' && module.exports
   ? require('../Exclusiones')
   : null;
+const IMPORTACIONES_EQUIVALENCIAS_NODE = typeof module !== 'undefined' && module.exports
+  ? require('../Equivalencias')
+  : null;
 const IMPORTACIONES_CRYPTO_NODE = typeof module !== 'undefined' && module.exports
   ? require('crypto')
   : null;
@@ -78,6 +81,8 @@ class ImportacionService {
     this.umbralTramos = Number.isFinite(umbral) && umbral > 0 ? Math.floor(umbral) : 150;
     this.pendientesService = options.pendientesService || null;
     this.clientesExcluidos = options.clientesExcluidos !== undefined ? options.clientesExcluidos : null;
+    this.fuenteEntradas = options.fuenteEntradas !== undefined ? options.fuenteEntradas : null;
+    this.propertiesService = options.propertiesService || null;
   }
 
   _resolverPendientesService_() {
@@ -130,6 +135,55 @@ class ImportacionService {
     return String(texto === null || texto === undefined ? '' : texto).trim().replace(/\s+/g, ' ').toUpperCase();
   }
 
+  _fuenteEntradas_() {
+    const normalizarFn = (IMPORTACIONES_CONFIG_NODE && typeof IMPORTACIONES_CONFIG_NODE.normalizarFuenteEntradas_ === 'function')
+      ? IMPORTACIONES_CONFIG_NODE.normalizarFuenteEntradas_
+      : (typeof normalizarFuenteEntradas_ === 'function' ? normalizarFuenteEntradas_ : null);
+    if (this.fuenteEntradas !== null && this.fuenteEntradas !== undefined && String(this.fuenteEntradas).trim() !== '') {
+      return normalizarFn ? normalizarFn(this.fuenteEntradas) : String(this.fuenteEntradas).trim().toUpperCase();
+    }
+    const getter = (IMPORTACIONES_CONFIG_NODE && typeof IMPORTACIONES_CONFIG_NODE.getFuenteEntradasConfig === 'function')
+      ? IMPORTACIONES_CONFIG_NODE.getFuenteEntradasConfig
+      : (typeof getFuenteEntradasConfig === 'function' ? getFuenteEntradasConfig : null);
+    if (getter) return getter({ propertiesService: this.propertiesService });
+    return 'COMPRAS';
+  }
+
+  _normalizarArticulosRecepcion_(lineas) {
+    const leerFn = (IMPORTACIONES_EQUIVALENCIAS_NODE && typeof IMPORTACIONES_EQUIVALENCIAS_NODE.leerEquivalencias_ === 'function')
+      ? IMPORTACIONES_EQUIVALENCIAS_NODE.leerEquivalencias_
+      : (typeof leerEquivalencias_ === 'function' ? leerEquivalencias_ : null);
+    const normalizarDescripcion = (IMPORTACIONES_EQUIVALENCIAS_NODE && typeof IMPORTACIONES_EQUIVALENCIAS_NODE.normalizarDescripcionEquivalencia_ === 'function')
+      ? IMPORTACIONES_EQUIVALENCIAS_NODE.normalizarDescripcionEquivalencia_
+      : (typeof normalizarDescripcionEquivalencia_ === 'function' ? normalizarDescripcionEquivalencia_ : this._normalizar_.bind(this));
+    const mapa = new Map();
+    if (leerFn) {
+      for (const equivalencia of leerFn(this.repo)) {
+        if (equivalencia && equivalencia.descripcion && equivalencia.nombre_articulo) {
+          mapa.set(equivalencia.descripcion, equivalencia.nombre_articulo);
+        }
+      }
+    }
+    for (const linea of lineas) {
+      const descripcion = normalizarDescripcion(linea.articulo);
+      linea.articulo = mapa.get(descripcion) || descripcion || null;
+    }
+  }
+
+  _articulosConVenta_() {
+    const articulos = new Set();
+    const catalogo = this.repo && typeof this.repo.getCatalogo === 'function' ? this.repo.getCatalogo() : [];
+    for (const fila of catalogo) {
+      if (fila && fila.articulo) articulos.add(this._normalizar_(fila.articulo));
+    }
+    const movimientos = this.repo && typeof this.repo.getMovimientos === 'function' ? this.repo.getMovimientos() : [];
+    for (const movimiento of movimientos) {
+      if (String(movimiento.tipo_movimiento || '').toUpperCase() !== 'SALIDA') continue;
+      if (movimiento.codigo_articulo) articulos.add(this._normalizar_(movimiento.codigo_articulo));
+    }
+    return articulos;
+  }
+
   _parsear_(texto) {
     if (IMPORTACIONES_PARSER_NODE && typeof IMPORTACIONES_PARSER_NODE.parsear === 'function') {
       return IMPORTACIONES_PARSER_NODE.parsear(texto);
@@ -138,14 +192,17 @@ class ImportacionService {
     throw new Error('El parser CSV de Hispatec no está disponible');
   }
 
-  _clasificar_(lineas) {
+  _clasificar_(lineas, tipo) {
     const clasificarFn = (IMPORTACIONES_CLASIFICADOR_NODE && typeof IMPORTACIONES_CLASIFICADOR_NODE.clasificar === 'function')
       ? IMPORTACIONES_CLASIFICADOR_NODE.clasificar
       : (typeof clasificar === 'function' ? clasificar : null);
     if (!clasificarFn) throw new Error('El clasificador de líneas no está disponible');
-    const prefijos = (IMPORTACIONES_CONFIG_NODE && IMPORTACIONES_CONFIG_NODE.PREFIJOS_SERIES_IMPORTACION)
+    const prefijosBase = (IMPORTACIONES_CONFIG_NODE && IMPORTACIONES_CONFIG_NODE.PREFIJOS_SERIES_IMPORTACION)
       ? IMPORTACIONES_CONFIG_NODE.PREFIJOS_SERIES_IMPORTACION
       : (typeof PREFIJOS_SERIES_IMPORTACION !== 'undefined' ? PREFIJOS_SERIES_IMPORTACION : undefined);
+    const prefijos = (tipo === 'RECEPCIONES' && prefijosBase && prefijosBase.prefijosRecepciones)
+      ? Object.assign({}, prefijosBase, { prefijosEntrada: prefijosBase.prefijosRecepciones })
+      : prefijosBase;
 
     let excluidos = this.clientesExcluidos;
     if (excluidos === null || excluidos === undefined) {
@@ -155,12 +212,28 @@ class ImportacionService {
       excluidos = leerFn ? leerFn(this.repo) : [];
     }
 
-    return clasificarFn(
+    const clasificadas = clasificarFn(
       lineas,
       prefijos,
       (articulo, envase) => this.catalogoService.esCombinacionSeguida(articulo, envase),
       excluidos
     );
+    if (tipo !== 'RECEPCIONES') return clasificadas;
+
+    const articulosConVenta = this._articulosConVenta_();
+    return clasificadas.map(linea => {
+      const conError = linea.errorDatos
+        ? Object.assign({}, linea, { estado: 'ERROR_DATOS', mensaje: linea.errorDatos })
+        : linea;
+      if (conError.estado !== 'OK') return conError;
+      const articulo = this._normalizar_(conError.articulo);
+      if (articulosConVenta.has(articulo)) return conError;
+      const avisos = Array.isArray(conError.avisos) ? conError.avisos.slice() : [];
+      if (!avisos.includes('SIN_PAREJA_EN_VENTAS')) avisos.push('SIN_PAREJA_EN_VENTAS');
+      const conAviso = Object.assign({}, conError, { avisos });
+      if (avisos.length === 1) conAviso.aviso = avisos[0];
+      return conAviso;
+    });
   }
 
   _agrupar_(lineasClasificadas) {
@@ -242,7 +315,11 @@ class ImportacionService {
    */
   _preparar_(textoCsv) {
     const parseado = this._parsear_(textoCsv);
-    const clasificadas = this._clasificar_(parseado.lineas);
+    if (parseado.tipo === 'COMPRAS' && this._fuenteEntradas_() === 'RECEPCIONES') {
+      throw new Error('Las entradas se importan con el informe de recepciones');
+    }
+    if (parseado.tipo === 'RECEPCIONES') this._normalizarArticulosRecepcion_(parseado.lineas);
+    const clasificadas = this._clasificar_(parseado.lineas, parseado.tipo);
     const documentos = this._agrupar_(clasificadas);
 
     const lineasPorClave = new Map();
@@ -372,6 +449,7 @@ class ImportacionService {
         envase: linea.envase || '',
         cajas: linea.cajas === undefined ? '' : linea.cajas,
         kg: linea.kg === undefined ? '' : linea.kg,
+        partida: linea.partida || '',
         estado,
         seguimiento: estado,
         origenDato: linea.origenDato || 'CSV'
@@ -509,7 +587,21 @@ class ImportacionService {
     }
   }
 
-  _resultadoDocumento_(documento, estado, existente) {    return {
+  _resultadoDocumento_(documento, estado, existente) {
+    const lineas = Array.isArray(documento.lineasTodas) ? documento.lineasTodas : [];
+    const avisos = [];
+    for (const linea of lineas) {
+      for (const tipo of (Array.isArray(linea.avisos) ? linea.avisos : [])) {
+        avisos.push({
+          tipo,
+          serie: documento.serie,
+          numero: documento.numero,
+          linea: linea.linea,
+          articulo: linea.articulo
+        });
+      }
+    }
+    return {
       clave: documento.clave,
       tipoDoc: documento.tipoDoc,
       serie: documento.serie,
@@ -518,7 +610,9 @@ class ImportacionService {
       estado,
       idDocumento: existente ? (existente.id_documento || '') : '',
       totalLineas: documento.totalLineas || 0,
-      resumen: documento.resumen
+      resumen: documento.resumen,
+      lineas,
+      avisos
     };
   }
 
@@ -578,6 +672,7 @@ class ImportacionService {
       sinLineas: resultados.filter(doc => doc.estado === 'SIN_LINEAS_APLICABLES').length,
       stockInsuficiente: resultados.filter(doc => doc.estado === 'STOCK_INSUFICIENTE').length
     };
+    const avisos = resultados.reduce((lista, doc) => lista.concat(doc.avisos || []), []);
 
     return {
       hash,
@@ -586,6 +681,7 @@ class ImportacionService {
       lineasClienteExcluido: Number(preparado.resumen.porEstado.CLIENTE_EXCLUIDO || 0),
       documentos: resultados,
       totales,
+      avisos,
       stockSimulado: { ...estado.stock }
     };
   }

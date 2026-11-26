@@ -90,7 +90,28 @@ Hazlo primero en DEV y repite después en PROD.
    `adminInstalarStockLight`. Si se vuelve a ejecutar sin cambios, `hecho` queda vacío y
    `yaEstaba` indica lo que ya estaba listo.
 
-6. **Crear el resto de usuarios** desde el editor, uno a uno:
+6. **Fuente de entradas y equivalencias.** En una instalación nueva, las entradas se
+   importan del **informe de RECEPCIONES** de Hispatec:
+
+   ```text
+   adminConfigurarFuenteEntradas('RECEPCIONES')
+   adminConfigurarEquivalencias([
+     ['TOMATE FICTICIO II KG', 'TOMATE FICTICIO II S/C'],
+     ['TOMATE FICTICIO III UNID', 'TOMATE FICTICIO III']
+   ])
+   ```
+
+   - `adminConfigurarFuenteEntradas` guarda `FUENTE_ENTRADAS` y exige ser propietario. Con
+     `RECEPCIONES`, el informe de compras se rechaza para no contar dos veces la entrada.
+     Con `COMPRAS` se mantiene el comportamiento anterior. Si una instalación anterior no
+     tiene la propiedad, sigue en `COMPRAS`; ejecuta la función para pasar a `RECEPCIONES`.
+   - `adminConfigurarEquivalencias` añade o actualiza la traducción de la descripción de
+     recepción al nombre que usa el informe de ventas. Es idempotente. Los ejemplos son
+     ficticios: los nombres reales se configuran en cada instalación y nunca se suben al
+     repositorio.
+   - `apiListarEquivalencias()` permite consultar la configuración (rol CONSULTA).
+
+7. **Crear el resto de usuarios** desde el editor, uno a uno:
 
    ```text
    crearUsuario('Nombre de la persona', 'CONSULTA')
@@ -103,12 +124,12 @@ Hazlo primero en DEV y repite después en PROD.
    pantalla de inicio del móvil de esa persona. El PIN se fija la primera vez que se abre
    el enlace.
 
-7. **Publicar la web app.** En el editor: *Implementar → Nueva implementación → Aplicación
+8. **Publicar la web app.** En el editor: *Implementar → Nueva implementación → Aplicación
    web*. Ejecutar como **el propietario** y acceso **cualquier persona con cuenta de
    Google** (la identidad real la da el enlace con PIN). Copia la URL de la implementación.
    El archivo `appsscript.json` ya lleva esa configuración.
 
-8. **Parte de la noche.** El parte se manda por correo como respaldo del texto que se copia
+9. **Parte de la noche.** El parte se manda por correo como respaldo del texto que se copia
    al canal. En el editor:
 
    ```text

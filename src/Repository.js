@@ -290,6 +290,13 @@ const SCHEMA_DEFINITIONS = {
     'fecha_alta',
     'usuario'
   ],
+  // Descripción de recepción → nombre de artículo de venta (T-032).
+  EQUIVALENCIAS_ARTICULO: [
+    'descripcion',
+    'nombre_articulo',
+    'activo',
+    'nota'
+  ],
   USUARIOS: [
     'id_usuario',
     'nombre',
