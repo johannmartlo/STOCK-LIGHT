@@ -96,6 +96,11 @@
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"></path></svg>
           Parte
         </button>
+        <button type="button" id="navCierre" class="sl-nav" data-solo-escritura="1">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16"></path><path d="M6 14l4 4 8-8"></path><circle cx="18" cy="6" r="2"></circle></svg>
+          Cierre del día
+          <span id="navCierreBadge" class="sl-nav-badge sl-hidden">0/6</span>
+        </button>
       </nav>
 
       <div class="sl-sidebar-footer">
@@ -135,6 +140,7 @@
       <?!= include_('ui/buscar') ?>
       <?!= include_('ui/parte') ?>
       <?!= include_('ui/cuadre') ?>
+      <?!= include_('ui/cierre') ?>
       <?!= include_('ui/cambiar') ?>
       <?!= include_('ui/destrio-ajuste') ?>
     </main>

@@ -72,6 +72,7 @@ const PERMISOS_API = {
   apiObtenerInicio: 'CONSULTA',
   apiObtenerParte: 'CONSULTA',
   apiObtenerCuadre: 'ENCARGADO',
+  apiObtenerCierre: 'ENCARGADO',
   apiObtenerPartida: 'CONSULTA',
   apiListarVersionesPendientes: 'CONSULTA',
   apiPrevisualizarVersion: 'ENCARGADO',
@@ -108,6 +109,7 @@ const PERMISOS_API = {
   apiAplicarVersion: 'ENCARGADO',
   apiAnularAjuste: 'ENCARGADO',
   apiConfirmarCuadreFamilia: 'ENCARGADO',
+  apiMarcarPasoCierre: 'ENCARGADO',
   apiDecidirSeguimiento: 'ENCARGADO',
   apiUpsertGrupoComercial: 'ENCARGADO',
   apiUpsertMatrizArticuloEnvase: 'ENCARGADO',
@@ -242,6 +244,18 @@ function usuarioActual_(session) {
   }
   const ses = session || (typeof Session !== 'undefined' ? Session : null);
   return _emailSesion_(ses, 'getActiveUser') || 'SIN_IDENTIFICAR';
+}
+
+/**
+ * Devuelve el rol del contexto actual, o '' si no hay contexto de sesión.
+ * Función interna: la usa apiObtenerInicio para decidir si incluye el resumen del cierre.
+ *
+ * @returns {string}
+ */
+function rolActual_() {
+  return _contextoUsuarioActual_ && _contextoUsuarioActual_.rol
+    ? String(_contextoUsuarioActual_.rol).trim().toUpperCase()
+    : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -1080,6 +1094,7 @@ if (typeof module !== 'undefined' && module.exports) {
     ejecutarConContexto_,
     conContextoDePrueba_,
     usuarioActual_,
+    rolActual_,
     rolAlcanza_,
     _leerUrlApp_,
     _validarUrlApp_,

@@ -43,6 +43,8 @@ if (typeof require !== 'undefined') {
   try { parteMod = require('./ParteService'); } catch (e) {}
   let cuadreMod = null;
   try { cuadreMod = require('./CuadreService'); } catch (e) {}
+  let cierreMod = null;
+  try { cierreMod = require('./CierreService'); } catch (e) {}
   let correccionMod = null;
   try { correccionMod = require('./CorreccionService'); } catch (e) {}
   let exclusionesMod = null;
@@ -78,6 +80,7 @@ if (typeof require !== 'undefined') {
     global.normalizarDestinatariosParte_ = global.normalizarDestinatariosParte_ || parteMod.normalizarDestinatariosParte_;
   }
   if (cuadreMod) global.CuadreService = global.CuadreService || cuadreMod.CuadreService;
+  if (cierreMod) global.CierreService = global.CierreService || cierreMod.CierreService;
   if (correccionMod) global.CorreccionService = global.CorreccionService || correccionMod.CorreccionService;
   if (exclusionesMod) {
     global.adminConfigurarClientesExcluidos = global.adminConfigurarClientesExcluidos || exclusionesMod.adminConfigurarClientesExcluidos;
@@ -117,6 +120,7 @@ if (typeof require !== 'undefined') {
   global.StockQueryService = queryMod.StockQueryService;
   global.exigirPropietario_ = segMod.exigirPropietario_;
   global.usuarioActual_ = segMod.usuarioActual_;
+  global.rolActual_ = segMod.rolActual_;
   global.exigirSesionApi_ = segMod.exigirSesionApi_;
   global.ejecutarConContexto_ = segMod.ejecutarConContexto_;
   global.conContextoDePrueba_ = segMod.conContextoDePrueba_;
@@ -2413,7 +2417,10 @@ function _resolveParteService_(options = {}) {
 function apiObtenerInicio(options = {}) {
   exigirSesionApi_();
   const service = _resolveInicioService_(options);
-  return service.obtenerInicio(options);
+  const puedeVerCierre = typeof rolAlcanza_ === 'function'
+    && typeof rolActual_ === 'function'
+    && rolAlcanza_(rolActual_(), 'ENCARGADO');
+  return service.obtenerInicio(Object.assign({}, options, { incluirCierre: puedeVerCierre }));
 }
 
 /**
@@ -2468,6 +2475,59 @@ function apiConfirmarCuadreFamilia(params, options = {}) {
 }
 
 /**
+ * Resuelve el servicio del cierre del día (T-043).
+ * Función interna: no se expone en docs/API_PUBLICA.md.
+ * @param {Object} [options]
+ * @returns {CierreService}
+ */
+function _resolveCierreService_(options = {}) {
+  if (options && options.cierreService) return options.cierreService;
+  const SvcClass = (typeof CierreService !== 'undefined')
+    ? CierreService
+    : (typeof require !== 'undefined' ? require('./CierreService').CierreService : null);
+  if (!SvcClass) throw new Error('CierreService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || (typeof SheetsRepository !== 'undefined'
+    ? new SheetsRepository()
+    : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
+  return new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    cuadreService: options.cuadreService,
+    configCatalogo: options.configCatalogo,
+    lockService: options.lockService,
+    reloj: options.reloj !== undefined ? options.reloj : options.clock
+  });
+}
+
+/**
+ * Devuelve el estado del cierre del día (T-043).
+ * Categoría: LECTURA (rol mínimo ENCARGADO).
+ *
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiObtenerCierre(options = {}) {
+  exigirSesionApi_();
+  return _resolveCierreService_(options).obtenerCierre(options && options.fecha);
+}
+
+/**
+ * Marca a mano un paso del cierre del día (T-043).
+ * Categoría: ESCRITURA (rol mínimo ENCARGADO). El usuario lo decide el servidor.
+ *
+ * @param {string} clave
+ * @param {string} estado
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiMarcarPasoCierre(clave, estado, options = {}) {
+  exigirSesionApi_();
+  const user = usuarioActual_(options && options.session);
+  return _resolveCierreService_(options).marcarPaso(options && options.fecha, clave, estado, user);
+}
+
+/**
  * Devuelve el parte de stock de la noche (T-029).
  * Categoría: LECTURA (rol mínimo CONSULTA).
  *
@@ -2477,7 +2537,10 @@ function apiConfirmarCuadreFamilia(params, options = {}) {
 function apiObtenerParte(options = {}) {
   exigirSesionApi_();
   const service = _resolveParteService_(options);
-  return service.generarParte(options);
+  const puedeVerCierre = typeof rolAlcanza_ === 'function'
+    && typeof rolActual_ === 'function'
+    && rolAlcanza_(rolActual_(), 'ENCARGADO');
+  return service.generarParte(Object.assign({}, options, { incluirCierre: puedeVerCierre }));
 }
 
 /**
@@ -2646,6 +2709,8 @@ if (typeof module !== 'undefined' && module.exports) {
     apiObtenerParte,
     apiObtenerCuadre,
     apiConfirmarCuadreFamilia,
+    apiObtenerCierre,
+    apiMarcarPasoCierre,
     apiObtenerPartida,
     apiListarExclusiones,
     apiListarEquivalencias,

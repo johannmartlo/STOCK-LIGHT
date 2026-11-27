@@ -504,6 +504,21 @@ Cabecera de cada familia confirmada en el cuadre de la noche. Es una hoja de **s
 
 La clave de idempotencia es `(id_cuadre, familia)`: repetir la confirmación devuelve el resultado guardado y no crea ajustes nuevos.
 
+### 3.14. Tabla: `CIERRE_DIA` (T-043)
+Marcas manuales del cierre del día. Es una hoja de **solo añadir**; la última fila de cada `(fecha, paso)` manda.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `fecha` | `DATE` | NO | Día del cierre (`YYYY-MM-DD`, Europe/Madrid). |
+| `paso` | `VARCHAR(20)` | NO | `recepciones` (solo SALTADO), `cambios` (solo HECHO) o `parte` (solo HECHO). |
+| `estado` | `VARCHAR(20)` | NO | `SALTADO` o `HECHO`. |
+| `usuario` | `VARCHAR(100)` | NO | Usuario del servidor que hace la marca. |
+| `hora` | `VARCHAR(5)` | NO | Hora de la marca en `HH:mm` (Europe/Madrid). |
+| `nota` | `VARCHAR(250)` | SÍ | Texto libre; vacío en las marcas actuales. |
+
+Los pasos 2, 4 y 5 son automáticos y no admiten fila manual. El paso 6 también se marca solo cuando el parte sale por correo o se copia su texto.
+
+
 
 `crearCopiaSeguridad_(motivo)` es la única función que crea copias y registra el resultado
 en `LOG_OPERACIONES`. La restauración se describe en `docs/RESTAURAR_COPIA.md`.

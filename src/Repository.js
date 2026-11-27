@@ -309,6 +309,15 @@ const SCHEMA_DEFINITIONS = {
     'cajas_diferencia',
     'ids_ajustes'
   ],
+  // Marcas manuales del cierre del día (T-043). Solo añadir.
+  CIERRE_DIA: [
+    'fecha',
+    'paso',
+    'estado',
+    'usuario',
+    'hora',
+    'nota'
+  ],
   USUARIOS: [
     'id_usuario',
     'nombre',
@@ -1318,6 +1327,30 @@ class SheetsRepository {
     const lista = Array.isArray(registro) ? registro : [registro];
     if (lista.length === 0) return 0;
     return this.appendRecords('CUADRES', lista);
+  }
+
+  /**
+   * Lee las marcas manuales del cierre del día (T-043).
+   * Si la hoja aún no existe (bases anteriores a T-043), devuelve [].
+   *
+   * @returns {Array<Object>}
+   */
+  getCierreDia() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('CIERRE_DIA')) return [];
+    return this.readTable('CIERRE_DIA');
+  }
+
+  /**
+   * Añade una marca manual a CIERRE_DIA (T-043). La hoja es de solo añadir.
+   *
+   * @param {Object} registro
+   * @returns {number}
+   */
+  appendCierreDia(registro) {
+    const lista = Array.isArray(registro) ? registro : [registro];
+    if (lista.length === 0) return 0;
+    return this.appendRecords('CIERRE_DIA', lista);
   }
 
   /**

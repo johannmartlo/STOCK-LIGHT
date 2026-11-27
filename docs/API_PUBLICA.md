@@ -107,10 +107,12 @@ no las expone.
 | `apiAnularAjuste` | `src/Código.js` | ESCRITURA | Anula un ajuste o destrío; usuario del servidor (T-027). |
 | `planificarReproceso` | `src/Reproceso.js` | INTERNA | Valida y planifica movimientos de un reproceso (función pura, T-009). |
 | `doGet` | `src/Código.js` | LECTURA | Punto de entrada HTTP que sirve la interfaz. Sin sesión por diseño. |
-| `apiObtenerInicio` | `src/Código.js` | LECTURA | Devuelve existencias, serie de 30 días, variedades, pendientes, destrío, importado hasta y últimos movimientos; rol CONSULTA (T-024). |
+| `apiObtenerInicio` | `src/Código.js` | LECTURA | Devuelve existencias, serie de 30 días, variedades, pendientes, destrío, importado hasta, últimos movimientos, hora del último movimiento y, para ENCARGADO, el resumen del cierre; rol CONSULTA (T-024, T-043). |
 | `apiObtenerParte` | `src/Código.js` | LECTURA | Devuelve `{ fecha, hora, texto, html, datos }` del parte de stock de la noche; rol CONSULTA (T-029). |
 | `apiObtenerCuadre` | `src/Código.js` | LECTURA | Devuelve `{ generado_en, id_cuadre, familias }` del cuadre de la noche, con las cajas que debería haber y el último cuadre de cada familia; rol ENCARGADO (T-040). |
 | `apiConfirmarCuadreFamilia` | `src/Código.js` | ESCRITURA | Confirma el recuento de una familia, crea ajustes `RECUENTO` por diferencia y guarda la fila de CUADRES; usuario del servidor; rol ENCARGADO (T-040). |
+| `apiObtenerCierre` | `src/Código.js` | LECTURA | Devuelve el estado de los seis pasos del cierre del día, las tareas apuntadas y los avisos de orden; rol ENCARGADO (T-043). |
+| `apiMarcarPasoCierre` | `src/Código.js` | ESCRITURA | Marca a mano un paso del cierre (recepciones saltado, cambios hecho o parte hecho); usuario del servidor; rol ENCARGADO (T-043). |
 | `apiObtenerPartida` | `src/Código.js` | LECTURA | Devuelve origen, consumos y destinos de reproceso de una partida; rol CONSULTA (T-024). |
 | `apiListarExclusiones` | `src/Código.js` | LECTURA | Lista clientes excluidos y nombres comerciales fuera; rol CONSULTA (T-031). |
 | `apiListarEquivalencias` | `src/Código.js` | LECTURA | Lista las equivalencias de nombre de artículo para recepciones; rol CONSULTA (T-032). |

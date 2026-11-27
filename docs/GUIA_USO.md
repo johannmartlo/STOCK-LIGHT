@@ -13,7 +13,7 @@ Esta guía explica lo que se hace cada día en Stock Light. Está pensada para e
 
 ## 2. Cada mañana (administrativo, ordenador)
 
-1. En Hispatec, exporta el informe de **RECEPCIONES** (no el de entradas o compras) y el de **ventas** del día anterior. No los abras ni los cambies: se importan tal cual.
+1. En Hispatec, exporta el informe de **RECEPCIONES** (no el de entradas o compras) **del día** y el de **ventas de hoy a mañana**: los albaranes de Eroski llevan fecha del día siguiente y la app salta lo que ya está importado. No los abras ni los cambies: se importan tal cual. El responsable deja el CSV de ventas **depurado de ventas de otros almacenes** antes de pasarlo.
 2. En Stock Light, entra en **Importar**. Arrastra los dos archivos a la vez o pulsa **Elegir archivos CSV**.
 3. La app pone sola las recepciones antes que las ventas. Espera a que termine de leerlos y revisa la vista previa.
 4. Si todo tiene sentido, pulsa **Confirmar importación**. Si te has equivocado de archivo, pulsa **Limpiar** y vuelve a empezar.
@@ -101,7 +101,19 @@ En **Pendientes** hay tres bloques:
 
 ![Ajuste de stock con motivo Recuento](guia/09-ajuste-390.png)
 
-## Recordatorios rápidos
+## 10. Cierre del día guiado
+
+La tarjeta **Cierre del día · N de 6 · Siguiente: …** de Existencias y la entrada **Cierre del día** del menú abren la pantalla de cierre. Son seis pasos, en orden:
+
+1. **Importar recepciones.** Se marca solo si hay una importación de recepciones confirmada hoy. Si hoy no hubo entradas, pulsa **Hoy no hubo entradas**.
+2. **Importar ventas.** Igual, con el CSV de ventas.
+3. **Cambios de confección y destrío del día.** Apunta los destríos y cambios en **Cambiar** o **Destrío**. Cuando estén todos, pulsa **Está todo apuntado**.
+4. **Revisar pendientes.** No debe quedar ningún pendiente abierto. Si hay un albarán en espera, el panel dice qué artículo falta y cuántas cajas; suele resolverse apuntando el cambio de confección. El albarán entero espera, también sus líneas con stock.
+5. **Cuadre de la noche.** Cuenta artículo por artículo en cada familia y confirma todas. Si llegas aquí con cambios o pendientes sin hacer, la app avisa: el cuadre saldría falso.
+6. **Enviar el parte.** Copia el texto del parte o espera al correo de las 21:00.
+
+El contador del menú se actualiza solo. Si un dato cambia (por ejemplo, entra un pendiente nuevo), el paso vuelve a **Pendiente**. Los pasos automáticos no se marcan a mano; solo se marcan **Hoy no hubo entradas**, **Está todo apuntado** y el envío del parte.
+
 
 - Las recepciones y las ventas se importan juntas; la app pone el orden.
 - Un albarán no se borra: se corrige en Hispatec y se aplica la versión nueva.

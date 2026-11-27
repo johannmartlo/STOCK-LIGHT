@@ -1,0 +1,568 @@
+<section id="viewCierre" class="sl-page-wrap sl-cierre-page sl-hidden" aria-label="Cierre del día">
+  <header class="sl-cierre-cabecera">
+    <button type="button" id="btnCerrarCierre" class="sl-icon-btn" aria-label="Volver a existencias">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+    </button>
+    <div class="sl-cierre-cabecera-texto">
+      <h1 class="sl-page-title">Cierre del día</h1>
+      <p class="sl-page-sub">Seis pasos, en orden, para dejar el stock y el parte listos.</p>
+    </div>
+    <div class="sl-cierre-progreso-wrap">
+      <span id="cierreProgresoTexto" class="sl-cierre-progreso-texto">0 de 6</span>
+      <div id="cierreProgreso" class="sl-cierre-progreso" role="progressbar" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0" aria-label="Progreso del cierre">
+        <span class="sl-cierre-progreso-seg" data-cierre-seg="1"></span>
+        <span class="sl-cierre-progreso-seg" data-cierre-seg="2"></span>
+        <span class="sl-cierre-progreso-seg" data-cierre-seg="3"></span>
+        <span class="sl-cierre-progreso-seg" data-cierre-seg="4"></span>
+        <span class="sl-cierre-progreso-seg" data-cierre-seg="5"></span>
+        <span class="sl-cierre-progreso-seg" data-cierre-seg="6"></span>
+      </div>
+    </div>
+  </header>
+
+  <div id="cierreError" class="sl-cierre-error sl-hidden" role="alert"></div>
+  <div id="cierreCargando" class="sl-cierre-cargando" aria-busy="true">Cargando el cierre…</div>
+
+  <div id="cierreContenido" class="sl-cierre-contenido sl-hidden">
+    <section aria-labelledby="cierreDuranteTitulo">
+      <h2 id="cierreDuranteTitulo" class="sl-cierre-titulo-seccion">Durante el día</h2>
+      <div class="sl-cierre-tareas">
+        <article class="sl-cierre-tarea">
+          <div class="sl-cierre-tarea-cabecera">
+            <span class="sl-cierre-tarea-titulo">Destríos</span>
+            <span id="cierreDestriosCajas" class="sl-cierre-tarea-num">0 cj</span>
+          </div>
+          <p id="cierreDestriosDetalle" class="sl-cierre-tarea-detalle">Sin destríos apuntados hoy.</p>
+          <button type="button" id="btnCierreDestrio" class="sl-ghost">Apuntar destrío</button>
+        </article>
+        <article class="sl-cierre-tarea">
+          <div class="sl-cierre-tarea-cabecera">
+            <span class="sl-cierre-tarea-titulo">Cambios de confección</span>
+            <span id="cierreCambiosCajas" class="sl-cierre-tarea-num">0 cj</span>
+          </div>
+          <p id="cierreCambiosDetalle" class="sl-cierre-tarea-detalle">Sin cambios apuntados hoy.</p>
+          <button type="button" id="btnCierreCambiar" class="sl-ghost">Abrir Cambiar</button>
+        </article>
+      </div>
+    </section>
+
+    <div class="sl-cierre-layout">
+      <ol id="cierrePasos" class="sl-cierre-pasos" aria-label="Pasos del cierre"></ol>
+      <section id="cierrePanel" class="sl-cierre-panel" aria-live="polite" aria-label="Detalle del paso">
+        <p class="sl-cierre-panel-kicker">Paso</p>
+        <h2 id="cierrePanelTitulo" class="sl-cierre-panel-titulo">—</h2>
+      </section>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    'use strict';
+
+    var TEXTOS = {
+      recepciones: {
+        que: 'Importa el CSV de recepciones de hoy. Si hoy no hubo entradas, márcalo con «Hoy no hubo entradas».',
+        porque: 'Sin las recepciones del día, el stock no refleja lo que entró en cámara.'
+      },
+      ventas: {
+        que: 'Importa el CSV de ventas de hoy. Los albaranes pueden traer fecha de mañana; la app salta lo que ya está importado.',
+        porque: 'Sin las ventas, el stock no refleja lo que salió ni lo que falta.'
+      },
+      cambios: {
+        que: 'Apunta los destríos y los cambios de confección de hoy. Cuando estén todos, pulsa «Está todo apuntado».',
+        porque: 'El destrío y los cambios se apuntan sobre el stock que hay. Si faltan, el cuadre sale falso.'
+      },
+      pendientes: {
+        que: 'Revisa los pendientes. Un albarán en espera no ha movido stock: espera entero, también sus líneas con stock.',
+        porque: 'Si queda un albarán en espera, el stock no está completo y el cuadre no puede cuadrar.'
+      },
+      cuadre: {
+        que: 'Cuenta artículo por artículo dentro de cada familia y confirma todas las familias.',
+        porque: 'El cuadre deja el stock listo para mañana y deja registrado qué se contó, cuándo y quién.'
+      },
+      parte: {
+        que: 'Copia el texto del parte o espera al correo de las 21:00.',
+        porque: 'El parte es el resumen que recibe el canal; sin él, el cierre no está comunicado.'
+      }
+    };
+
+    var ESTADOS = {
+      HECHO: 'Hecho',
+      SALTADO: 'Saltado',
+      PENDIENTE: 'Pendiente'
+    };
+
+    var estado = {
+      datos: null,
+      seleccionado: 1,
+      cargando: false
+    };
+
+    function el(id) {
+      return typeof document === 'undefined' ? null : document.getElementById(id);
+    }
+
+    function esc(valor) {
+      if (valor === null || valor === undefined) return '';
+      return String(valor)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function nombreLegible(texto) {
+      if (texto === null || texto === undefined) return '';
+      if (typeof window !== 'undefined' && window.SLApp && typeof window.SLApp.nombreLegible === 'function') {
+        return window.SLApp.nombreLegible(texto);
+      }
+      return String(texto).replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function fmtCajas(valor) {
+      return String(Math.round(Number(valor) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' cj';
+    }
+
+    function pasoPorClave(clave) {
+      if (!estado.datos || !Array.isArray(estado.datos.pasos)) return null;
+      return estado.datos.pasos.find(function (paso) { return paso.clave === clave; }) || null;
+    }
+
+    function pasoSeleccionado() {
+      if (!estado.datos || !Array.isArray(estado.datos.pasos)) return null;
+      return estado.datos.pasos.find(function (paso) { return Number(paso.n) === Number(estado.seleccionado); })
+        || estado.datos.pasos[0]
+        || null;
+    }
+
+    function mostrarError(mensaje) {
+      var caja = el('cierreError');
+      if (!caja) return;
+      caja.textContent = mensaje || 'No se pudo cargar el cierre.';
+      caja.classList.remove('sl-hidden');
+    }
+
+    function ocultarError() {
+      var caja = el('cierreError');
+      if (caja) caja.classList.add('sl-hidden');
+    }
+
+    function renderProgreso() {
+      var hechos = Number(estado.datos && estado.datos.hechos || 0);
+      var texto = el('cierreProgresoTexto');
+      if (texto) texto.textContent = hechos + ' de 6';
+      var barra = el('cierreProgreso');
+      if (barra) barra.setAttribute('aria-valuenow', String(hechos));
+      if (!estado.datos || !Array.isArray(estado.datos.pasos)) return;
+      for (var indice = 1; indice <= 6; indice++) {
+        var seg = document.querySelector('[data-cierre-seg="' + indice + '"]');
+        if (!seg) continue;
+        seg.classList.remove('is-hecho', 'is-saltado');
+        var paso = estado.datos.pasos[indice - 1];
+        if (indice <= hechos && paso) {
+          if (paso.estado === 'SALTADO') seg.classList.add('is-saltado');
+          else seg.classList.add('is-hecho');
+        }
+      }
+    }
+
+    function renderTareas() {
+      var tareas = estado.datos && estado.datos.tareas_dia ? estado.datos.tareas_dia : {};
+      var destrios = tareas.destrios || { apuntes: 0, cajas: 0, ultima_hora: '' };
+      var cambios = tareas.cambios || { apuntes: 0, cajas: 0, ultima_hora: '' };
+      var destriosCajas = el('cierreDestriosCajas');
+      var destriosDetalle = el('cierreDestriosDetalle');
+      var cambiosCajas = el('cierreCambiosCajas');
+      var cambiosDetalle = el('cierreCambiosDetalle');
+      if (destriosCajas) destriosCajas.textContent = fmtCajas(destrios.cajas);
+      if (cambiosCajas) cambiosCajas.textContent = fmtCajas(cambios.cajas);
+      if (destriosDetalle) {
+        destriosDetalle.textContent = Number(destrios.apuntes) > 0
+          ? destrios.apuntes + (Number(destrios.apuntes) === 1 ? ' apunte' : ' apuntes') + (destrios.ultima_hora ? ' · última ' + destrios.ultima_hora : '')
+          : 'Sin destríos apuntados hoy.';
+      }
+      if (cambiosDetalle) {
+        cambiosDetalle.textContent = Number(cambios.apuntes) > 0
+          ? cambios.apuntes + (Number(cambios.apuntes) === 1 ? ' cambio' : ' cambios') + (cambios.ultima_hora ? ' · última ' + cambios.ultima_hora : '')
+          : 'Sin cambios apuntados hoy.';
+      }
+    }
+
+    function renderListaPasos() {
+      var lista = el('cierrePasos');
+      if (!lista || !estado.datos || !Array.isArray(estado.datos.pasos)) return;
+      lista.innerHTML = estado.datos.pasos.map(function (paso) {
+        var estadoClase = String(paso.estado || 'PENDIENTE').toLowerCase();
+        var seleccionado = Number(paso.n) === Number(estado.seleccionado);
+        var marca = paso.estado === 'HECHO' ? '✓' : (paso.estado === 'SALTADO' ? '↷' : '·');
+        return (
+          '<li>' +
+          '<button type="button" class="sl-cierre-paso sl-cierre-paso-' + esc(estadoClase) + (seleccionado ? ' is-seleccionado' : '') + '" data-cierre-paso="' + esc(paso.n) + '" aria-pressed="' + (seleccionado ? 'true' : 'false') + '">' +
+          '<span class="sl-cierre-paso-num" aria-hidden="true">' + esc(paso.n) + '</span>' +
+          '<span class="sl-cierre-paso-texto">' +
+          '<span class="sl-cierre-paso-titulo">' + esc(paso.titulo) + '</span>' +
+          '<span class="sl-cierre-paso-detalle">' + esc(paso.detalle || '') + '</span>' +
+          '</span>' +
+          '<span class="sl-cierre-paso-estado" aria-label="' + esc(ESTADOS[paso.estado] || paso.estado) + '">' + marca + ' ' + esc(ESTADOS[paso.estado] || paso.estado) + '</span>' +
+          '</button>' +
+          '</li>'
+        );
+      }).join('');
+      lista.querySelectorAll('[data-cierre-paso]').forEach(function (boton) {
+        boton.addEventListener('click', function () {
+          estado.seleccionado = Number(boton.getAttribute('data-cierre-paso'));
+          renderListaPasos();
+          renderPanel();
+        });
+      });
+    }
+
+    function textoEspera(doc) {
+      var referencia = (doc.serie || '') + '/' + (doc.numero || '');
+      var entidad = doc.entidad ? ' (' + nombreLegible(doc.entidad) + ')' : '';
+      var faltante = Array.isArray(doc.faltantes) && doc.faltantes.length > 0 ? doc.faltantes[0] : null;
+      if (faltante) {
+        return referencia + entidad + ' espera: falta stock de ' +
+          nombreLegible(faltante.articulo) + ' ' + nombreLegible(faltante.envase) +
+          ' (' + (Number(faltante.faltan) || 0) + ' cj). Suele resolverse apuntando el cambio de confección.';
+      }
+      return referencia + entidad + ' espera: el albarán entero espera stock.';
+    }
+
+    function renderEspera(paso) {
+      var espera = Array.isArray(paso.espera) ? paso.espera : [];
+      if (espera.length === 0) return '';
+      return (
+        '<div class="sl-cierre-bloque">' +
+        '<span class="sl-cierre-bloque-titulo">Albaranes en espera</span>' +
+        '<p class="sl-cierre-bloque-texto">El albarán entero espera, también sus líneas con stock.</p>' +
+        '<div class="sl-cierre-espera">' +
+        espera.map(function (doc) {
+          return (
+            '<div class="sl-cierre-espera-doc">' +
+            '<p class="sl-cierre-espera-texto">' + esc(textoEspera(doc)) + '</p>' +
+            '<div class="sl-cierre-acciones">' +
+            '<button type="button" class="sl-ghost" data-cierre-accion="cambiar">Abrir Cambiar</button>' +
+            '</div>' +
+            '</div>'
+          );
+        }).join('') +
+        '</div></div>'
+      );
+    }
+
+    function renderPanel() {
+      var panel = el('cierrePanel');
+      if (!panel) return;
+      var paso = pasoSeleccionado();
+      if (!paso) {
+        panel.innerHTML = '<p class="sl-cierre-panel-kicker">Cierre del día</p><h2 class="sl-cierre-panel-titulo">Sin pasos</h2>';
+        return;
+      }
+      var textos = TEXTOS[paso.clave] || { que: '', porque: '' };
+      var aviso = paso.aviso || '';
+      if (!aviso && paso.clave === 'cuadre' && estado.datos && Array.isArray(estado.datos.avisos)) {
+        aviso = estado.datos.avisos.find(function (texto) { return /Antes de cuadrar/.test(texto); }) || '';
+      }
+      var botones = [];
+      if (paso.clave === 'recepciones' || paso.clave === 'ventas') {
+        botones.push('<button type="button" class="sl-btn" data-cierre-accion="importar">Abrir Importar</button>');
+        if (paso.clave === 'recepciones' && paso.estado !== 'SALTADO') {
+          botones.push('<button type="button" class="sl-ghost" data-cierre-accion="saltar-recepciones">Hoy no hubo entradas</button>');
+        }
+      } else if (paso.clave === 'cambios') {
+        botones.push('<button type="button" class="sl-btn" data-cierre-accion="marcar-cambios">Está todo apuntado</button>');
+        botones.push('<button type="button" class="sl-ghost" data-cierre-accion="destrio">Apuntar destrío</button>');
+        botones.push('<button type="button" class="sl-ghost" data-cierre-accion="cambiar">Abrir Cambiar</button>');
+      } else if (paso.clave === 'pendientes') {
+        botones.push('<button type="button" class="sl-btn" data-cierre-accion="pendientes">Abrir Pendientes</button>');
+      } else if (paso.clave === 'cuadre') {
+        botones.push('<button type="button" class="sl-btn" data-cierre-accion="cuadre">Abrir Cuadre</button>');
+      } else if (paso.clave === 'parte') {
+        botones.push('<button type="button" class="sl-btn" data-cierre-accion="parte">Abrir Parte</button>');
+      }
+
+      panel.innerHTML =
+        '<p class="sl-cierre-panel-kicker">Paso ' + esc(paso.n) + ' de 6</p>' +
+        '<h2 class="sl-cierre-panel-titulo">' + esc(paso.titulo) + '</h2>' +
+        '<span class="sl-cierre-panel-estado is-' + esc(String(paso.estado || 'PENDIENTE').toLowerCase()) + '">' + esc(ESTADOS[paso.estado] || paso.estado) + '</span>' +
+        '<div class="sl-cierre-bloque"><span class="sl-cierre-bloque-titulo">Qué hacer</span><p class="sl-cierre-bloque-texto">' + esc(textos.que) + '</p></div>' +
+        '<div class="sl-cierre-bloque"><span class="sl-cierre-bloque-titulo">Por qué</span><p class="sl-cierre-bloque-texto">' + esc(textos.porque) + '</p></div>' +
+        (aviso ? '<p class="sl-cierre-aviso" role="status">' + esc(aviso) + '</p>' : '') +
+        (paso.clave === 'pendientes' ? renderEspera(paso) : '') +
+        '<div class="sl-cierre-acciones">' + botones.join('') + '</div>';
+
+      panel.querySelectorAll('[data-cierre-accion]').forEach(function (boton) {
+        boton.addEventListener('click', function () {
+          ejecutarAccion(boton.getAttribute('data-cierre-accion'));
+        });
+      });
+    }
+
+    function render() {
+      var cargando = el('cierreCargando');
+      var contenido = el('cierreContenido');
+      if (cargando) cargando.classList.add('sl-hidden');
+      if (!estado.datos) {
+        if (contenido) contenido.classList.add('sl-hidden');
+        mostrarError('No se pudo cargar el cierre.');
+        return;
+      }
+      ocultarError();
+      if (contenido) contenido.classList.remove('sl-hidden');
+      var siguiente = Number(estado.datos.siguiente || 0);
+      var pendiente = (estado.datos.pasos || []).find(function (paso) { return Number(paso.n) === siguiente; });
+      estado.seleccionado = pendiente ? siguiente : (estado.datos.pasos && estado.datos.pasos[0] ? estado.datos.pasos[0].n : 1);
+      renderProgreso();
+      renderTareas();
+      renderListaPasos();
+      renderPanel();
+      actualizarTarjetas(estado.datos);
+      actualizarBadgeNav(estado.datos);
+    }
+
+    function cargar() {
+      if (estado.cargando) return Promise.resolve();
+      if (typeof window === 'undefined' || !window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        mostrarError('No hay conexión con el servidor.');
+        return Promise.resolve();
+      }
+      estado.cargando = true;
+      estado.datos = null;
+      var cargando = el('cierreCargando');
+      var contenido = el('cierreContenido');
+      if (cargando) cargando.classList.remove('sl-hidden');
+      if (contenido) contenido.classList.add('sl-hidden');
+      ocultarError();
+      return window.SLBridge.call('apiObtenerCierre').then(function (datos) {
+        estado.cargando = false;
+        estado.datos = datos || null;
+        render();
+        actualizarBadgeNav();
+      }).catch(function (err) {
+        estado.cargando = false;
+        if (cargando) cargando.classList.add('sl-hidden');
+        mostrarError(err && err.message ? err.message : String(err));
+      });
+    }
+
+    function ejecutarAccion(accion) {
+      if (accion === 'importar') {
+        if (window.SLApp && typeof window.SLApp.abrirImportar === 'function') window.SLApp.abrirImportar('csv');
+        else mostrarError('No se pudo abrir Importar.');
+      } else if (accion === 'pendientes') {
+        if (window.SLApp && typeof window.SLApp.abrirPendientes === 'function') window.SLApp.abrirPendientes();
+      } else if (accion === 'cuadre') {
+        if (window.SLApp && typeof window.SLApp.abrirCuadre === 'function') window.SLApp.abrirCuadre();
+      } else if (accion === 'parte') {
+        if (window.SLApp && typeof window.SLApp.abrirParte === 'function') window.SLApp.abrirParte();
+      } else if (accion === 'cambiar') {
+        if (window.SLCambiar && typeof window.SLCambiar.abrir === 'function') window.SLCambiar.abrir();
+      } else if (accion === 'destrio') {
+        if (window.SLDestrioAjuste && typeof window.SLDestrioAjuste.abrirDestrio === 'function') window.SLDestrioAjuste.abrirDestrio();
+        else if (window.SLApp && typeof window.SLApp.abrirImportar === 'function') mostrarError('No se pudo abrir Destrío.');
+      } else if (accion === 'saltar-recepciones') {
+        marcar('recepciones', 'SALTADO');
+      } else if (accion === 'marcar-cambios') {
+        marcar('cambios', 'HECHO');
+      }
+    }
+
+    function marcar(clave, estadoPaso) {
+      if (typeof window === 'undefined' || !window.SLBridge || typeof window.SLBridge.call !== 'function') return;
+      window.SLBridge.call('apiMarcarPasoCierre', clave, estadoPaso).then(function () {
+        return cargar();
+      }).catch(function (err) {
+        mostrarError(err && err.message ? err.message : String(err));
+      });
+    }
+
+    function actualizarBadgeNav(datos) {
+      if (typeof document === 'undefined') return;
+      var badge = el('navCierreBadge');
+      if (!badge) return;
+      var cierre = datos || estado.datos;
+      if (!cierre) {
+        badge.classList.add('sl-hidden');
+        return;
+      }
+      badge.textContent = Number(cierre.hechos || 0) + '/6';
+      badge.classList.remove('sl-hidden');
+    }
+
+    function crearTarjetaInicio(contenedor, id) {
+      if (!contenedor) return null;
+      var boton = document.getElementById(id);
+      if (!boton) {
+        boton = document.createElement('button');
+        boton.type = 'button';
+        boton.id = id;
+        boton.className = 'sl-cierre-card-inicio';
+        boton.innerHTML =
+          '<span class="sl-cierre-card-kicker">Hoy</span>' +
+          '<span class="sl-cierre-card-texto">' +
+          '<span class="sl-cierre-card-titulo"></span>' +
+          '<span class="sl-cierre-card-sub"></span>' +
+          '</span>' +
+          '<span class="sl-cierre-card-flecha" aria-hidden="true">›</span>';
+        boton.addEventListener('click', function () {
+          if (window.SLApp && typeof window.SLApp.abrirCierre === 'function') window.SLApp.abrirCierre();
+        });
+        contenedor.insertBefore(boton, contenedor.firstChild);
+      }
+      return boton;
+    }
+
+    function pintarTarjeta(contenedor, id, cierre, consulta) {
+      var boton = crearTarjetaInicio(contenedor, id);
+      if (!boton) return;
+      boton.classList.toggle('sl-hidden', consulta);
+      if (consulta) return;
+      var titulo = boton.querySelector('.sl-cierre-card-titulo');
+      var sub = boton.querySelector('.sl-cierre-card-sub');
+      if (titulo) titulo.textContent = 'Cierre del día · ' + Number(cierre.hechos || 0) + ' de 6';
+      if (sub) {
+        var siguiente = Number(cierre.siguiente || 0);
+        var paso = (cierre.pasos || []).find(function (item) { return Number(item.n) === siguiente; });
+        sub.textContent = paso ? 'Siguiente: ' + paso.titulo : 'Cierre completado';
+      }
+    }
+
+    function asegurarSello(despuesDe, id) {
+      if (!despuesDe || !despuesDe.parentNode) return null;
+      var sello = document.getElementById(id);
+      if (!sello) {
+        sello = document.createElement('span');
+        sello.id = id;
+        sello.className = 'sl-cierre-sello';
+        despuesDe.parentNode.insertBefore(sello, despuesDe.nextSibling);
+      }
+      return sello;
+    }
+
+    function textoSello(iso, ahora) {
+      var fecha = new Date(iso);
+      if (!iso || isNaN(fecha.getTime())) return { texto: '', otroDia: false };
+      var referencia = ahora === undefined || ahora === null ? new Date() : new Date(ahora);
+      if (isNaN(referencia.getTime())) referencia = new Date();
+      function partesDe(valor) {
+        return new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Madrid',
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+        }).formatToParts(valor);
+      }
+      function valor(partes, tipo) {
+        return (partes.find(function (p) { return p.type === tipo; }) || {}).value || '';
+      }
+      var partes = partesDe(fecha);
+      var partesHoy = partesDe(referencia);
+      var dia = valor(partes, 'day') + '/' + valor(partes, 'month');
+      var hora = valor(partes, 'hour') + ':' + valor(partes, 'minute');
+      var fechaSello = valor(partes, 'year') + '-' + valor(partes, 'month') + '-' + valor(partes, 'day');
+      var hoy = valor(partesHoy, 'year') + '-' + valor(partesHoy, 'month') + '-' + valor(partesHoy, 'day');
+      var otroDia = fechaSello !== hoy;
+      return {
+        texto: otroDia ? 'Actualizado el ' + dia + ' a las ' + hora : 'Actualizado a las ' + hora,
+        otroDia: otroDia
+      };
+    }
+
+    function renderSello(data) {
+      if (typeof document === 'undefined') return;
+      var iso = data && data.ultimo_movimiento_hora ? String(data.ultimo_movimiento_hora) : '';
+      var info = textoSello(iso);
+      var destinos = [];
+      var desk = document.getElementById('deskTotalDelta');
+      var mob = document.getElementById('mobTotalDelta');
+      if (desk) destinos.push({ elemento: desk, id: 'cierreSelloHoraDesk' });
+      if (mob) destinos.push({ elemento: mob, id: 'cierreSelloHoraMob' });
+      destinos.forEach(function (destino) {
+        var sello = asegurarSello(destino.elemento, destino.id);
+        if (!sello) return;
+        if (!info.texto) {
+          sello.textContent = '';
+          sello.classList.add('sl-hidden');
+          return;
+        }
+        sello.textContent = info.texto;
+        sello.classList.toggle('sl-cierre-sello-otro-dia', info.otroDia);
+        sello.classList.remove('sl-hidden');
+      });
+    }
+
+    function actualizarTarjetas(cierre) {
+      if (typeof document === 'undefined' || !cierre) return;
+      var appEstado = window.SLApp && typeof window.SLApp.obtenerEstadoActual === 'function'
+        ? window.SLApp.obtenerEstadoActual() : null;
+      var consulta = Boolean(appEstado && String(appEstado.rol || '').toUpperCase() === 'CONSULTA');
+      var contenedorDesk = document.querySelector('#contenidoExistencias .sl-desktop-container');
+      var contenedorMob = document.querySelector('#contenidoExistencias .sl-mobile-container');
+      pintarTarjeta(contenedorDesk, 'cierreCardInicioDesk', cierre, consulta);
+      pintarTarjeta(contenedorMob, 'cierreCardInicioMob', cierre, consulta);
+    }
+
+    function renderInicio(data) {
+      if (typeof document === 'undefined') return;
+      var cierre = data && data.cierre ? data.cierre : null;
+      if (!cierre) {
+        ['cierreCardInicioDesk', 'cierreCardInicioMob'].forEach(function (id) {
+          var tarjeta = document.getElementById(id);
+          if (tarjeta) tarjeta.classList.add('sl-hidden');
+        });
+        var badge = document.getElementById('navCierreBadge');
+        if (badge) badge.classList.add('sl-hidden');
+        return;
+      }
+      actualizarTarjetas(cierre);
+      renderSello(data || {});
+      actualizarBadgeNav(cierre);
+    }
+
+    function setVisible(visible) {
+      if (typeof document === 'undefined') return;
+      var seccion = el('viewCierre');
+      if (seccion) seccion.classList.toggle('sl-hidden', !visible);
+    }
+
+    function abrirCierre() {
+      if (window.SLApp && typeof window.SLApp.abrirCierre === 'function') window.SLApp.abrirCierre();
+    }
+
+    function inicializar() {
+      if (typeof document === 'undefined') return;
+      var cerrar = el('btnCerrarCierre');
+      if (cerrar) cerrar.addEventListener('click', function () {
+        if (window.SLApp && typeof window.SLApp.volverAExistencias === 'function') window.SLApp.volverAExistencias();
+      });
+      var destrio = el('btnCierreDestrio');
+      if (destrio) destrio.addEventListener('click', function () {
+        if (window.SLDestrioAjuste && typeof window.SLDestrioAjuste.abrirDestrio === 'function') window.SLDestrioAjuste.abrirDestrio();
+      });
+      var cambiar = el('btnCierreCambiar');
+      if (cambiar) cambiar.addEventListener('click', function () {
+        if (window.SLCambiar && typeof window.SLCambiar.abrir === 'function') window.SLCambiar.abrir();
+      });
+    }
+
+    if (typeof window !== 'undefined') {
+      window.SLCierre = {
+        setVisible: setVisible,
+        cargar: cargar,
+        render: render,
+        renderInicio: renderInicio,
+        renderSello: renderSello,
+        textoSello: textoSello,
+        abrirCierre: abrirCierre,
+        _estado: estado
+      };
+    }
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializar);
+      else inicializar();
+    }
+  })();
+</script>

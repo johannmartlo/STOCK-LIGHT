@@ -241,6 +241,26 @@ function _textoImportadoParte_(importadoHasta) {
 }
 
 /**
+ * Línea de cierre incompleto para el parte (T-043). No cuenta el paso 6 (enviar el
+ * parte), porque es el propio envío el que se está haciendo.
+ * @param {Object} cierre
+ * @returns {string}
+ */
+function _textoCierreIncompletoParte_(cierre) {
+  if (!cierre || !Array.isArray(cierre.pasos)) return '';
+  const pendientes = cierre.pasos.filter(paso => (
+    paso
+    && Number(paso.n) !== 6
+    && String(paso.estado || '').trim().toUpperCase() === 'PENDIENTE'
+  ));
+  if (pendientes.length === 0) return '';
+  const numeros = pendientes.map(paso => Number(paso.n)).filter(n => Number.isFinite(n));
+  if (numeros.length === 0) return 'Cierre incompleto.';
+  if (numeros.length === 1) return `Cierre incompleto: falta el paso ${numeros[0]}.`;
+  return `Cierre incompleto: faltan los pasos ${numeros.join(' y ')}.`;
+}
+
+/**
  * Construye la estructura de variedades del parte a partir de obtenerInicio().
  * @param {Object} inicio
  * @returns {Array<Object>}
@@ -307,6 +327,9 @@ class ParteService {
     if (options && options.hoy !== undefined && options.hoy !== null && String(options.hoy).trim() !== '') {
       opcionesInicio.hoy = options.hoy;
     }
+    if (options && options.incluirCierre !== undefined) {
+      opcionesInicio.incluirCierre = options.incluirCierre;
+    }
     const inicio = this.inicioService.obtenerInicio(opcionesInicio);
 
     const reloj = options && (options.clock !== undefined ? options.clock : options.reloj);
@@ -319,6 +342,7 @@ class ParteService {
     const total = Number(inicio && inicio.total || 0);
     const pendientesTexto = _textoPendientesParte_(inicio && inicio.pendientes);
     const importadoTexto = _textoImportadoParte_(inicio && inicio.importado_hasta);
+    const cierreTexto = _textoCierreIncompletoParte_(inicio && inicio.cierre);
 
     const lineas = [
       `STOCK · ${fecha} · ${hora}`,
@@ -334,9 +358,10 @@ class ParteService {
 
     lineas.push('');
     lineas.push(pendientesTexto ? `${pendientesTexto} · ${importadoTexto}` : importadoTexto);
+    if (cierreTexto) lineas.push(cierreTexto);
 
     const texto = lineas.join('\n');
-    const html = this._htmlParte_(fecha, hora, total, variedades, pendientesTexto, importadoTexto);
+    const html = this._htmlParte_(fecha, hora, total, variedades, pendientesTexto, importadoTexto, cierreTexto);
 
     return {
       fecha,
@@ -347,7 +372,7 @@ class ParteService {
     };
   }
 
-  _htmlParte_(fecha, hora, total, variedades, pendientesTexto, importadoTexto) {
+  _htmlParte_(fecha, hora, total, variedades, pendientesTexto, importadoTexto, cierreTexto = '') {
     const filas = variedades.map((variedad) => {
       const detalle = variedad.textoDesglose
         ? `<div style="margin-top:4px;font-size:13px;color:#444444;line-height:1.35;">${_escHtmlParte_(variedad.textoDesglose)}</div>`
@@ -375,6 +400,9 @@ class ParteService {
       ? `<p style="margin:14px 0 0;font-size:13px;line-height:1.4;color:#3f3f3f;">${_escHtmlParte_(pendientesTexto)}</p>`
       : '';
     const importado = `<p style="margin:6px 0 0;font-size:13px;line-height:1.4;color:#3f3f3f;">${_escHtmlParte_(importadoTexto)}</p>`;
+    const cierre = cierreTexto
+      ? `<p style="margin:14px 0 0;font-size:13px;line-height:1.4;color:#7a4a00;font-weight:bold;">${_escHtmlParte_(cierreTexto)}</p>`
+      : '';
 
     return `
       <div style="margin:0;padding:0;background:#f4f4f2;">
@@ -393,6 +421,7 @@ class ParteService {
           </table>
           ${pendientes}
           ${importado}
+          ${cierre}
         </div>
       </div>`;
   }
@@ -486,6 +515,34 @@ function _registrarLogParte_(repo, options, datos) {
 }
 
 /**
+ * Marca el paso 6 del cierre cuando el parte sale por correo (T-043).
+ * No rompe el envío si la hoja CIERRE_DIA no está disponible.
+ *
+ * @param {Object} repo
+ * @param {Object} options
+ * @returns {boolean}
+ */
+function _marcarParteEnviadoParte_(repo, options) {
+  try {
+    if (!repo || typeof repo.appendCierreDia !== 'function') return false;
+    const reloj = options.reloj !== undefined ? options.reloj : options.clock;
+    const usuario = options.usuario
+      || (typeof usuarioActual_ === 'function' ? usuarioActual_() : 'SISTEMA');
+    repo.appendCierreDia({
+      fecha: _hoyMadridParte_(reloj),
+      paso: 'parte',
+      estado: 'HECHO',
+      usuario: usuario || 'SISTEMA',
+      hora: _horaMadridParte_(reloj),
+      nota: 'Correo del parte'
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Envía el parte diario por correo a los destinatarios configurados.
  * Nunca lanza por un fallo de MailApp o de destinatarios; lo registra en LOG_OPERACIONES.
  *
@@ -545,7 +602,8 @@ function enviarParteDiario_(options = {}) {
       body: parte.texto,
       htmlBody: parte.html
     });
-    return { ok: true, asunto, destinatarios, parte };
+    const cierreMarcado = _marcarParteEnviadoParte_(repo, options);
+    return { ok: true, asunto, destinatarios, parte, cierreMarcado };
   } catch (err) {
     const mensaje = err && err.message ? err.message : String(err);
     const logRegistrado = _registrarLogParte_(repo, options, {

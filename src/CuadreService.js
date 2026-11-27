@@ -347,15 +347,21 @@ class CuadreService {
   /**
    * Devuelve el cuadre del momento: familias, artículos y cajas que debería haber.
    *
+   * @param {Object} [datos] - Datos ya cargados (opcional): `{ movimientos, stockRows }`.
    * @returns {{ id_cuadre: string, generado_en: string, familias: Array<Object> }}
    */
-  obtenerCuadre() {
+  obtenerCuadre(datos = {}) {
+    const datosPrevios = datos && typeof datos === 'object' ? datos : {};
     const ahora = this._ahora_();
     const ahoraMs = ahora.getTime();
     const limiteMs = ahoraMs - CUADRE_DIAS_RECIENTES_ * 24 * 60 * 60 * 1000;
 
-    const stockRows = _leerTablaCuadre_(this.repo, 'getStockActual');
-    const movimientos = _leerTablaCuadre_(this.repo, 'getMovimientos');
+    const stockRows = Array.isArray(datosPrevios.stockRows)
+      ? datosPrevios.stockRows
+      : _leerTablaCuadre_(this.repo, 'getStockActual');
+    const movimientos = Array.isArray(datosPrevios.movimientos)
+      ? datosPrevios.movimientos
+      : _leerTablaCuadre_(this.repo, 'getMovimientos');
     const config = this._configCuadre_();
     const defs = _definirFamiliasCuadre_(config.agrupaciones);
 

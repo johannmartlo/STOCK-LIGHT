@@ -472,6 +472,13 @@
       }, 1800);
     }
 
+    function marcarCierreParte() {
+      if (typeof window === 'undefined' || !window.SLBridge || typeof window.SLBridge.call !== 'function') return;
+      try {
+        window.SLBridge.call('apiMarcarPasoCierre', 'parte', 'HECHO').catch(function () {});
+      } catch (e) {}
+    }
+
     function copiarTexto(parte) {
       if (estado.copiando) return Promise.resolve('');
       var texto = textoParaCopiar(parte);
@@ -490,6 +497,7 @@
       return Promise.resolve(promesa).then(function () {
         estado.copiando = false;
         mostrarCopiado();
+        marcarCierreParte();
         if (window.SLApp && typeof window.SLApp.mostrarAviso === 'function') {
           window.SLApp.mostrarAviso('Copiado');
         }
@@ -498,6 +506,7 @@
         estado.copiando = false;
         return copiarFallback(texto).then(function () {
           mostrarCopiado();
+          marcarCierreParte();
           return texto;
         }).catch(function () {
           if (window.SLApp && typeof window.SLApp.mostrarAviso === 'function') {

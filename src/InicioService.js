@@ -148,6 +148,19 @@ class InicioService {
     this.pendientesService = options.pendientesService || null;
     this.operacionesService = options.operacionesService || null;
     this.reloj = options.reloj !== undefined ? options.reloj : null;
+
+    const CierreClass = (typeof CierreService !== 'undefined')
+      ? CierreService
+      : (typeof require !== 'undefined' ? require('./CierreService').CierreService : null);
+    this.cierreService = options.cierreService !== undefined
+      ? options.cierreService
+      : (CierreClass
+        ? new CierreClass({
+          repository: this.repo,
+          catalogoService: this.catalogoService,
+          reloj: this.reloj
+        })
+        : null);
   }
 
   _resolverOperacionesService_() {
@@ -784,6 +797,31 @@ class InicioService {
       };
     });
 
+    let ultimoMovimientoHora = '';
+    for (const item of movsConfirmados) {
+      const fechaHora = String((item.raw && item.raw.fecha_hora) || '').trim();
+      if (fechaHora && (!ultimoMovimientoHora || fechaHora > ultimoMovimientoHora)) {
+        ultimoMovimientoHora = fechaHora;
+      }
+    }
+
+    let cierre = null;
+    if (opts.incluirCierre !== false && this.cierreService && typeof this.cierreService.obtenerCierre === 'function') {
+      try {
+        const fechaCierre = opts.hoy ? _normFechaInicio_(opts.hoy) : _hoyInicio_(this.reloj);
+        const stockRowsCierre = _leerTablaSeguraInicio_(() => (
+          typeof this.repo.getStockActual === 'function' ? this.repo.getStockActual() : []
+        ));
+        cierre = this.cierreService.obtenerCierre(fechaCierre, {
+          movimientos,
+          reprocesos,
+          stockRows: stockRowsCierre
+        });
+      } catch (e) {
+        cierre = null;
+      }
+    }
+
     return {
       fecha_referencia: fechaFin,
       fecha_inicio_datos: fechaInicioDatos,
@@ -793,7 +831,9 @@ class InicioService {
       pendientes,
       destrio7,
       importado_hasta: importadoHasta,
-      ultimos
+      ultimos,
+      ultimo_movimiento_hora: ultimoMovimientoHora,
+      cierre
     };
   }
 

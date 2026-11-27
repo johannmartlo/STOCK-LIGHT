@@ -401,10 +401,11 @@
         pendientes: SL.rol === 'CONSULTA' ? 'navPendientes' : 'navImportar',
         movimientos: 'navMovimientos',
         cuadre: 'navCuadre',
+        cierre: 'navCierre',
         parte: 'navParte'
       };
       const activoId = mapa[vista] || 'navExistencias';
-      ['navExistencias', 'navCambios', 'navImportar', 'navPendientes', 'navMovimientos', 'navCuadre', 'navParte'].forEach(function (id) {
+      ['navExistencias', 'navCambios', 'navImportar', 'navPendientes', 'navMovimientos', 'navCuadre', 'navCierre', 'navParte'].forEach(function (id) {
         const el = document.getElementById(id);
         if (!el) return;
         if (id === activoId) el.setAttribute('aria-current', 'page');
@@ -421,6 +422,7 @@
       setVisibilidad('viewPendientes', vista === 'pendientes');
       if (window.SLMov) window.SLMov.setVisible(vista === 'movimientos');
       if (window.SLCuadre) window.SLCuadre.setVisible(vista === 'cuadre');
+      if (window.SLCierre) window.SLCierre.setVisible(vista === 'cierre');
       if (window.SLParte) window.SLParte.setVisible(vista === 'parte');
       actualizarNavActivo(vista);
     }
@@ -470,6 +472,12 @@
       if (SL.rol === 'CONSULTA') return;
       mostrarVista('cuadre');
       if (window.SLCuadre) window.SLCuadre.cargar();
+    }
+
+    function abrirCierre() {
+      if (SL.rol === 'CONSULTA') return;
+      mostrarVista('cierre');
+      if (window.SLCierre) window.SLCierre.cargar();
     }
 
     /**
@@ -2345,6 +2353,7 @@
       SL.inicio = data;
       SL.ultimoOkAt = new Date();
       SL.hoverIdx = null;
+      if (window.SLCierre) window.SLCierre.renderInicio(data);
       const silencioso = Boolean(opciones && opciones.silencioso);
 
       if (!data || (Number(data.total || 0) === 0 && (!data.variedades || data.variedades.length === 0))) {
@@ -2502,6 +2511,8 @@
       if (navParte) navParte.addEventListener('click', abrirParte);
       const navCuadre = document.getElementById('navCuadre');
       if (navCuadre) navCuadre.addEventListener('click', abrirCuadre);
+      const navCierre = document.getElementById('navCierre');
+      if (navCierre) navCierre.addEventListener('click', abrirCierre);
       inyectarAccionCuadreMovil();
 
       document.addEventListener('keydown', function (e) {
@@ -2778,6 +2789,7 @@
       abrirMovimientos,
       abrirParte,
       abrirCuadre,
+      abrirCierre,
       abrirBuscar,
       mostrarVista,
       obtenerEstadoActual: function () {
