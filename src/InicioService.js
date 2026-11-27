@@ -21,6 +21,11 @@ if (typeof require !== 'undefined') {
     const normMod = require('./Normalizacion');
     global.normalizarNombre = global.normalizarNombre || normMod.normalizarNombre;
   } catch (e) {}
+  try {
+    const ordenMod = require('./OrdenExistencias');
+    global.compararArticulos = global.compararArticulos || ordenMod.compararArticulos;
+    global.construirDesgloseOrdenado = global.construirDesgloseOrdenado || ordenMod.construirDesgloseOrdenado;
+  } catch (e) {}
 }
 
 const PALETA_VARIEDADES_INICIO_ = [
@@ -563,7 +568,11 @@ class InicioService {
       const partidas = partidasPorGrupo.get(def.clave) || [];
       if (partidas.length === 0) return null;
 
+      // Orden de la ficha (T-039): artículo por variedad/categoría/calibre y, a igualdad,
+      // fecha ascendente y después id_capa (el desempate que había antes).
       partidas.sort((a, b) => {
+        const cmpArticulo = compararArticulos(a, b);
+        if (cmpArticulo !== 0) return cmpArticulo;
         if (a.fecha !== b.fecha) {
           if (!a.fecha) return 1;
           if (!b.fecha) return -1;
@@ -573,8 +582,16 @@ class InicioService {
       });
 
       const cajas = partidas.reduce((acc, p) => acc + p.cajas, 0);
-      const salePrimero = partidas[0].fecha;
-      const diasAntiguedad = partidas[0].dias;
+      // `partidas[0]` ya no es la más antigua: sale_primero y dias miran el mínimo de fecha.
+      let partidaMasAntigua = partidas[0];
+      for (const partida of partidas) {
+        if (!partida.fecha) continue;
+        if (!partidaMasAntigua || !partidaMasAntigua.fecha || partida.fecha < partidaMasAntigua.fecha) {
+          partidaMasAntigua = partida;
+        }
+      }
+      const salePrimero = partidaMasAntigua ? partidaMasAntigua.fecha : '';
+      const diasAntiguedad = partidaMasAntigua ? partidaMasAntigua.dias : 0;
       const avisoAntiguedad = diasAntiguedad >= def.dias_aviso;
 
       const baseHace7 = Number(stockBaseHace7PorGrupo.get(def.clave) || 0);
@@ -593,6 +610,7 @@ class InicioService {
         color: def.color,
         cajas,
         partidas,
+        desglose: construirDesgloseOrdenado(partidas),
         sale_primero: salePrimero,
         dias: diasAntiguedad,
         dias_aviso: def.dias_aviso,

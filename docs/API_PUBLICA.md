@@ -140,6 +140,9 @@ no las expone.
 | `resolveDatabaseSpreadsheet` | `src/Config.js` | INTERNA | Resuelve la hoja de cálculo de trabajo. |
 | `normalizeCommercialText` | `src/CommercialGroupResolver.js` | INTERNA | Normaliza texto comercial. |
 | `extraerCalibreYCategoria` | `src/CalibreCategoria.js` | INTERNA | Extrae calibre y categoría de un artículo. |
+| `claveOrdenArticulo` | `src/OrdenExistencias.js` | INTERNA | Clave de orden de un artículo: variedad base, categoría y calibre (T-039). |
+| `compararArticulos` | `src/OrdenExistencias.js` | INTERNA | Orden total de artículo + envase para la ficha de Existencias (T-039). |
+| `construirDesgloseOrdenado` | `src/OrdenExistencias.js` | INTERNA | Bloques del desglose por variedad y categoría, con subtotales (T-039). |
 | `clasificarCombinacion` | `src/Catalogo.js` | INTERNA | Clasifica una combinación artículo + envase de forma pura (D-029). |
 | `explicarCombinacion` | `src/Catalogo.js` | INTERNA | Explica la evaluación de atributos y agrupaciones de una combinación (D-029). |
 | `cumpleFiltro` | `src/Catalogo.js` | INTERNA | Evalúa un filtro declarativo sobre un mapa de atributos (D-029). |
@@ -227,3 +230,22 @@ no las expone.
 | `nombreCopiaSeguridad` | `src/BackupService.js` | INTERNA | Genera el nombre canónico de una copia en Europe/Madrid. |
 | `existeCopiaDiariaDeHoy` | `src/BackupService.js` | INTERNA | Comprueba si ya hay una copia DIARIA con la fecha de hoy en el nombre. |
 | `seleccionarCopiasABorrar` | `src/BackupService.js` | INTERNA | Elige las copias DIARIA más antiguas que sobran; nunca toca MANUAL ni PRE_DESPLIEGUE. |
+
+## Respuesta de inicio: `variedades[].desglose` (T-039)
+
+`apiObtenerInicio` devuelve en cada variedad un campo `desglose` con el orden de la hoja
+VISTA MOVIL del Excel (variedad → categoría → calibre de grande a pequeño), calculado por
+`src/OrdenExistencias.js`:
+
+| Campo | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `variedadBase` | texto | Nombre normalizado sin las palabras de categoría (`EXTRA`, `I`, `II`), sin el calibre y sin el sufijo `KG`/`UNID`. |
+| `categoriaCorta` | texto | `Extra`, `Cat. I`, `Cat. II` o `''`. |
+| `cajas` | número | Subtotal del bloque (suma de sus líneas). |
+| `lineas` | lista | `{ articulo, envase, cajas }`, una por artículo + envase; las líneas con 0 cajas no salen. |
+
+El orden de los bloques y de las líneas es el de `compararArticulos` (variedad base →
+categoría → calibre → envase → artículo). `variedades[].partidas` usa ese mismo orden y, a
+igualdad, fecha ascendente y `id_capa`; `sale_primero` y `dias` siguen siendo los de la
+partida más antigua de la variedad. La interfaz usa `desglose` cuando está presente y, si no,
+mantiene el orden anterior por cajas.

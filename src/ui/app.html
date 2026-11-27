@@ -89,6 +89,15 @@
     }
 
     function calcularDesgloseArticulos(v) {
+      if (v && Array.isArray(v.desglose) && v.desglose.length > 0) {
+        const lineas = [];
+        v.desglose.forEach(function (bloque) {
+          (Array.isArray(bloque.lineas) ? bloque.lineas : []).forEach(function (linea) {
+            lineas.push(linea);
+          });
+        });
+        return lineas;
+      }
       const partidas = (v && Array.isArray(v.partidas)) ? v.partidas : [];
       const mapa = new Map();
       partidas.forEach(function (p) {
@@ -1907,6 +1916,32 @@
     }
 
     function construirDesgloseHtml(v) {
+      if (v && Array.isArray(v.desglose) && v.desglose.length > 0) {
+        const mostrarSubtotal = v.desglose.length > 1;
+        return v.desglose.map(function (bloque) {
+          const filas = (Array.isArray(bloque.lineas) ? bloque.lineas : []).map(function (item) {
+            const artLbl = etiquetaArticuloEnVariedad(item.articulo, v.grupo);
+            const envLbl = nombreLegible(item.envase);
+            const etiqueta = [artLbl, envLbl].filter(Boolean).join(' · ');
+            return (
+              '<div class="sl-desglose-row">' +
+              '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(etiqueta) + '</span>' +
+              '<span class="sl-mono" style="font-weight:600;flex:none">' + fmt(item.cajas) + '</span>' +
+              '</div>'
+            );
+          }).join('');
+          if (!mostrarSubtotal) return filas;
+          const baseLbl = etiquetaArticuloEnVariedad(bloque.variedadBase, v.grupo);
+          const etiquetaBloque = [baseLbl, bloque.categoriaCorta].filter(Boolean).join(' · ');
+          const subtotal = (
+            '<div class="sl-desglose-subtotal" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 10px 2px;color:var(--sl-text-secondary);font-weight:600;font-size:12px">' +
+            '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(etiquetaBloque) + '</span>' +
+            '<span class="sl-mono">' + fmt(bloque.cajas) + '</span>' +
+            '</div>'
+          );
+          return subtotal + filas;
+        }).join('');
+      }
       const desglose = calcularDesgloseArticulos(v);
       return desglose.map(function (item) {
         const artLbl = etiquetaArticuloEnVariedad(item.articulo, v.grupo);
@@ -2586,6 +2621,7 @@
       filtrarVariedades,
       calcularDeltaSemanal,
       calcularDesgloseArticulos,
+      construirDesgloseHtml,
       construirTextoWhatsApp,
       decodificarBytesCsv,
       detectarTipoArchivoCsv,

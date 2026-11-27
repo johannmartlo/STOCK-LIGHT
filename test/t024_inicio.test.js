@@ -168,7 +168,6 @@ runTest('1. Invariantes de apiObtenerInicio con datos aleatorios (serie, varieda
     assert.strictEqual(sumaPartidas, v.cajas);
     const fechaMin = v.partidas.reduce((min, p) => (!min || p.fecha < min ? p.fecha : min), '');
     assert.strictEqual(v.sale_primero, fechaMin);
-    assert.strictEqual(v.partidas[0].fecha, fechaMin);
 
     // Invariante 5: ningún reproceso anulado aparece en viene_de
     for (const p of v.partidas) {
