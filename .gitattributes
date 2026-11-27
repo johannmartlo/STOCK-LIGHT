@@ -3,11 +3,13 @@
 *.json text eol=lf
 *.md text eol=lf
 *.csv text eol=lf
-# Fixtures con CRLF intencional (T-030, T-032, T-035)
+# Fixtures con CRLF intencional (T-030, T-032, T-035, T-044)
 test/fixtures/csv/compras_formato_real.csv binary -eol
 test/fixtures/csv/ventas_formato_real.csv binary -eol
 test/fixtures/csv/recepciones_formato_real.csv binary -eol
 test/fixtures/csv/recepciones_proveedor_columna.csv binary -eol
+test/fixtures/csv/recepciones_agrupado_almacen.csv binary -eol
+test/fixtures/csv/recepciones_agrupado_almacen_columna.csv binary -eol
 *.html text eol=lf
 *.css text eol=lf
 *.pdf binary

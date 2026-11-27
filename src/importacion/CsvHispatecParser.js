@@ -85,6 +85,41 @@ function columnasDeCabecera_(textoCsv) {
   return cabecera.split(';').map(normalizarColumnaCsv_).filter(Boolean);
 }
 
+/**
+ * Indica si una celda es la etiqueta de grupo `Almacen: <nombre>`.
+ * @param {*} celda
+ * @returns {boolean}
+ */
+function csvEsEtiquetaAlmacen_(celda) {
+  return /^Almac[eé]n\s*:/i.test(String(celda === null || celda === undefined ? '' : celda).trim());
+}
+
+/**
+ * Busca la primera fila de grupo `Almacen:` y devuelve la posición de la celda que
+ * contiene la etiqueta. En los informes agrupados esa posición es la misma que ocupa
+ * el almacén en las líneas de datos.
+ * @param {Array<Array<string>>} registros
+ * @returns {number} Índice de la celda, o -1 si no hay fila de grupo.
+ */
+function csvIndiceGrupoAlmacen_(registros) {
+  for (let i = 1; i < registros.length; i++) {
+    const fila = registros[i] || [];
+    for (let j = 0; j < fila.length; j++) {
+      if (csvEsEtiquetaAlmacen_(fila[j])) return j;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Indica si el CSV trae alguna fila de grupo `Almacen: <nombre>`.
+ * @param {string} textoCsv
+ * @returns {boolean}
+ */
+function csvTieneGrupoAlmacen_(textoCsv) {
+  return csvIndiceGrupoAlmacen_(leerRegistrosCsv(textoCsv)) >= 0;
+}
+
 function faltanColumnas_(columnas, obligatorias) {
   const presentes = new Set(columnas);
   return obligatorias.filter((nombre) => !presentes.has(normalizarColumnaCsv_(nombre)));
@@ -100,7 +135,17 @@ function detectarTipo(textoCsv) {
   const columnas = columnasDeCabecera_(textoCsv);
   const faltanCompras = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.COMPRAS.obligatorias);
   let faltanVentas = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.VENTAS.obligatorias);
-  const faltanRecepciones = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.RECEPCIONES.obligatorias);
+  let faltanRecepciones = faltanColumnas_(columnas, CSV_HISPATEC_COLUMNAS.RECEPCIONES.obligatorias);
+
+  // T-044: el informe agrupado por almacén deja vacío el nombre de la columna Almacen
+  // y pone el almacén en una fila de grupo. Solo se acepta esa ausencia cuando es la
+  // única columna que falta y hay una fila de grupo `Almacen:`; así el resto de
+  // ficheros incompletos siguen fallando igual.
+  const faltaSoloAlmacen = faltanRecepciones.length === 1
+    && normalizarColumnaCsv_(faltanRecepciones[0]) === normalizarColumnaCsv_('Almacen');
+  if (faltaSoloAlmacen && csvTieneGrupoAlmacen_(textoCsv)) {
+    faltanRecepciones = [];
+  }
 
   // Los informes antiguos traen NroPalets y Palet juntos. Si falta Palet pero
   // sigue NroPalets en el formato antiguo (con columna Numero), el fichero está
@@ -191,6 +236,16 @@ function parsear(textoCsv) {
   const errores = [];
   const lineas = [];
   let proveedorActual = null;
+  let almacenActual = null;
+
+  // T-044: si la cabecera no nombra la columna Almacen, su posición se deduce de la
+  // celda que contiene la etiqueta de grupo `Almacen:`. En las líneas se usa esa
+  // posición; si la celda viene vacía, se hereda el último grupo.
+  let almacenIndice = indices[normalizarColumnaCsv_('Almacen')];
+  if (tipo === 'RECEPCIONES' && almacenIndice === undefined) {
+    const indiceGrupo = csvIndiceGrupoAlmacen_(registros);
+    if (indiceGrupo >= 0) almacenIndice = indiceGrupo;
+  }
 
   function tieneColumna(columna) {
     return indices[normalizarColumnaCsv_(columna)] !== undefined;
@@ -230,18 +285,24 @@ function parsear(textoCsv) {
     if (!fila || fila.every(valor => String(valor).trim() === '')) continue;
 
     if (tipo === 'RECEPCIONES') {
-      // El proveedor viene en una fila de grupo anterior a sus líneas.
+      // El proveedor y el almacén vienen en filas de grupo anteriores a sus líneas.
       let proveedorFila = null;
+      let almacenFila = null;
       for (const celda of fila) {
         const texto = String(celda === null || celda === undefined ? '' : celda).trim();
-        const matchProveedor = /^NombreProveedor\s*:\s*(.*)$/i.exec(texto);
-        if (matchProveedor) {
-          proveedorFila = matchProveedor[1];
-          break;
+        if (proveedorFila === null) {
+          const matchProveedor = /^NombreProveedor\s*:\s*(.*)$/i.exec(texto);
+          if (matchProveedor) proveedorFila = matchProveedor[1];
         }
+        if (almacenFila === null) {
+          const matchAlmacen = /^Almac[eé]n\s*:\s*(.*)$/i.exec(texto);
+          if (matchAlmacen) almacenFila = matchAlmacen[1];
+        }
+        if (proveedorFila !== null && almacenFila !== null) break;
       }
-      if (proveedorFila !== null) {
-        proveedorActual = csvNormalizarNombre(proveedorFila) || null;
+      if (proveedorFila !== null || almacenFila !== null) {
+        if (proveedorFila !== null) proveedorActual = csvNormalizarNombre(proveedorFila) || null;
+        if (almacenFila !== null) almacenActual = csvNormalizarNombre(almacenFila) || null;
         continue;
       }
 
@@ -260,6 +321,13 @@ function parsear(textoCsv) {
       const proveedorLinea = proveedorColumna
         ? (csvNormalizarNombre(proveedorColumna) || null)
         : proveedorActual;
+
+      // T-044: si la línea trae el almacén en su columna, manda la columna; si no,
+      // se hereda el último grupo `Almacen:`.
+      const almacenColumna = almacenIndice !== undefined && almacenIndice !== null && almacenIndice < fila.length
+        ? String(fila[almacenIndice] === null || fila[almacenIndice] === undefined ? '' : fila[almacenIndice]).trim()
+        : '';
+      const almacen = almacenColumna ? (csvNormalizarNombre(almacenColumna) || null) : almacenActual;
 
       const matchRecepcion = /^\s*([^/\s]*)\s*\/\s*([^\s(]+)\s*\(\s*(\d+)\s*\)\s*$/.exec(recepcionBruta);
       let serie = 'REC';
@@ -289,6 +357,7 @@ function parsear(textoCsv) {
         linea,
         fecha: fechaDe(fila, 'FechaRecepcion', filaCsv),
         entidad,
+        almacen,
         articulo,
         envase,
         cajas: numeroDe(fila, 'NroEnvases', filaCsv, 'cajas'),
