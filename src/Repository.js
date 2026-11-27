@@ -298,6 +298,17 @@ const SCHEMA_DEFINITIONS = {
     'activo',
     'nota'
   ],
+  // Cuadres de la noche por familia (T-040). Solo añadir.
+  CUADRES: [
+    'id_cuadre',
+    'familia',
+    'fecha_hora',
+    'usuario',
+    'lineas_contadas',
+    'lineas_con_diferencia',
+    'cajas_diferencia',
+    'ids_ajustes'
+  ],
   USUARIOS: [
     'id_usuario',
     'nombre',
@@ -1283,6 +1294,30 @@ class SheetsRepository {
     };
     this.appendLogOperaciones([record]);
     return record;
+  }
+
+  /**
+   * Lee la tabla de cuadres de la noche (T-040).
+   * Si la hoja aún no existe (bases anteriores a T-040), devuelve [].
+   *
+   * @returns {Array<Object>}
+   */
+  getCuadres() {
+    const ss = this.getSpreadsheet();
+    if (!ss.getSheetByName('CUADRES')) return [];
+    return this.readTable('CUADRES');
+  }
+
+  /**
+   * Añade una fila a CUADRES (T-040). La hoja es de solo añadir.
+   *
+   * @param {Object} registro
+   * @returns {number}
+   */
+  appendCuadre(registro) {
+    const lista = Array.isArray(registro) ? registro : [registro];
+    if (lista.length === 0) return 0;
+    return this.appendRecords('CUADRES', lista);
   }
 
   /**

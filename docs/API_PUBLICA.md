@@ -109,6 +109,8 @@ no las expone.
 | `doGet` | `src/Código.js` | LECTURA | Punto de entrada HTTP que sirve la interfaz. Sin sesión por diseño. |
 | `apiObtenerInicio` | `src/Código.js` | LECTURA | Devuelve existencias, serie de 30 días, variedades, pendientes, destrío, importado hasta y últimos movimientos; rol CONSULTA (T-024). |
 | `apiObtenerParte` | `src/Código.js` | LECTURA | Devuelve `{ fecha, hora, texto, html, datos }` del parte de stock de la noche; rol CONSULTA (T-029). |
+| `apiObtenerCuadre` | `src/Código.js` | LECTURA | Devuelve `{ generado_en, id_cuadre, familias }` del cuadre de la noche, con las cajas que debería haber y el último cuadre de cada familia; rol ENCARGADO (T-040). |
+| `apiConfirmarCuadreFamilia` | `src/Código.js` | ESCRITURA | Confirma el recuento de una familia, crea ajustes `RECUENTO` por diferencia y guarda la fila de CUADRES; usuario del servidor; rol ENCARGADO (T-040). |
 | `apiObtenerPartida` | `src/Código.js` | LECTURA | Devuelve origen, consumos y destinos de reproceso de una partida; rol CONSULTA (T-024). |
 | `apiListarExclusiones` | `src/Código.js` | LECTURA | Lista clientes excluidos y nombres comerciales fuera; rol CONSULTA (T-031). |
 | `apiListarEquivalencias` | `src/Código.js` | LECTURA | Lista las equivalencias de nombre de artículo para recepciones; rol CONSULTA (T-032). |

@@ -400,10 +400,11 @@
         importar: 'navImportar',
         pendientes: SL.rol === 'CONSULTA' ? 'navPendientes' : 'navImportar',
         movimientos: 'navMovimientos',
+        cuadre: 'navCuadre',
         parte: 'navParte'
       };
       const activoId = mapa[vista] || 'navExistencias';
-      ['navExistencias', 'navCambios', 'navImportar', 'navPendientes', 'navMovimientos', 'navParte'].forEach(function (id) {
+      ['navExistencias', 'navCambios', 'navImportar', 'navPendientes', 'navMovimientos', 'navCuadre', 'navParte'].forEach(function (id) {
         const el = document.getElementById(id);
         if (!el) return;
         if (id === activoId) el.setAttribute('aria-current', 'page');
@@ -419,6 +420,7 @@
       setVisibilidad('viewImportar', vista === 'importar');
       setVisibilidad('viewPendientes', vista === 'pendientes');
       if (window.SLMov) window.SLMov.setVisible(vista === 'movimientos');
+      if (window.SLCuadre) window.SLCuadre.setVisible(vista === 'cuadre');
       if (window.SLParte) window.SLParte.setVisible(vista === 'parte');
       actualizarNavActivo(vista);
     }
@@ -462,6 +464,33 @@
     function abrirParte() {
       mostrarVista('parte');
       if (window.SLParte) window.SLParte.cargar();
+    }
+
+    function abrirCuadre() {
+      if (SL.rol === 'CONSULTA') return;
+      mostrarVista('cuadre');
+      if (window.SLCuadre) window.SLCuadre.cargar();
+    }
+
+    /**
+     * Añade la acción «Cuadre» a la barra de acciones del móvil (T-040).
+     * El botón se oculta solo para CONSULTA con `data-solo-escritura`, igual que el resto.
+     */
+    function inyectarAccionCuadreMovil() {
+      if (typeof document === 'undefined') return;
+      const contenedor = document.querySelector('.sl-mobile-actions');
+      if (!contenedor || document.getElementById('btnCuadreMob')) return;
+      const boton = document.createElement('button');
+      boton.type = 'button';
+      boton.id = 'btnCuadreMob';
+      boton.className = 'sl-round-action';
+      boton.setAttribute('data-solo-escritura', '1');
+      boton.innerHTML =
+        '<span class="sl-round-icon"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M9 14l2 2 4-4"></path></svg></span>' +
+        'Cuadre';
+      boton.addEventListener('click', abrirCuadre);
+      contenedor.appendChild(boton);
+      contenedor.style.gridTemplateColumns = 'repeat(' + contenedor.children.length + ', minmax(0, 1fr))';
     }
 
     function abrirBuscar(texto) {
@@ -2471,6 +2500,9 @@
       if (navMov) navMov.addEventListener('click', function () { abrirMovimientos(); });
       const navParte = document.getElementById('navParte');
       if (navParte) navParte.addEventListener('click', abrirParte);
+      const navCuadre = document.getElementById('navCuadre');
+      if (navCuadre) navCuadre.addEventListener('click', abrirCuadre);
+      inyectarAccionCuadreMovil();
 
       document.addEventListener('keydown', function (e) {
         const tecla = String(e.key || '').toLowerCase();
@@ -2745,6 +2777,7 @@
       abrirPendientes,
       abrirMovimientos,
       abrirParte,
+      abrirCuadre,
       abrirBuscar,
       mostrarVista,
       obtenerEstadoActual: function () {

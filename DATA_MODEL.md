@@ -26,6 +26,17 @@ erDiagram
     GRUPOS_ENVASE ||--o{ STOCK_ACTUAL : "agrupa_para_consulta"
     REPROCESOS ||--o{ REPROCESO_LINEAS : "desglosa"
     REPROCESOS ||--o{ MOVIMIENTOS : "referencia"
+
+    CUADRES {
+        string id_cuadre PK
+        string familia
+        datetime fecha_hora
+        string usuario
+        int lineas_contadas
+        int lineas_con_diferencia
+        int cajas_diferencia
+        string ids_ajustes
+    }
     
     GRUPOS_ENVASE {
         string codigo_envase PK
@@ -476,6 +487,23 @@ Las copias de la hoja de datos son archivos de Drive, no filas de una hoja. Se n
 | `MANUAL` | `adminCrearCopiaManual()` antes de una restauración u operación delicada. | No se borra automáticamente. |
 | `PRE_DESPLIEGUE` | Antes de un despliegue, cuando se ejecuta la copia con ese motivo. | No se borra automáticamente. |
 | `PRE_STOCK_INICIAL` | Automáticamente antes de confirmar una carga de stock inicial (T-011). Si la copia falla, la carga no se aplica. | No se borra automáticamente. |
+
+### 3.13. Tabla: `CUADRES` (T-040)
+Cabecera de cada familia confirmada en el cuadre de la noche. Es una hoja de **solo añadir** y sirve de registro de qué se cuadró, cuándo y quién; los ajustes de stock viven en `MOVIMIENTOS` con motivo `RECUENTO` y `observaciones = CUADRE:<id_cuadre>`.
+
+| Campo | Tipo | Nulo | Descripción / Regla |
+| :--- | :--- | :---: | :--- |
+| `id_cuadre` | `VARCHAR(50)` | NO | Identificador del cuadre abierto (generado con `nuevoId('CUADRE')`). Varias familias comparten el mismo `id_cuadre`. |
+| `familia` | `VARCHAR(100)` | NO | Nombre del cajón de la agrupación `COMERCIAL` (D-029) confirmado. |
+| `fecha_hora` | `DATETIME` | NO | Marca temporal ISO de la confirmación. |
+| `usuario` | `VARCHAR(100)` | NO | Usuario del servidor que confirma (`usuarioActual_()`). |
+| `lineas_contadas` | `INTEGER` | NO | Líneas revisadas de la familia (una por artículo + envase). |
+| `lineas_con_diferencia` | `INTEGER` | NO | Líneas con `hay` distinto de `deberia`; cada una genera un ajuste `RECUENTO`. |
+| `cajas_diferencia` | `INTEGER` | NO | Suma con signo de las diferencias (`hay − deberia`). |
+| `ids_ajustes` | `TEXT` | SÍ | Ids de `MOVIMIENTOS` generados, separados por coma; vacío si la familia cuadró entera. |
+
+La clave de idempotencia es `(id_cuadre, familia)`: repetir la confirmación devuelve el resultado guardado y no crea ajustes nuevos.
+
 
 `crearCopiaSeguridad_(motivo)` es la única función que crea copias y registra el resultado
 en `LOG_OPERACIONES`. La restauración se describe en `docs/RESTAURAR_COPIA.md`.

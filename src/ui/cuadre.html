@@ -1,0 +1,555 @@
+<section id="viewCuadre" class="sl-page-wrap sl-cuadre-page sl-hidden" aria-label="Cuadre de la noche">
+  <header class="sl-cuadre-cabecera">
+    <button type="button" id="btnCuadreCerrar" class="sl-icon-btn" aria-label="Cerrar el cuadre">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+    </button>
+    <div class="sl-cuadre-cabecera-texto">
+      <h1 class="sl-page-title">Cuadre de la noche</h1>
+      <p class="sl-page-sub">Artículo por artículo, familia por familia.</p>
+    </div>
+    <div class="sl-cuadre-progreso-wrap">
+      <span id="cuadreProgresoTexto" class="sl-cuadre-progreso-texto">0 de 0</span>
+      <div id="cuadreProgreso" class="sl-cuadre-progreso" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso del cuadre">
+        <span id="cuadreProgresoFill" class="sl-cuadre-progreso-fill"></span>
+      </div>
+    </div>
+  </header>
+
+  <div id="cuadreError" class="sl-cuadre-error sl-hidden" role="alert"></div>
+  <div id="cuadreCargando" class="sl-cuadre-cargando" aria-busy="true">Cargando el cuadre…</div>
+
+  <div id="cuadreHoja" class="sl-cuadre-hoja sl-hidden">
+    <div class="sl-cuadre-familia">
+      <span id="cuadreFamiliaColor" class="sl-cuadre-color" aria-hidden="true"></span>
+      <div class="sl-cuadre-familia-texto">
+        <h2 id="cuadreFamiliaNombre" class="sl-cuadre-familia-nombre">—</h2>
+        <p id="cuadreFamiliaMeta" class="sl-cuadre-familia-meta"></p>
+      </div>
+      <span id="cuadreFamiliaCajas" class="sl-cuadre-familia-cajas">0 cajas</span>
+    </div>
+
+    <div class="sl-cuadre-tabla" role="table" aria-label="Recuento de la familia">
+      <div class="sl-cuadre-fila sl-cuadre-fila-cabecera" role="row">
+        <span role="columnheader">Artículo</span>
+        <span role="columnheader" class="sl-cuadre-num">Debería</span>
+        <span role="columnheader" class="sl-cuadre-num">Hay</span>
+        <span role="columnheader" class="sl-cuadre-num">Dif.</span>
+      </div>
+      <div id="cuadreFilas" role="rowgroup"></div>
+    </div>
+
+    <p id="cuadreResumen" class="sl-cuadre-resumen" aria-live="polite">Sin diferencias.</p>
+
+    <div id="cuadreAviso" class="sl-cuadre-aviso sl-hidden" role="alert">
+      <p id="cuadreAvisoTexto" class="sl-cuadre-aviso-texto"></p>
+      <button type="button" id="btnCuadreRecargar" class="sl-ghost">Volver a cargar</button>
+    </div>
+
+    <div class="sl-cuadre-acciones">
+      <button type="button" id="btnCuadreSaltar" class="sl-ghost">Saltar</button>
+      <button type="button" id="btnCuadreConfirmar" class="sl-btn">Confirmar y seguir</button>
+    </div>
+  </div>
+
+  <div id="cuadreFinal" class="sl-cuadre-final sl-hidden">
+    <div class="sl-cuadre-final-icono" aria-hidden="true">✓</div>
+    <h2 id="cuadreFinalTitulo" class="sl-cuadre-final-titulo">Cuadre terminado</h2>
+    <p id="cuadreFinalTexto" class="sl-cuadre-final-texto"></p>
+    <div id="cuadreFinalDatos" class="sl-cuadre-final-datos"></div>
+    <div class="sl-cuadre-acciones">
+      <button type="button" id="btnCuadreVerMovimientos" class="sl-ghost">Ver movimientos</button>
+      <button type="button" id="btnCuadreVolver" class="sl-btn">Volver a existencias</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    'use strict';
+
+    var estado = {
+      datos: null,
+      indice: 0,
+      resultados: [],
+      saltadas: 0,
+      cargando: false,
+      confirmando: false,
+      stockCambiado: false
+    };
+
+    function el(id) {
+      return typeof document === 'undefined' ? null : document.getElementById(id);
+    }
+
+    function esc(valor) {
+      if (valor === null || valor === undefined) return '';
+      return String(valor)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function fmt(valor) {
+      return String(Math.round(Number(valor) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function fmtSigned(valor) {
+      var numero = Math.round(Number(valor) || 0);
+      if (numero > 0) return '+' + fmt(numero);
+      if (numero < 0) return '−' + fmt(Math.abs(numero));
+      return '0';
+    }
+
+    function pluraliza(valor, singular, plural) {
+      var numero = Math.round(Number(valor) || 0);
+      return fmt(numero) + ' ' + (Math.abs(numero) === 1 ? singular : plural);
+    }
+
+    function nombreLegible(texto) {
+      if (texto === null || texto === undefined) return '';
+      if (typeof window !== 'undefined' && window.SLApp && typeof window.SLApp.nombreLegible === 'function') {
+        return window.SLApp.nombreLegible(texto);
+      }
+      return String(texto).replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function etiquetaArticulo(articulo, envase) {
+      return [nombreLegible(articulo), nombreLegible(envase)].filter(Boolean).join(' · ');
+    }
+
+    function fmtFechaHora(valor) {
+      var fecha = new Date(valor);
+      if (!valor || isNaN(fecha.getTime())) return '';
+      function dos(n) { return String(n).padStart(2, '0'); }
+      return dos(fecha.getDate()) + '/' + dos(fecha.getMonth() + 1) + ' ' + dos(fecha.getHours()) + ':' + dos(fecha.getMinutes());
+    }
+
+    function familiaActual() {
+      if (!estado.datos || !Array.isArray(estado.datos.familias)) return null;
+      return estado.datos.familias[estado.indice] || null;
+    }
+
+    function parseHay(valor) {
+      var texto = String(valor === null || valor === undefined ? '' : valor).trim();
+      if (!texto) return '';
+      if (!/^\d+$/.test(texto)) return texto;
+      return Number(texto);
+    }
+
+    function leerEntradas() {
+      var familia = familiaActual();
+      if (!familia || !Array.isArray(familia.articulos)) return [];
+      return familia.articulos.map(function (articulo, indice) {
+        var input = el('cuadreHay-' + indice);
+        return {
+          articulo: String(articulo.articulo || ''),
+          envase: String(articulo.envase || ''),
+          deberia: Number(articulo.deberia || 0),
+          hay: parseHay(input ? input.value : '')
+        };
+      });
+    }
+
+    function calcularResumen(lineas) {
+      var ajustes = 0;
+      var cajas = 0;
+      var invalidas = 0;
+      (Array.isArray(lineas) ? lineas : []).forEach(function (linea) {
+        if (linea.hay === '' || linea.hay === null || linea.hay === undefined) return;
+        if (typeof linea.hay !== 'number' || !isFinite(linea.hay)) {
+          invalidas++;
+          return;
+        }
+        var diferencia = linea.hay - linea.deberia;
+        if (diferencia !== 0) {
+          ajustes++;
+          cajas += diferencia;
+        }
+      });
+      return { ajustes: ajustes, cajas: cajas, invalidas: invalidas };
+    }
+
+    function textoResumen(resumen) {
+      if (resumen.invalidas > 0) {
+        return 'Revisa las cajas: solo números enteros.';
+      }
+      if (resumen.ajustes === 0) {
+        return 'Sin diferencias · la familia cuadra.';
+      }
+      return pluraliza(resumen.ajustes, 'ajuste', 'ajustes') + ' de recuento · ' +
+        fmtSigned(resumen.cajas) + ' ' + (Math.abs(resumen.cajas) === 1 ? 'caja' : 'cajas');
+    }
+
+    function actualizarResumen() {
+      var resumen = calcularResumen(leerEntradas());
+      var texto = el('cuadreResumen');
+      if (texto) texto.textContent = textoResumen(resumen);
+      var boton = el('btnCuadreConfirmar');
+      if (boton) {
+        boton.textContent = resumen.ajustes === 0 ? 'Cuadra · siguiente familia' : 'Confirmar y seguir';
+        boton.disabled = estado.confirmando || estado.stockCambiado || resumen.invalidas > 0;
+      }
+      var saltarBtn = el('btnCuadreSaltar');
+      if (saltarBtn) saltarBtn.disabled = estado.confirmando || estado.stockCambiado;
+      return resumen;
+    }
+
+    function actualizarDiferencia(indice, deberia) {
+      var input = el('cuadreHay-' + indice);
+      var celda = el('cuadreDif-' + indice);
+      if (!celda) return;
+      var hay = parseHay(input ? input.value : '');
+      celda.classList.remove('sl-cuadre-dif-ok', 'sl-cuadre-dif-cambio', 'sl-cuadre-dif-error');
+      if (hay === '' || hay === null || hay === undefined) {
+        celda.textContent = '✓';
+        celda.classList.add('sl-cuadre-dif-ok');
+        return;
+      }
+      if (typeof hay !== 'number' || !isFinite(hay)) {
+        celda.textContent = '—';
+        celda.classList.add('sl-cuadre-dif-error');
+        return;
+      }
+      var diferencia = hay - Number(deberia || 0);
+      if (diferencia === 0) {
+        celda.textContent = '✓';
+        celda.classList.add('sl-cuadre-dif-ok');
+      } else {
+        celda.textContent = fmtSigned(diferencia);
+        celda.classList.add('sl-cuadre-dif-cambio');
+      }
+    }
+
+    function limpiarAviso() {
+      var aviso = el('cuadreAviso');
+      if (aviso) aviso.classList.add('sl-hidden');
+    }
+
+    function mostrarError(mensaje) {
+      var caja = el('cuadreError');
+      if (!caja) return;
+      caja.textContent = mensaje || 'No se pudo completar la operación.';
+      caja.classList.remove('sl-hidden');
+    }
+
+    function ocultarError() {
+      var caja = el('cuadreError');
+      if (caja) caja.classList.add('sl-hidden');
+    }
+
+    function renderFamilia() {
+      estado.stockCambiado = false;
+      var total = estado.datos && Array.isArray(estado.datos.familias) ? estado.datos.familias.length : 0;
+      if (total === 0 || estado.indice >= total) {
+        mostrarFinal();
+        return;
+      }
+
+      var familia = familiaActual();
+      var hoja = el('cuadreHoja');
+      var final = el('cuadreFinal');
+      var cargando = el('cuadreCargando');
+      if (cargando) cargando.classList.add('sl-hidden');
+      if (final) final.classList.add('sl-hidden');
+      if (hoja) hoja.classList.remove('sl-hidden');
+      ocultarError();
+      limpiarAviso();
+
+      var progresoTexto = el('cuadreProgresoTexto');
+      var progreso = el('cuadreProgreso');
+      var progresoFill = el('cuadreProgresoFill');
+      var porcentaje = Math.round(((estado.indice + 1) / total) * 100);
+      if (progresoTexto) progresoTexto.textContent = (estado.indice + 1) + ' de ' + total;
+      if (progreso) progreso.setAttribute('aria-valuenow', String(porcentaje));
+      if (progresoFill) progresoFill.style.width = porcentaje + '%';
+
+      var color = el('cuadreFamiliaColor');
+      if (color) color.style.background = familia.color || 'var(--sl-brand)';
+      var nombre = el('cuadreFamiliaNombre');
+      if (nombre) nombre.textContent = nombreLegible(familia.familia);
+      var cajas = el('cuadreFamiliaCajas');
+      if (cajas) cajas.textContent = pluraliza(familia.cajas, 'caja', 'cajas');
+      var meta = el('cuadreFamiliaMeta');
+      if (meta) {
+        if (familia.ultimo_cuadre && familia.ultimo_cuadre.fecha_hora) {
+          meta.textContent = 'Último cuadre: ' + fmtFechaHora(familia.ultimo_cuadre.fecha_hora) +
+            ' · ' + (familia.ultimo_cuadre.usuario || 'SIN IDENTIFICAR') +
+            ' · ' + pluraliza(familia.ultimo_cuadre.ajustes, 'ajuste', 'ajustes');
+        } else {
+          meta.textContent = 'Sin cuadres anteriores.';
+        }
+      }
+
+      var filas = el('cuadreFilas');
+      if (filas) {
+        filas.innerHTML = (familia.articulos || []).map(function (articulo, indice) {
+          var deberia = Number(articulo.deberia || 0);
+          var etiqueta = etiquetaArticulo(articulo.articulo, articulo.envase);
+          return (
+            '<div class="sl-cuadre-fila" role="row">' +
+            '<div class="sl-cuadre-articulo" role="cell">' +
+            '<label class="sl-cuadre-sr" for="cuadreHay-' + indice + '">Cajas contadas de ' + esc(etiqueta) + '</label>' +
+            '<span class="sl-cuadre-articulo-nombre">' + esc(nombreLegible(articulo.articulo)) + '</span>' +
+            '<span class="sl-cuadre-articulo-envase">' + esc(nombreLegible(articulo.envase)) + '</span>' +
+            '</div>' +
+            '<span class="sl-cuadre-num sl-cuadre-deberia" role="cell" data-deberia="' + indice + '">' + esc(fmt(deberia)) + '</span>' +
+            '<span class="sl-cuadre-hay" role="cell">' +
+            '<input id="cuadreHay-' + indice + '" class="sl-cuadre-input" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" data-cuadre-indice="' + indice + '" data-deberia="' + deberia + '">' +
+            '</span>' +
+            '<span id="cuadreDif-' + indice + '" class="sl-cuadre-dif sl-cuadre-dif-ok" role="cell" aria-label="Diferencia de ' + esc(etiqueta) + '">✓</span>' +
+            '</div>'
+          );
+        }).join('');
+
+        filas.querySelectorAll('.sl-cuadre-input').forEach(function (input) {
+          input.addEventListener('input', function () {
+            input.value = input.value.replace(/\D+/g, '');
+            actualizarDiferencia(Number(input.getAttribute('data-cuadre-indice')), input.getAttribute('data-deberia'));
+            actualizarResumen();
+          });
+          input.addEventListener('keydown', function (evento) {
+            if (evento.key !== 'Enter') return;
+            evento.preventDefault();
+            var indice = Number(input.getAttribute('data-cuadre-indice'));
+            var siguiente = el('cuadreHay-' + (indice + 1));
+            if (siguiente) siguiente.focus();
+            else confirmar();
+          });
+        });
+      }
+
+      actualizarResumen();
+    }
+
+    function mostrarFinal() {
+      var hoja = el('cuadreHoja');
+      var final = el('cuadreFinal');
+      var cargando = el('cuadreCargando');
+      if (hoja) hoja.classList.add('sl-hidden');
+      if (cargando) cargando.classList.add('sl-hidden');
+      if (final) final.classList.remove('sl-hidden');
+      ocultarError();
+      limpiarAviso();
+
+      var totalFamilias = estado.datos && Array.isArray(estado.datos.familias) ? estado.datos.familias.length : 0;
+      var confirmadas = estado.resultados.length;
+      var ajustes = 0;
+      var cajas = 0;
+      var conDiferencia = 0;
+      estado.resultados.forEach(function (resultado) {
+        ajustes += Number(resultado.ajustes || (Array.isArray(resultado.ids_ajustes) ? resultado.ids_ajustes.length : 0));
+        cajas += Number(resultado.cajas_diferencia || 0);
+        conDiferencia += Number(resultado.lineas_con_diferencia || 0);
+      });
+
+      var titulo = el('cuadreFinalTitulo');
+      var texto = el('cuadreFinalTexto');
+      var datos = el('cuadreFinalDatos');
+      var progresoTexto = el('cuadreProgresoTexto');
+      var progreso = el('cuadreProgreso');
+      var progresoFill = el('cuadreProgresoFill');
+      if (progresoTexto) progresoTexto.textContent = totalFamilias + ' de ' + totalFamilias;
+      if (progreso) progreso.setAttribute('aria-valuenow', '100');
+      if (progresoFill) progresoFill.style.width = '100%';
+
+      if (totalFamilias === 0) {
+        if (titulo) titulo.textContent = 'No hay nada que cuadrar';
+        if (texto) texto.textContent = 'No hay familias con stock ni artículos con movimientos en los últimos 7 días.';
+        if (datos) datos.innerHTML = '';
+        return;
+      }
+
+      if (titulo) titulo.textContent = 'Cuadre terminado';
+      if (texto) {
+        texto.textContent = confirmadas === totalFamilias
+          ? 'Has confirmado las ' + pluraliza(totalFamilias, 'familia', 'familias') + '.'
+          : 'Has confirmado ' + pluraliza(confirmadas, 'familia', 'familias') + ' de ' +
+            pluraliza(totalFamilias, 'familia', 'familias') +
+            (estado.saltadas > 0 ? ' (' + pluraliza(estado.saltadas, 'saltada', 'saltadas') + ').' : '.');
+      }
+      if (datos) {
+        datos.innerHTML =
+          '<div class="sl-cuadre-dato"><span>Ajustes de recuento</span><b>' + esc(fmt(ajustes)) + '</b></div>' +
+          '<div class="sl-cuadre-dato"><span>Líneas con diferencia</span><b>' + esc(fmt(conDiferencia)) + '</b></div>' +
+          '<div class="sl-cuadre-dato"><span>Diferencia de cajas</span><b>' + esc(fmtSigned(cajas)) + '</b></div>';
+      }
+    }
+
+    function cargar() {
+      if (estado.cargando) return Promise.resolve();
+      if (typeof window === 'undefined' || !window.SLBridge || typeof window.SLBridge.call !== 'function') {
+        mostrarError('No hay conexión con el servidor.');
+        return Promise.resolve();
+      }
+      estado.cargando = true;
+      estado.datos = null;
+      estado.indice = 0;
+      estado.resultados = [];
+      estado.saltadas = 0;
+      estado.stockCambiado = false;
+      var cargando = el('cuadreCargando');
+      var hoja = el('cuadreHoja');
+      var final = el('cuadreFinal');
+      if (cargando) cargando.classList.remove('sl-hidden');
+      if (hoja) hoja.classList.add('sl-hidden');
+      if (final) final.classList.add('sl-hidden');
+      ocultarError();
+      limpiarAviso();
+
+      return window.SLBridge.call('apiObtenerCuadre').then(function (datos) {
+        estado.cargando = false;
+        if (!datos || !Array.isArray(datos.familias)) {
+          mostrarError('No se pudo leer el cuadre.');
+          return;
+        }
+        estado.datos = datos;
+        estado.indice = 0;
+        renderFamilia();
+      }).catch(function (err) {
+        estado.cargando = false;
+        if (cargando) cargando.classList.add('sl-hidden');
+        mostrarError(err && err.message ? err.message : String(err));
+      });
+    }
+
+    function saltar() {
+      if (estado.confirmando || estado.stockCambiado) return;
+      if (!familiaActual()) return;
+      estado.saltadas++;
+      estado.indice++;
+      renderFamilia();
+    }
+
+    function mostrarAvisoStock(resultado) {
+      var lineas = Array.isArray(resultado && resultado.lineas) ? resultado.lineas : [];
+      var cambiadas = lineas.filter(function (linea) { return linea && linea.cambiado; });
+      var nombre = cambiadas.length > 0
+        ? etiquetaArticulo(cambiadas[0].articulo, cambiadas[0].envase)
+        : 'un artículo';
+      var extra = cambiadas.length > 1 ? ' y ' + (cambiadas.length - 1) + ' más' : '';
+      var stockNuevo = cambiadas.length > 0 ? ' (ahora ' + fmt(cambiadas[0].actual) + ')' : '';
+      estado.stockCambiado = true;
+      var aviso = el('cuadreAviso');
+      var avisoTexto = el('cuadreAvisoTexto');
+      if (avisoTexto) {
+        avisoTexto.textContent = 'El stock de ' + nombre + extra + stockNuevo +
+          ' ha cambiado desde que abriste el cuadre: vuelve a cargar.';
+      }
+      if (aviso) aviso.classList.remove('sl-hidden');
+      var botonRecargar = el('btnCuadreRecargar');
+      if (botonRecargar) botonRecargar.focus();
+      actualizarResumen();
+    }
+
+    function confirmar() {
+      if (estado.confirmando || estado.stockCambiado) return Promise.resolve();
+      var familia = familiaActual();
+      if (!familia || !estado.datos) return Promise.resolve();
+      var lineas = leerEntradas();
+      var resumen = calcularResumen(lineas);
+      if (resumen.invalidas > 0) {
+        mostrarError('Revisa las cajas: solo números enteros.');
+        return Promise.resolve();
+      }
+
+      estado.confirmando = true;
+      ocultarError();
+      limpiarAviso();
+      var boton = el('btnCuadreConfirmar');
+      if (boton) {
+        boton.disabled = true;
+        boton.textContent = 'Confirmando…';
+      }
+
+      var params = {
+        id_cuadre: estado.datos.id_cuadre,
+        familia: familia.familia,
+        lineas: lineas
+      };
+
+      return window.SLBridge.call('apiConfirmarCuadreFamilia', params).then(function (resultado) {
+        estado.confirmando = false;
+        if (resultado && resultado.success === true) {
+          estado.resultados.push(resultado);
+          estado.indice++;
+          renderFamilia();
+          return;
+        }
+        if (resultado && resultado.status === 'STOCK_CAMBIADO') {
+          mostrarAvisoStock(resultado);
+          actualizarResumen();
+          return;
+        }
+        if (resultado && resultado.status === 'PARCIAL') {
+          var aplicados = Array.isArray(resultado.aplicados) ? resultado.aplicados.length : 0;
+          var noAplicados = Array.isArray(resultado.no_aplicados) ? resultado.no_aplicados.length : 0;
+          mostrarError('Se aplicaron ' + pluraliza(aplicados, 'ajuste', 'ajustes') + ' y quedaron ' +
+            pluraliza(noAplicados, 'línea', 'líneas') + ' sin aplicar. Revísalo en Movimientos.');
+          actualizarResumen();
+          return;
+        }
+        mostrarError((resultado && (resultado.message || resultado.status)) || 'No se pudo confirmar la familia.');
+        actualizarResumen();
+      }).catch(function (err) {
+        estado.confirmando = false;
+        mostrarError(err && err.message ? err.message : String(err));
+        actualizarResumen();
+      });
+    }
+
+    function verMovimientos() {
+      if (typeof window === 'undefined' || !window.SLApp || typeof window.SLApp.abrirMovimientos !== 'function') return;
+      window.SLApp.abrirMovimientos({ tipo: 'ajuste', texto: 'RECUENTO' });
+    }
+
+    function volver() {
+      if (typeof window !== 'undefined' && window.SLApp && typeof window.SLApp.volverAExistencias === 'function') {
+        window.SLApp.volverAExistencias();
+      }
+    }
+
+    function setVisible(visible) {
+      if (typeof document === 'undefined') return;
+      var seccion = el('viewCuadre');
+      if (seccion) seccion.classList.toggle('sl-hidden', !visible);
+    }
+
+    function inicializar() {
+      if (typeof document === 'undefined') return;
+      var cerrar = el('btnCuadreCerrar');
+      if (cerrar) cerrar.addEventListener('click', volver);
+      var saltarBtn = el('btnCuadreSaltar');
+      if (saltarBtn) saltarBtn.addEventListener('click', saltar);
+      var confirmarBtn = el('btnCuadreConfirmar');
+      if (confirmarBtn) confirmarBtn.addEventListener('click', function () { confirmar(); });
+      var recargar = el('btnCuadreRecargar');
+      if (recargar) recargar.addEventListener('click', function () { cargar(); });
+      var movimientos = el('btnCuadreVerMovimientos');
+      if (movimientos) movimientos.addEventListener('click', verMovimientos);
+      var volverBtn = el('btnCuadreVolver');
+      if (volverBtn) volverBtn.addEventListener('click', volver);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.SLCuadre = {
+        setVisible: setVisible,
+        cargar: cargar,
+        render: renderFamilia,
+        confirmar: confirmar,
+        saltar: saltar,
+        mostrarFinal: mostrarFinal,
+        calcularResumen: calcularResumen,
+        textoResumen: textoResumen,
+        leerEntradas: leerEntradas,
+        _estado: estado
+      };
+    }
+
+    if (typeof document !== 'undefined' && document.addEventListener) {
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializar);
+      else inicializar();
+    }
+  })();
+</script>

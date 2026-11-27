@@ -41,6 +41,8 @@ if (typeof require !== 'undefined') {
   try { inicioMod = require('./InicioService'); } catch (e) {}
   let parteMod = null;
   try { parteMod = require('./ParteService'); } catch (e) {}
+  let cuadreMod = null;
+  try { cuadreMod = require('./CuadreService'); } catch (e) {}
   let correccionMod = null;
   try { correccionMod = require('./CorreccionService'); } catch (e) {}
   let exclusionesMod = null;
@@ -75,6 +77,7 @@ if (typeof require !== 'undefined') {
     global.leerHoraParte_ = global.leerHoraParte_ || parteMod.leerHoraParte_;
     global.normalizarDestinatariosParte_ = global.normalizarDestinatariosParte_ || parteMod.normalizarDestinatariosParte_;
   }
+  if (cuadreMod) global.CuadreService = global.CuadreService || cuadreMod.CuadreService;
   if (correccionMod) global.CorreccionService = global.CorreccionService || correccionMod.CorreccionService;
   if (exclusionesMod) {
     global.adminConfigurarClientesExcluidos = global.adminConfigurarClientesExcluidos || exclusionesMod.adminConfigurarClientesExcluidos;
@@ -2341,6 +2344,57 @@ function apiObtenerInicio(options = {}) {
 }
 
 /**
+ * Resuelve el servicio del cuadre de la noche (T-040).
+ * Función interna: no se expone en docs/API_PUBLICA.md.
+ * @param {Object} [options]
+ * @returns {CuadreService}
+ */
+function _resolveCuadreService_(options = {}) {
+  if (options && options.cuadreService) return options.cuadreService;
+  const SvcClass = (typeof CuadreService !== 'undefined')
+    ? CuadreService
+    : (typeof require !== 'undefined' ? require('./CuadreService').CuadreService : null);
+  if (!SvcClass) throw new Error('CuadreService no está disponible en este entorno de ejecución.');
+  const repo = options.repository || (typeof SheetsRepository !== 'undefined'
+    ? new SheetsRepository()
+    : (typeof require !== 'undefined' ? new (require('./Repository').SheetsRepository)() : null));
+  return new SvcClass({
+    repository: repo,
+    movementService: options.movementService,
+    catalogoService: options.catalogoService,
+    configCatalogo: options.configCatalogo,
+    lockService: options.lockService,
+    reloj: options.reloj !== undefined ? options.reloj : options.clock
+  });
+}
+
+/**
+ * Devuelve el cuadre de la noche: familias, artículos y cajas que debería haber (T-040).
+ * Categoría: LECTURA (rol mínimo ENCARGADO).
+ *
+ * @param {Object} [options={}]
+ * @returns {{ id_cuadre: string, generado_en: string, familias: Array<Object> }}
+ */
+function apiObtenerCuadre(options = {}) {
+  exigirSesionApi_();
+  return _resolveCuadreService_(options).obtenerCuadre();
+}
+
+/**
+ * Confirma el recuento de una familia y crea los ajustes RECUENTO que hagan falta (T-040).
+ * Categoría: ESCRITURA (rol mínimo ENCARGADO). El usuario lo decide el servidor.
+ *
+ * @param {Object} params - `{ id_cuadre, familia, lineas: [{ articulo, envase, deberia, hay }] }`
+ * @param {Object} [options={}]
+ * @returns {Object}
+ */
+function apiConfirmarCuadreFamilia(params, options = {}) {
+  exigirSesionApi_();
+  const user = usuarioActual_(options && options.session);
+  return _resolveCuadreService_(options).confirmarFamilia(params || {}, user);
+}
+
+/**
  * Devuelve el parte de stock de la noche (T-029).
  * Categoría: LECTURA (rol mínimo CONSULTA).
  *
@@ -2515,6 +2569,8 @@ if (typeof module !== 'undefined' && module.exports) {
     include_,
     apiObtenerInicio,
     apiObtenerParte,
+    apiObtenerCuadre,
+    apiConfirmarCuadreFamilia,
     apiObtenerPartida,
     apiListarExclusiones,
     apiListarEquivalencias,
