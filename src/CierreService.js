@@ -175,7 +175,9 @@ class CierreService {
     const CuadreClass = (typeof CuadreService !== 'undefined')
       ? CuadreService
       : (typeof require !== 'undefined' ? require('./CuadreService').CuadreService : null);
-    this.cuadreService = options.cuadreService !== undefined
+    this._cuadreClass_ = CuadreClass;
+    this._cuadreServiceInyectado_ = options.cuadreService !== undefined;
+    this.cuadreService = this._cuadreServiceInyectado_
       ? options.cuadreService
       : (CuadreClass && this.movementService
         ? new CuadreClass({
@@ -186,6 +188,9 @@ class CierreService {
         })
         : null);
 
+    this.lockService = options.lockService !== undefined
+      ? options.lockService
+      : (typeof LockService !== 'undefined' ? LockService : null);
     this.reloj = options.reloj !== undefined ? options.reloj : options.clock;
   }
 
@@ -517,8 +522,24 @@ class CierreService {
     } else {
       let cuadre = null;
       try {
-        cuadre = this.cuadreService && typeof this.cuadreService.obtenerCuadre === 'function'
-          ? this.cuadreService.obtenerCuadre({ movimientos, stockRows })
+        let cuadreSvc = this.cuadreService;
+        const usaCache = !this._cuadreServiceInyectado_
+          && this._cuadreClass_
+          && this.movementService
+          && (Array.isArray(datosPrevios.movimientos) || Array.isArray(datosPrevios.stockRows));
+        if (usaCache) {
+          const repoCache = Object.create(this.repo);
+          if (Array.isArray(datosPrevios.movimientos)) repoCache.getMovimientos = () => movimientos;
+          if (Array.isArray(datosPrevios.stockRows)) repoCache.getStockActual = () => stockRows;
+          cuadreSvc = new this._cuadreClass_({
+            repository: repoCache,
+            movementService: this.movementService,
+            catalogoService: this.catalogoService,
+            reloj: this.reloj
+          });
+        }
+        cuadre = cuadreSvc && typeof cuadreSvc.obtenerCuadre === 'function'
+          ? cuadreSvc.obtenerCuadre()
           : null;
         if (!cuadre) errorCuadre = 'El cuadre no está disponible.';
       } catch (err) {
@@ -653,7 +674,15 @@ class CierreService {
       hora: _horaCierre_(ahora),
       nota: ''
     };
-    this.repo.appendCierreDia(fila);
+    const lock = this.lockService && typeof this.lockService.getScriptLock === 'function'
+      ? this.lockService.getScriptLock()
+      : null;
+    if (lock) lock.waitLock(10000);
+    try {
+      this.repo.appendCierreDia(fila);
+    } finally {
+      if (lock && typeof lock.releaseLock === 'function') lock.releaseLock();
+    }
     return {
       success: true,
       fecha: fila.fecha,

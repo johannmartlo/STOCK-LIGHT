@@ -257,7 +257,8 @@ function _textoCierreIncompletoParte_(cierre) {
   const numeros = pendientes.map(paso => Number(paso.n)).filter(n => Number.isFinite(n));
   if (numeros.length === 0) return 'Cierre incompleto.';
   if (numeros.length === 1) return `Cierre incompleto: falta el paso ${numeros[0]}.`;
-  return `Cierre incompleto: faltan los pasos ${numeros.join(' y ')}.`;
+  const lista = `${numeros.slice(0, -1).join(', ')} y ${numeros[numeros.length - 1]}`;
+  return `Cierre incompleto: faltan los pasos ${lista}.`;
 }
 
 /**

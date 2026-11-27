@@ -1,0 +1,123 @@
+================================================================
+ EJECUTOR ÚNICO DE PRUEBAS — STOCK-LIGHT
+================================================================
+
+Suites detectadas (51):
+  1. articulo_envase_persistence.test.js
+  2. commercial_group_resolver.test.js
+  3. compra_packaging_resolution.test.js
+  4. fase5_configuracion_persistencia.test.js
+  5. fase6_1_correcciones_historicas.test.js
+  6. fase6_seguridad_operativa.test.js
+  7. fase8_1_prueba_real_aislada.test.js
+  8. fase8_2_apps_script_v8_loading.test.js
+  9. fase8_auditoria_maestros_inicializacion.test.js
+  10. helpers_mock.test.js
+  11. inventory_engine.test.js
+  12. maestro_envases_import.test.js
+  13. movement_service.test.js
+  14. persistence_runtime.test.js
+  15. stock_query.test.js
+  16. t002_fecha_negocio.test.js
+  17. t003_consumos_fifo.test.js
+  18. t004_clave_nombre.test.js
+  19. t005_catalogo.test.js
+  20. t006_parser_csv.test.js
+  21. t006b_clasificador.test.js
+  22. t007_importacion_lote.test.js
+  23. t008_pendientes.test.js
+  24. t009_reproceso.test.js
+  25. t011_puesta_en_marcha.test.js
+  26. t018_copias.test.js
+  27. t020_acceso.test.js
+  28. t022_libro.test.js
+  29. t022_propiedades.test.js
+  30. t023_superficie.test.js
+  31. t024_inicio.test.js
+  32. t024_interfaz.test.js
+  33. t025_operaciones.test.js
+  34. t026_deuda_menor.test.js
+  35. t027_correcciones.test.js
+  36. t028_importar_pendientes.test.js
+  37. t029_parte_noche.test.js
+  38. t030_lector_por_columnas.test.js
+  39. t031_exclusiones.test.js
+  40. t032_recepciones.test.js
+  41. t033_cambiar.test.js
+  42. t034_movimientos.test.js
+  43. t035_recepciones_columna.test.js
+  44. t037_fecha_corte.test.js
+  45. t038_bloqueo.test.js
+  46. t039_orden_calibre.test.js
+  47. t040_cuadre.test.js
+  48. t041_pulido.test.js
+  49. t042_acceso.test.js
+  50. t043_cierre.test.js
+  51. t044_recepciones_agrupado.test.js
+
+----------------------------------------------------------------
+
+[1/51] Ejecutando articulo_envase_persistence.test.js... ✅ OK (20 pruebas, 0.10s)
+[2/51] Ejecutando commercial_group_resolver.test.js... ✅ OK (23 pruebas, 0.10s)
+[3/51] Ejecutando compra_packaging_resolution.test.js... ✅ OK (9 pruebas, 0.06s)
+[4/51] Ejecutando fase5_configuracion_persistencia.test.js... ✅ OK (18 pruebas, 0.11s)
+[5/51] Ejecutando fase6_1_correcciones_historicas.test.js... ✅ OK (21 pruebas, 0.12s)
+[6/51] Ejecutando fase6_seguridad_operativa.test.js... ✅ OK (20 pruebas, 0.12s)
+[7/51] Ejecutando fase8_1_prueba_real_aislada.test.js... ✅ OK (8 pruebas, 0.10s)
+[8/51] Ejecutando fase8_2_apps_script_v8_loading.test.js... ✅ OK (7 pruebas, 0.15s)
+[9/51] Ejecutando fase8_auditoria_maestros_inicializacion.test.js... ✅ OK (10 pruebas, 0.10s)
+[10/51] Ejecutando helpers_mock.test.js... ✅ OK (2 pruebas, 0.05s)
+[11/51] Ejecutando inventory_engine.test.js... ✅ OK (11 pruebas, 0.05s)
+[12/51] Ejecutando maestro_envases_import.test.js... ✅ OK (22 pruebas, 0.04s)
+[13/51] Ejecutando movement_service.test.js... ✅ OK (4 pruebas, 0.06s)
+[14/51] Ejecutando persistence_runtime.test.js... ✅ OK (9 pruebas, 0.06s)
+[15/51] Ejecutando stock_query.test.js... ✅ OK (10 pruebas, 0.07s)
+[16/51] Ejecutando t002_fecha_negocio.test.js... ✅ OK (9 pruebas, 0.07s)
+[17/51] Ejecutando t003_consumos_fifo.test.js... ✅ OK (9 pruebas, 0.07s)
+[18/51] Ejecutando t004_clave_nombre.test.js... ✅ OK (6 pruebas, 0.11s)
+[19/51] Ejecutando t005_catalogo.test.js... ✅ OK (8 pruebas, 0.10s)
+[20/51] Ejecutando t006_parser_csv.test.js... ✅ OK (5 pruebas, 0.04s)
+[21/51] Ejecutando t006b_clasificador.test.js... ✅ OK (5 pruebas, 0.05s)
+[22/51] Ejecutando t007_importacion_lote.test.js... ✅ OK (13 pruebas, 0.12s)
+[23/51] Ejecutando t008_pendientes.test.js... ✅ OK (12 pruebas, 0.10s)
+[24/51] Ejecutando t009_reproceso.test.js... ✅ OK (10 pruebas, 0.09s)
+[25/51] Ejecutando t011_puesta_en_marcha.test.js... ✅ OK (10 pruebas, 0.10s)
+[26/51] Ejecutando t018_copias.test.js... ✅ OK (12 pruebas, 0.09s)
+[27/51] Ejecutando t020_acceso.test.js... ✅ OK (18 pruebas, 0.10s)
+[28/51] Ejecutando t022_libro.test.js... ✅ OK (5 pruebas, 0.06s)
+[29/51] Ejecutando t022_propiedades.test.js... ✅ OK (1 pruebas, 0.39s)
+[30/51] Ejecutando t023_superficie.test.js... ✅ OK (8 pruebas, 0.11s)
+[31/51] Ejecutando t024_inicio.test.js... ✅ OK (5 pruebas, 0.17s)
+[32/51] Ejecutando t024_interfaz.test.js... ✅ OK (11 pruebas, 0.12s)
+[33/51] Ejecutando t025_operaciones.test.js... ✅ OK (8 pruebas, 0.17s)
+[34/51] Ejecutando t026_deuda_menor.test.js... ✅ OK (3 pruebas, 0.12s)
+[35/51] Ejecutando t027_correcciones.test.js... ✅ OK (12 pruebas, 0.27s)
+[36/51] Ejecutando t028_importar_pendientes.test.js... ✅ OK (13 pruebas, 0.11s)
+[37/51] Ejecutando t029_parte_noche.test.js... ✅ OK (5 pruebas, 0.09s)
+[38/51] Ejecutando t030_lector_por_columnas.test.js... ✅ OK (4 pruebas, 0.08s)
+[39/51] Ejecutando t031_exclusiones.test.js... ✅ OK (10 pruebas, 0.17s)
+[40/51] Ejecutando t032_recepciones.test.js... ✅ OK (7 pruebas, 0.12s)
+[41/51] Ejecutando t033_cambiar.test.js... ✅ OK (12 pruebas, 0.10s)
+[42/51] Ejecutando t034_movimientos.test.js... ✅ OK (10 pruebas, 0.06s)
+[43/51] Ejecutando t035_recepciones_columna.test.js... ✅ OK (4 pruebas, 0.08s)
+[44/51] Ejecutando t037_fecha_corte.test.js... ✅ OK (6 pruebas, 0.13s)
+[45/51] Ejecutando t038_bloqueo.test.js... ✅ OK (17 pruebas, 0.09s)
+[46/51] Ejecutando t039_orden_calibre.test.js... ✅ OK (6 pruebas, 0.22s)
+[47/51] Ejecutando t040_cuadre.test.js... ✅ OK (10 pruebas, 0.11s)
+[48/51] Ejecutando t041_pulido.test.js... ✅ OK (7 pruebas, 0.09s)
+[49/51] Ejecutando t042_acceso.test.js... ✅ OK (7 pruebas, 0.11s)
+[50/51] Ejecutando t043_cierre.test.js... ✅ OK (11 pruebas, 0.10s)
+[51/51] Ejecutando t044_recepciones_agrupado.test.js... ✅ OK (6 pruebas, 0.07s)
+
+================================================================
+ RESUMEN GLOBAL DE EJECUCIÓN
+================================================================
+ Suites ejecutadas:  51
+ Suites superadas:   51
+ Suites fallidas:    0
+ Pruebas superadas:  499
+ Tiempo total:       5.53s
+================================================================
+
+RESULTADO FINAL: TODO EN VERDE (0 fallos)
+

@@ -506,6 +506,7 @@
 
     function renderInicio(data) {
       if (typeof document === 'undefined') return;
+      renderSello(data || {});
       var cierre = data && data.cierre ? data.cierre : null;
       if (!cierre) {
         ['cierreCardInicioDesk', 'cierreCardInicioMob'].forEach(function (id) {
@@ -517,7 +518,6 @@
         return;
       }
       actualizarTarjetas(cierre);
-      renderSello(data || {});
       actualizarBadgeNav(cierre);
     }
 
