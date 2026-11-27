@@ -2,8 +2,8 @@
 
 ## Resumen (5 líneas)
 
-1. Rama `ticket/T-037-fecha-corte`, creada desde `origin/main` `f3c0d2b`; el primer commit
-   (`14a4e6a`) contiene solo el ticket, sin editar.
+1. Rama `ticket/T-037-fecha-corte`, rebasada sobre `origin/main` `4bf858e` (T-038); el primer
+   commit (`f4037c1`) contiene solo el ticket, sin editar.
 2. `FECHA_CORTE_IMPORTACION` se lee en `Config`, se fija con
    `adminConfigurarFechaCorte` y vacía significa «sin corte»; el estado nuevo
    `ANTERIOR_AL_CORTE` no genera movimientos, pendientes, versiones ni filas en `DOCUMENTOS`.
@@ -13,14 +13,30 @@
 4. La tarjeta de Importar muestra la fila gris de anteriores al stock inicial; `IMPORT_SPECS`,
    `DATA_MODEL` y `PUESTA_EN_MARCHA` documentan la propiedad, el estado y el paso posterior
    al stock inicial.
-5. `node test/run_all.js`: **44 suites, 435 pruebas, 0 fallos**. Sin merge.
+5. `node test/run_all.js`: **45 suites, 452 pruebas, 0 fallos**. Sin merge.
+
+## Rebase sobre main
+
+- Base anterior: `f3c0d2b` (merge-base de la rama). Base nueva: `4bf858e`, cabeza de
+  `origin/main` (T-038).
+- `git rebase origin/main` sin conflictos. Los tres commits de la rama se reescriben:
+  `14a4e6a` → `f4037c1`, `026a009` → `67758c2`, `4012471` → `68143fe`.
+- `node test/run_all.js` tras el rebase: 45 suites, 452 pruebas, 0 fallos. La suite nueva y
+  las 17 pruebas de más son de T-038, ya en `main`.
 
 ## git status
 
 ```text
 On branch ticket/T-037-fecha-corte
-Your branch is ahead of 'origin/main' by 2 commits.
-  (use "git push" to publish your local commits)
+Your branch and 'origin/ticket/T-037-fecha-corte' have diverged,
+and have 6 and 3 different commits each, respectively.
+  (use "git pull" if you want to integrate the remote branch with yours)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   logs/T-037/informe.md
+	modified:   logs/T-037/tests.txt
 
 Untracked files:
   (use "git add <file>..." to include in what will be committed)
@@ -29,17 +45,21 @@ Untracked files:
 	logs/T-029/fusion.md
 	logs/T-030/fusion.md
 
-nothing added to commit but untracked files present (use "git add" to track)
+no changes added to commit (use "git add" and/or "git commit -a")
 ```
+
+Los dos archivos modificados son los de este mismo informe (`tests.txt` e `informe.md`); se
+incluyen en el commit siguiente. La rama aparece divergida de su remoto porque falta el
+`git push --force-with-lease`.
 
 ## git log --oneline -5
 
 ```text
-026a009 feat(T-037): fecha de corte de la importacion
-14a4e6a docs(tickets): anadir T-037 fecha de corte
-f3c0d2b docs(T-036): anotar correccion de recepciones
-efb7aeb docs(T-036): corregir compras por recepciones
-fcc6135 docs(T-036): anadir informe de entrega
+68143fe docs(T-037): completar informe de entrega
+67758c2 feat(T-037): fecha de corte de la importacion
+f4037c1 docs(tickets): anadir T-037 fecha de corte
+4bf858e T-038: añadir informe de entrega
+8955572 T-038: corregir manejo de waitLock en Apps Script y actualizar simulador
 ```
 
 ## Dudas (cambios no pedidos por el ticket)
