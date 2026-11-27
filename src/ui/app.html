@@ -573,7 +573,7 @@
         const esCompra = tipo === 'COMPRA';
         const esVenta = tipo === 'SALIDA';
         const diferirComprobacionStock = esVenta && hayComprasEnLote;
-        const tipoLabel = esCompra ? 'Compras' : (esVenta ? 'Ventas' : 'CSV');
+        const tipoLabel = esCompra ? 'Recepciones' : (esVenta ? 'Ventas' : 'CSV');
         const docs = Array.isArray(prev.documentos) ? prev.documentos : [];
         const porEstado = (prev.resumen && prev.resumen.porEstado) || {};
         const totalLineas = (prev.resumen && prev.resumen.totalLineas) || 0;
@@ -664,7 +664,7 @@
             filasDetalle +=
               '<details class="sl-imp-details" open><summary>' +
               '<span class="sl-dot-ind" style="background:var(--sl-text-secondary)"></span>' +
-              '<span style="flex:1;color:var(--sl-text-secondary)"><b>Se comprueba al aplicar las compras de esta importación</b> · ' + esc(pluraliza(docsSinStock.length, 'albarán', 'albaranes')) + '</span>' +
+              '<span style="flex:1;color:var(--sl-text-secondary)"><b>Se comprueba al aplicar las recepciones de esta importación</b> · ' + esc(pluraliza(docsSinStock.length, 'albarán', 'albaranes')) + '</span>' +
               '</summary><div class="sl-imp-details-body">' + renderDocItems(docsSinStock) + '</div></details>';
           } else {
             filasDetalle +=

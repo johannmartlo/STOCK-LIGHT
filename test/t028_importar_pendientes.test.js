@@ -426,7 +426,7 @@ runTest('10. Previsualización con compras y ventas juntas difiere stock en gris
   // Caso A: ventas + compras juntas
   const resJuntos = SLApp.construirHtmlPrevisualizacionImportacion([itemVentas, itemCompras]);
   assert.strictEqual(resJuntos.hayAlgoConfirmable, true);
-  assert.ok(resJuntos.html.includes('Se comprueba al aplicar las compras de esta importación'), 'Debe mostrar mensaje gris al haber compras en el lote');
+  assert.ok(resJuntos.html.includes('Se comprueba al aplicar las recepciones de esta importación'), 'Debe mostrar mensaje gris al haber recepciones en el lote');
   assert.ok(!resJuntos.html.includes('sin stock</b>'), 'No debe mostrar bloque rojo «X sin stock» cuando hay compras en el lote');
   assert.ok(!resJuntos.html.includes('class="sl-imp-details danger"'), 'No debe pintar bloque danger en rojo para ventas diferidas');
   assert.ok(resJuntos.html.includes('hasta 18') && resJuntos.html.includes('cajas salen'), 'Debe mostrar «hasta 18 cajas salen»');
@@ -438,7 +438,7 @@ runTest('10. Previsualización con compras y ventas juntas difiere stock en gris
   const resSoloVentas = SLApp.construirHtmlPrevisualizacionImportacion([itemVentas]);
   assert.ok(resSoloVentas.html.includes('2 sin stock</b>'), 'Sin compras en el lote debe mostrar «2 sin stock»');
   assert.ok(resSoloVentas.html.includes('class="sl-imp-details danger"'), 'Sin compras en el lote debe marcar el bloque como danger');
-  assert.ok(!resSoloVentas.html.includes('Se comprueba al aplicar las compras de esta importación'));
+  assert.ok(!resSoloVentas.html.includes('Se comprueba al aplicar las recepciones de esta importación'));
   assert.ok(!resSoloVentas.html.includes('−0') && !resSoloVentas.html.includes('+0'), 'Nunca debe mostrar −0 ni +0');
 });
 

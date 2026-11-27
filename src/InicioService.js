@@ -395,7 +395,7 @@ class InicioService {
     const movById = new Map();
     const docIdsCsv = new Set();
     let maxFechaMov = '';
-    let fechaInicioDatos = '';
+    let maxFechaStockInicial = '';
 
     for (let i = 0; i < movimientos.length; i++) {
       const m = movimientos[i];
@@ -409,8 +409,8 @@ class InicioService {
       const motMov = String(m.motivo_ajuste || '').trim().toUpperCase();
       const origMov = String(m.origen_dato || '').trim().toUpperCase();
       if ((motMov === 'STOCK_INICIAL' || origMov === 'STOCK_INICIAL') && fechaNeg) {
-        if (!fechaInicioDatos || fechaNeg < fechaInicioDatos) {
-          fechaInicioDatos = fechaNeg;
+        if (!maxFechaStockInicial || fechaNeg > maxFechaStockInicial) {
+          maxFechaStockInicial = fechaNeg;
         }
       }
       if (origMov === 'CSV' && m.id_documento_ref) {
@@ -423,6 +423,24 @@ class InicioService {
         movById.set(String(m.id_movimiento).trim(), m);
       }
     }
+
+    let fechaCorteInicio = '';
+    try {
+      const fnCorte = typeof getFechaCorteImportacionConfig === 'function'
+        ? getFechaCorteImportacionConfig
+        : (typeof global !== 'undefined' && typeof global.getFechaCorteImportacionConfig === 'function'
+          ? global.getFechaCorteImportacionConfig
+          : (typeof require !== 'undefined' ? require('./Config').getFechaCorteImportacionConfig : null));
+      if (typeof fnCorte === 'function') {
+        fechaCorteInicio = fnCorte({
+          fechaCorte: opts.fechaCorte !== undefined ? opts.fechaCorte : undefined,
+          propertiesService: opts.propertiesService || undefined
+        }) || '';
+      }
+    } catch (e) {
+      fechaCorteInicio = '';
+    }
+    const fechaInicioDatos = fechaCorteInicio || maxFechaStockInicial;
 
     let fechaFin = opts.hoy ? _normFechaInicio_(opts.hoy) : _hoyInicio_(this.reloj);
     if (!opts.hoy && maxFechaMov && maxFechaMov > fechaFin) {

@@ -125,10 +125,21 @@ Hazlo primero en DEV y repite después en PROD.
    pantalla de inicio del móvil de esa persona. El PIN se fija la primera vez que se abre
    el enlace.
 
-8. **Publicar la web app.** En el editor: *Implementar → Nueva implementación → Aplicación
-   web*. Ejecutar como **el propietario** y acceso **cualquier persona con cuenta de
-   Google** (la identidad real la da el enlace con PIN). Copia la URL de la implementación.
-   El archivo `appsscript.json` ya lleva esa configuración.
+8. **Publicar la web app y fijar `URL_APP`.** En el editor: *Implementar → Nueva
+   implementación → Aplicación web*. Ejecutar como **el propietario** y acceso **cualquier
+   persona con cuenta de Google** (la identidad real la da el enlace con PIN). Copia la URL
+   de la implementación (`/exec`, nunca `/dev`). El archivo `appsscript.json` ya lleva esa
+   configuración.
+
+   Guarda esa URL en las propiedades del script para que `crearUsuario` y `regenerarEnlace`
+   generen siempre enlaces válidos (`/exec`) incluso al ejecutarlos desde el editor:
+
+   ```text
+   adminConfigurarUrlApp('https://script.google.com/macros/s/<ID_IMPLEMENTACION>/exec')
+   ```
+
+   La función rechaza URLs `/dev` o de otro dominio. Solo si `URL_APP` está vacía se usa la
+   URL que devuelve `ScriptApp`.
 
 9. **Parte de la noche.** El parte se manda por correo como respaldo del texto que se copia
    al canal. En el editor:

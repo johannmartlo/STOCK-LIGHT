@@ -609,9 +609,9 @@ runTest('7.1 apiEntrar devuelve un error genérico tanto con token malo como con
   try {
     const pinMalo = codigo.apiEntrar(token, '0000');
     const tokenMalo = codigo.apiEntrar('token-que-no-existe', '1234');
-    assert.strictEqual(pinMalo.errorCode, 'CREDENCIALES_INVALIDAS');
-    assert.strictEqual(tokenMalo.errorCode, 'CREDENCIALES_INVALIDAS');
-    assert.deepStrictEqual(Object.keys(pinMalo).sort(), Object.keys(tokenMalo).sort());
+    assert.strictEqual(pinMalo.errorCode, 'PIN_INCORRECTO');
+    assert.strictEqual(pinMalo.intentos_restantes, 4);
+    assert.strictEqual(tokenMalo.errorCode, 'ENLACE_NO_VALIDO');
 
     const bueno = codigo.apiEntrar(token, '1234');
     assert.ok(bueno.sesion);

@@ -119,9 +119,11 @@ no las expone.
 | `apiGetMaestroEnvases` | `src/Código.js` | LECTURA | Catálogo maestro de envases. |
 | `apiSubirYAnalizarPdf` | `src/Código.js` | LECTURA | Analiza un PDF sin mutar stock. |
 | `apiLlamar` | `src/Código.js` | ENTRADA | Despachador único: valida la sesión, comprueba `PERMISOS_API`, fija el contexto de usuario y lo limpia en `finally`. |
-| `apiEntrar` | `src/Código.js` | ENTRADA | Abre sesión con token + PIN. Única función pública sin sesión junto con `apiEstablecerPin`. |
+| `apiEntrar` | `src/Código.js` | ENTRADA | Abre sesión con token + PIN. Devuelve el código de causa si falla (T-042). |
 | `apiEstablecerPin` | `src/Código.js` | ENTRADA | Fija el PIN inicial o tras regenerar el enlace y abre sesión. |
+| `apiComprobarSesion` | `src/Código.js` | ENTRADA | Comprobación ligera de sesión (LECTURA sin rol mínimo): valida y renueva la sesión guardada; devuelve `{ ok, nombre, rol }` o `{ ok: false }` (T-042). |
 | `apiSalir` | `src/Código.js` | ENTRADA | Borra la sesión indicada. |
+| `adminConfigurarUrlApp` | `src/Código.js` | ADMIN | Configura la propiedad `URL_APP` (`https://script.google.com/macros/s/.../exec`) para generar enlaces sin `/dev` (T-042). |
 | `crearUsuario` | `src/Código.js` | ADMIN | Crea un usuario desde el editor y devuelve su enlace personal una sola vez. |
 | `regenerarEnlace` | `src/Código.js` | ADMIN | Regenera el enlace de un usuario e invalida sus sesiones. |
 | `desactivarUsuario` | `src/Código.js` | ADMIN | Desactiva a un usuario e invalida su enlace y sus sesiones. |

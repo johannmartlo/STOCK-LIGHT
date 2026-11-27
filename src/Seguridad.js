@@ -122,6 +122,7 @@ const PERMISOS_API = {
   apiDesactivarUsuario: 'ADMIN',
 
   // ENTRADA — cualquier sesión válida
+  apiComprobarSesion: 'CONSULTA',
   apiSalir: 'CONSULTA'
 };
 
@@ -378,11 +379,82 @@ function _lockPredeterminado_() {
 }
 
 /**
- * Obtiene la URL de la implementación desde ScriptApp, si está disponible.
+ * Resuelve ScriptProperties (inyectado o global).
  *
+ * @param {Object|null} [propertiesService]
+ * @returns {Object|null}
+ */
+function _obtenerPropertiesScript_(propertiesService) {
+  if (propertiesService && typeof propertiesService.getProperty === 'function') {
+    return propertiesService;
+  }
+  try {
+    if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
+      return PropertiesService.getScriptProperties();
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
+ * Valida la URL de implementación de la web app (T-042).
+ * Debe tener el formato https://script.google.com/macros/s/<id>/exec (nunca /dev ni otro dominio).
+ *
+ * @param {string} url
  * @returns {string}
  */
-function _urlImplementacionPredeterminada_() {
+function _validarUrlApp_(url) {
+  const limpia = String(url === null || url === undefined ? '' : url).trim();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/\s?#]+\/exec$/.test(limpia)) {
+    throw new Error('La URL de la aplicación debe tener el formato https://script.google.com/macros/s/.../exec (no /dev).');
+  }
+  return limpia;
+}
+
+/**
+ * Lee la propiedad del script URL_APP (T-042). Devuelve '' si está vacía.
+ *
+ * @param {Object|null} [propertiesService]
+ * @returns {string}
+ */
+function _leerUrlApp_(propertiesService) {
+  const props = _obtenerPropertiesScript_(propertiesService);
+  if (!props || typeof props.getProperty !== 'function') return '';
+  try {
+    return String(props.getProperty('URL_APP') || '').trim();
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Valida y guarda URL_APP en ScriptProperties (T-042).
+ *
+ * @param {string} url
+ * @param {Object|null} [propertiesService]
+ * @returns {{ anterior: string, nueva: string, url: string }}
+ */
+function _guardarUrlApp_(url, propertiesService) {
+  const nueva = _validarUrlApp_(url);
+  const props = _obtenerPropertiesScript_(propertiesService);
+  if (!props || typeof props.setProperty !== 'function') {
+    throw new Error('PropertiesService no está disponible para guardar URL_APP.');
+  }
+  const anterior = _leerUrlApp_(props);
+  props.setProperty('URL_APP', nueva);
+  return { anterior, nueva, url: nueva };
+}
+
+/**
+ * Obtiene la URL de la implementación: primero la propiedad del script URL_APP (T-042),
+ * y solo si está vacía, la de ScriptApp.
+ *
+ * @param {Object|null} [propertiesService]
+ * @returns {string}
+ */
+function _urlImplementacionPredeterminada_(propertiesService) {
+  const configurada = _leerUrlApp_(propertiesService);
+  if (configurada) return configurada;
   try {
     if (typeof ScriptApp !== 'undefined' && ScriptApp && typeof ScriptApp.getService === 'function') {
       const servicio = ScriptApp.getService();
@@ -418,9 +490,10 @@ class ServicioAcceso {
     this.random = options.random || options.aleatoriedad || _uuidSeguro_;
     const bloqueo = options.lock !== undefined ? options.lock : options.lockService;
     this.lock = bloqueo !== undefined ? bloqueo : _lockPredeterminado_();
+    this.propertiesService = options.propertiesService !== undefined ? options.propertiesService : null;
     this.urlImplementacion = options.urlImplementacion !== undefined
       ? options.urlImplementacion
-      : _urlImplementacionPredeterminada_;
+      : () => _urlImplementacionPredeterminada_(this.propertiesService);
     this.prefijoCache = options.prefijoCache || 'SL_SESION_';
     const ttl = options.sessionTtlSeconds !== undefined ? options.sessionTtlSeconds : options.duracionSesionSegundos;
     this.sessionTtlSeconds = Number(ttl) > 0 ? Number(ttl) : 6 * 60 * 60;
@@ -721,7 +794,7 @@ class ServicioAcceso {
   // --- entrada ---
 
   /**
-   * Abre sesión con token + PIN. Lanza un error genérico si algo falla.
+   * Abre sesión con token + PIN. Lanza un error con código de causa (T-042) si algo falla.
    *
    * @param {string} token
    * @param {string} pin
@@ -730,23 +803,23 @@ class ServicioAcceso {
   entrar(token, pin) {
     const usuarioToken = this._buscarPorToken_(token);
     if (!usuarioToken || !_usuarioEstaActivo_(usuarioToken)) {
-      throw new Error('Credenciales no válidas');
+      throw _errorAcceso_('ENLACE_NO_VALIDO');
     }
 
     return this._conBloqueo_(() => {
       const usuarios = this._leerUsuarios_();
       const indice = usuarios.findIndex(u => String(u.id_usuario || '') === String(usuarioToken.id_usuario));
-      if (indice < 0) throw new Error('Credenciales no válidas');
+      if (indice < 0) throw _errorAcceso_('ENLACE_NO_VALIDO');
 
       const usuario = usuarios[indice];
-      if (!_usuarioEstaActivo_(usuario)) throw new Error('Credenciales no válidas');
+      if (!_usuarioEstaActivo_(usuario)) throw _errorAcceso_('ENLACE_NO_VALIDO');
 
       const ahora = this._ahora_();
       let intentos = Number(usuario.intentos_fallidos || 0);
       const bloqueadoHasta = _fechaBloqueo_(usuario.bloqueado_hasta);
 
       if (bloqueadoHasta && bloqueadoHasta.getTime() > ahora.getTime()) {
-        throw new Error('Credenciales no válidas');
+        throw _errorAcceso_('BLOQUEADO', { hasta: bloqueadoHasta.toISOString() });
       }
       if (bloqueadoHasta && bloqueadoHasta.getTime() <= ahora.getTime()) {
         intentos = 0;
@@ -761,7 +834,10 @@ class ServicioAcceso {
         }
         usuarios[indice] = usuario;
         this._guardarUsuarios_(usuarios);
-        throw new Error('Credenciales no válidas');
+        if (intentos >= this.intentosMaximos) {
+          throw _errorAcceso_('BLOQUEADO', { hasta: usuario.bloqueado_hasta });
+        }
+        throw _errorAcceso_('PIN_INCORRECTO', { intentos_restantes: Math.max(0, this.intentosMaximos - intentos) });
       }
 
       const hash = _sha256Hex_(String(usuario.pin_salt) + String(pin));
@@ -773,7 +849,10 @@ class ServicioAcceso {
         }
         usuarios[indice] = usuario;
         this._guardarUsuarios_(usuarios);
-        throw new Error('Credenciales no válidas');
+        if (intentos >= this.intentosMaximos) {
+          throw _errorAcceso_('BLOQUEADO', { hasta: usuario.bloqueado_hasta });
+        }
+        throw _errorAcceso_('PIN_INCORRECTO', { intentos_restantes: Math.max(0, this.intentosMaximos - intentos) });
       }
 
       usuario.intentos_fallidos = 0;
@@ -796,29 +875,33 @@ class ServicioAcceso {
   establecerPin(token, pin) {
     const pinLimpio = String(pin === null || pin === undefined ? '' : pin).trim();
     if (!/^\d{4,6}$/.test(pinLimpio)) {
-      throw new Error('El PIN debe tener entre 4 y 6 cifras.');
+      const err = new Error('El PIN debe tener entre 4 y 6 cifras.');
+      err.errorCode = 'CREDENCIALES_INVALIDAS';
+      throw err;
     }
 
     const usuarioToken = this._buscarPorToken_(token);
     if (!usuarioToken || !_usuarioEstaActivo_(usuarioToken)) {
-      throw new Error('Credenciales no válidas');
+      throw _errorAcceso_('ENLACE_NO_VALIDO');
     }
 
     return this._conBloqueo_(() => {
       const usuarios = this._leerUsuarios_();
       const indice = usuarios.findIndex(u => String(u.id_usuario || '') === String(usuarioToken.id_usuario));
-      if (indice < 0) throw new Error('Credenciales no válidas');
+      if (indice < 0) throw _errorAcceso_('ENLACE_NO_VALIDO');
 
       const usuario = usuarios[indice];
-      if (!_usuarioEstaActivo_(usuario)) throw new Error('Credenciales no válidas');
+      if (!_usuarioEstaActivo_(usuario)) throw _errorAcceso_('ENLACE_NO_VALIDO');
       if (String(usuario.pin_hash || '').trim()) {
-        throw new Error('El usuario ya tiene PIN establecido.');
+        const err = new Error('El usuario ya tiene PIN establecido.');
+        err.errorCode = 'CREDENCIALES_INVALIDAS';
+        throw err;
       }
 
       const ahora = this._ahora_();
       const bloqueadoHasta = _fechaBloqueo_(usuario.bloqueado_hasta);
       if (bloqueadoHasta && bloqueadoHasta.getTime() > ahora.getTime()) {
-        throw new Error('Credenciales no válidas');
+        throw _errorAcceso_('BLOQUEADO', { hasta: bloqueadoHasta.toISOString() });
       }
       if (bloqueadoHasta && bloqueadoHasta.getTime() <= ahora.getTime()) {
         usuario.intentos_fallidos = 0;
@@ -836,6 +919,22 @@ class ServicioAcceso {
 
       return this._crearSesion_(usuario);
     });
+  }
+
+  /**
+   * Comprueba si una sesión sigue activa y renueva su duración (T-042).
+   *
+   * @param {string} sesion
+   * @returns {{ ok: boolean, nombre?: string, rol?: string }}
+   */
+  comprobarSesion(sesion) {
+    const usuario = this.validarSesion(sesion);
+    if (!usuario) return { ok: false };
+    return {
+      ok: true,
+      nombre: String(usuario.nombre || ''),
+      rol: String(usuario.rol || '').toUpperCase()
+    };
   }
 
   /**
@@ -942,6 +1041,25 @@ function _fechaBloqueo_(valor) {
 }
 
 /**
+ * Construye un error de acceso con código de motivo y metadatos (T-042),
+ * manteniendo el mensaje base compatible con las pruebas existentes.
+ *
+ * @param {string} errorCode
+ * @param {Object} [extra]
+ * @returns {Error}
+ */
+function _errorAcceso_(errorCode, extra) {
+  const err = new Error('Credenciales no válidas');
+  err.errorCode = errorCode;
+  if (extra && typeof extra === 'object') {
+    Object.keys(extra).forEach(function (k) {
+      err[k] = extra[k];
+    });
+  }
+  return err;
+}
+
+/**
  * Crea el servicio de acceso con las dependencias indicadas.
  *
  * @param {Object} [options]
@@ -963,6 +1081,9 @@ if (typeof module !== 'undefined' && module.exports) {
     conContextoDePrueba_,
     usuarioActual_,
     rolAlcanza_,
+    _leerUrlApp_,
+    _validarUrlApp_,
+    _guardarUrlApp_,
     _sha256Hex_,
     _uuidSeguro_
   };

@@ -49,6 +49,7 @@
       <p id="entradaError" class="entrada-error"></p>
       <button type="button" id="btnCambiarModo" class="entrada-enlace entrada-oculta">Ya tengo PIN</button>
       <div class="entrada-pie">Tu enlace personal te identifica. Si pierdes el móvil, pide uno nuevo.</div>
+      <div id="entradaAvisoEnlace" class="entrada-pie">Para entrar en otro dispositivo usa tu enlace personal (el del mensaje); copiar la dirección del navegador no sirve.</div>
     </div>
   </div>
 
@@ -149,6 +150,7 @@
       const PIN_YA_CONFIGURADO = !!elementoEntrada && elementoEntrada.getAttribute('data-tiene-pin') === '1';
       const LS_TOKEN = 'sl_token';
       const LS_PIN_PREFIX = 'sl_pin_';
+      const LS_SESION = 'sl_sesion';
 
       // --- PUENTE SEGURO DE API (CLIENTE-SERVIDOR) ---
       const api = {
@@ -216,6 +218,44 @@
 
       function borrarAlmacen(clave) {
         try { window.localStorage.removeItem(clave); } catch (e) {}
+      }
+
+      function leerSesionGuardada() {
+        const crudo = leerAlmacen(LS_SESION);
+        if (!crudo) return null;
+        try {
+          const obj = JSON.parse(crudo);
+          if (!obj || typeof obj.sesion !== 'string' || !obj.sesion.trim()) return null;
+          return {
+            sesion: obj.sesion.trim(),
+            nombre: String(obj.nombre || ''),
+            rol: String(obj.rol || '')
+          };
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function guardarSesionGuardada(datos) {
+        if (!datos || !datos.sesion) return;
+        guardarAlmacen(LS_SESION, JSON.stringify({
+          sesion: String(datos.sesion),
+          nombre: String(datos.nombre || ''),
+          rol: String(datos.rol || '')
+        }));
+      }
+
+      function borrarSesionGuardada() {
+        borrarAlmacen(LS_SESION);
+      }
+
+      function formatearHoraBloqueo(hasta) {
+        const texto = String(hasta || '').trim();
+        if (!texto) return '';
+        if (/^\d{2}:\d{2}$/.test(texto)) return texto;
+        const fecha = new Date(texto);
+        if (isNaN(fecha.getTime())) return '';
+        return String(fecha.getHours()).padStart(2, '0') + ':' + String(fecha.getMinutes()).padStart(2, '0');
       }
 
       function quitarTokenDeUrl() {
@@ -337,6 +377,7 @@
       function entrarEnApp(datos) {
         state.sesion = datos.sesion;
         state.usuario = { nombre: datos.nombre, rol: datos.rol };
+        guardarSesionGuardada(datos);
 
         const pantalla = document.getElementById('pantallaEntrada');
         const appEl = document.getElementById('app');
@@ -377,6 +418,7 @@
       function cerrarSesionLocal(mensaje) {
         state.sesion = null;
         state.usuario = null;
+        borrarSesionGuardada();
 
         const pantalla = document.getElementById('pantallaEntrada');
         const appEl = document.getElementById('app');
@@ -410,6 +452,43 @@
         actualizarPinDisplay();
       }
 
+      function procesarErrorEntrada(res) {
+        const codigo = res && res.errorCode ? String(res.errorCode) : '';
+        if (codigo === 'ENLACE_NO_VALIDO') {
+          if (tokenAcceso) borrarAlmacen(LS_PIN_PREFIX + tokenAcceso);
+          borrarAlmacen(LS_TOKEN);
+          borrarSesionGuardada();
+          tokenAcceso = '';
+          modoEntrada = 'sin-token';
+          aplicarModoEntrada();
+          mostrarErrorEntrada('Este enlace ya no vale. Pide uno nuevo al responsable.');
+          return;
+        }
+        if (codigo === 'PIN_INCORRECTO') {
+          const restantes = Number(res && res.intentos_restantes);
+          if (Number.isFinite(restantes) && restantes >= 0) {
+            mostrarErrorEntrada('PIN incorrecto. Te quedan ' + restantes + ' intentos.');
+          } else {
+            mostrarErrorEntrada('PIN incorrecto.');
+          }
+          return;
+        }
+        if (codigo === 'BLOQUEADO') {
+          const hora = formatearHoraBloqueo(res && res.hasta);
+          mostrarErrorEntrada(
+            hora
+              ? ('Demasiados intentos. Prueba otra vez a las ' + hora + '.')
+              : 'Demasiados intentos. Prueba otra vez en unos minutos.'
+          );
+          return;
+        }
+        if (codigo === 'ERROR_SERVIDOR') {
+          mostrarErrorEntrada('No se pudo conectar. Inténtalo en un momento.');
+          return;
+        }
+        mostrarErrorEntrada('No se pudo entrar. Comprueba el enlace y el PIN.');
+      }
+
       function confirmarPin() {
         if (modoEntrada !== 'crear' && modoEntrada !== 'entrar') return;
         if (pinBuffer.length < 4 || pinBuffer.length > 6) return;
@@ -435,13 +514,13 @@
             pinBuffer = '';
             pinConfirmadoOk = false;
             actualizarPinDisplay();
-            mostrarErrorEntrada('No se pudo entrar. Comprueba el enlace y el PIN.');
+            procesarErrorEntrada(res);
           })
           .catch(function () {
             pinBuffer = '';
             pinConfirmadoOk = false;
             actualizarPinDisplay();
-            mostrarErrorEntrada('No se pudo conectar. Inténtalo de nuevo.');
+            mostrarErrorEntrada('No se pudo conectar. Inténtalo en un momento.');
           })
           .finally(function () {
             if (boton) boton.disabled = false;
@@ -450,6 +529,7 @@
       }
 
       function salir() {
+        borrarSesionGuardada();
         if (!state.sesion) {
           cerrarSesionLocal('');
           return;
@@ -472,14 +552,48 @@
             marcarPinConfigurado(TOKEN_INICIAL);
           } else {
             borrarAlmacen(LS_PIN_PREFIX + TOKEN_INICIAL);
+            borrarSesionGuardada();
           }
           quitarTokenDeUrl();
         }
-        configurarModoEntrada();
+
         const pantalla = document.getElementById('pantallaEntrada');
         const appEl = document.getElementById('app');
         if (pantalla) pantalla.style.display = 'flex';
         if (appEl) appEl.style.display = 'none';
+
+        const guardada = !window.__SL_PREVIEW_AUTO_LOGIN__ ? leerSesionGuardada() : null;
+        if (guardada && guardada.sesion) {
+          const texto = document.getElementById('entradaTexto');
+          const pinEl = document.getElementById('entradaPin');
+          const teclado = document.getElementById('entradaTeclado');
+          const boton = document.getElementById('btnEntradaConfirmar');
+          if (texto) texto.textContent = 'Comprobando sesión…';
+          if (pinEl) pinEl.classList.add('entrada-oculta');
+          if (teclado) teclado.classList.add('entrada-oculta');
+          if (boton) boton.classList.add('entrada-oculta');
+
+          api.entrada('apiComprobarSesion', guardada.sesion)
+            .then(function (res) {
+              if (res && res.ok) {
+                entrarEnApp({
+                  sesion: guardada.sesion,
+                  nombre: res.nombre || guardada.nombre,
+                  rol: res.rol || guardada.rol
+                });
+                return;
+              }
+              borrarSesionGuardada();
+              configurarModoEntrada();
+            })
+            .catch(function () {
+              borrarSesionGuardada();
+              configurarModoEntrada();
+            });
+          return;
+        }
+
+        configurarModoEntrada();
       }
 
       function init() {

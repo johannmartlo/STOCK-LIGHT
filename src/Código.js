@@ -121,6 +121,7 @@ if (typeof require !== 'undefined') {
   global.ejecutarConContexto_ = segMod.ejecutarConContexto_;
   global.conContextoDePrueba_ = segMod.conContextoDePrueba_;
   global.crearServicioAcceso_ = segMod.crearServicioAcceso_;
+  global._guardarUrlApp_ = segMod._guardarUrlApp_;
   global.rolAlcanza_ = segMod.rolAlcanza_;
   global.PERMISOS_API = segMod.PERMISOS_API;
   global.ROLES_USUARIO = segMod.ROLES_USUARIO;
@@ -1879,8 +1880,50 @@ function apiLlamar(sesion, nombreApi, args) {
 }
 
 /**
- * Abre sesión con token + PIN (T-020). Es una de las dos únicas funciones
- * públicas sin sesión. Devuelve { sesion, nombre, rol } o un error genérico.
+ * Traduce un error de entrada (apiEntrar / apiEstablecerPin) a la respuesta
+ * estructurada de T-042. Cualquier excepción inesperada se registra en el log
+ * del servidor y se devuelve como ERROR_SERVIDOR sin exponer detalles.
+ *
+ * @param {*} err
+ * @param {string} contexto
+ * @returns {Object}
+ */
+function _respuestaErrorEntrada_(err, contexto) {
+  const codigo = err && err.errorCode ? String(err.errorCode) : '';
+  if (codigo === 'ENLACE_NO_VALIDO') {
+    return { success: false, errorCode: 'ENLACE_NO_VALIDO' };
+  }
+  if (codigo === 'PIN_INCORRECTO') {
+    return {
+      success: false,
+      errorCode: 'PIN_INCORRECTO',
+      intentos_restantes: Number(err.intentos_restantes || 0)
+    };
+  }
+  if (codigo === 'BLOQUEADO') {
+    return {
+      success: false,
+      errorCode: 'BLOQUEADO',
+      hasta: String(err.hasta || '')
+    };
+  }
+  if (codigo === 'CREDENCIALES_INVALIDAS') {
+    return { success: false, errorCode: 'CREDENCIALES_INVALIDAS' };
+  }
+  const detalle = err && err.stack ? String(err.stack) : String(err && err.message ? err.message : err);
+  try {
+    if (typeof Logger !== 'undefined' && Logger && typeof Logger.log === 'function') {
+      Logger.log('[' + contexto + '] ERROR_SERVIDOR: ' + detalle);
+    } else if (typeof console !== 'undefined' && typeof console.error === 'function') {
+      console.error('[' + contexto + '] ERROR_SERVIDOR:', detalle);
+    }
+  } catch (logErr) {}
+  return { success: false, errorCode: 'ERROR_SERVIDOR' };
+}
+
+/**
+ * Abre sesión con token + PIN (T-020, T-042). Devuelve { sesion, nombre, rol }
+ * o { success: false, errorCode, ... } indicando la causa.
  *
  * @param {string} token
  * @param {string} pin
@@ -1892,12 +1935,12 @@ function apiEntrar(token, pin, options = {}) {
     const servicio = crearServicioAcceso_(options);
     return servicio.entrar(token, pin);
   } catch (e) {
-    return { success: false, errorCode: 'CREDENCIALES_INVALIDAS' };
+    return _respuestaErrorEntrada_(e, 'apiEntrar');
   }
 }
 
 /**
- * Fija el PIN de un usuario que aún no lo tiene o tras regenerar el enlace (T-020).
+ * Fija el PIN de un usuario que aún no lo tiene o tras regenerar el enlace (T-020, T-042).
  * Si tiene éxito, abre sesión y devuelve { sesion, nombre, rol }.
  *
  * @param {string} token
@@ -1910,8 +1953,24 @@ function apiEstablecerPin(token, pin, options = {}) {
     const servicio = crearServicioAcceso_(options);
     return servicio.establecerPin(token, pin);
   } catch (e) {
-    // Error genérico: no se revela si falló el token, el PIN o si ya estaba establecido.
-    return { success: false, errorCode: 'CREDENCIALES_INVALIDAS' };
+    return _respuestaErrorEntrada_(e, 'apiEstablecerPin');
+  }
+}
+
+/**
+ * Comprueba si una sesión guardada en el navegador sigue siendo válida y la renueva (T-042).
+ * Lectura ligera sin rol mínimo: devuelve { ok: true, nombre, rol } o { ok: false }.
+ *
+ * @param {string} sesion
+ * @param {Object} [options]
+ * @returns {{ ok: boolean, nombre?: string, rol?: string }}
+ */
+function apiComprobarSesion(sesion, options = {}) {
+  try {
+    const servicio = crearServicioAcceso_(options);
+    return servicio.comprobarSesion(sesion);
+  } catch (e) {
+    return { ok: false };
   }
 }
 
@@ -1930,6 +1989,20 @@ function apiSalir(sesion, options = {}) {
   } catch (e) {
     return { success: false };
   }
+}
+
+/**
+ * Configura la URL pública (/exec) de la aplicación web en las propiedades del script (T-042, ADMIN).
+ * Se usa al generar enlaces de usuarios desde el editor para evitar URLs /dev.
+ *
+ * @param {string} url - Debe tener formato https://script.google.com/macros/s/.../exec
+ * @param {Object} [options]
+ * @returns {{ anterior: string, nueva: string, url: string }}
+ */
+function adminConfigurarUrlApp(url, options = {}) {
+  exigirPropietario_(options && options.session);
+  const propService = options && options.propertiesService ? options.propertiesService : null;
+  return _guardarUrlApp_(url, propService);
 }
 
 /**
@@ -2530,7 +2603,9 @@ if (typeof module !== 'undefined' && module.exports) {
     apiLlamar,
     apiEntrar,
     apiEstablecerPin,
+    apiComprobarSesion,
     apiSalir,
+    adminConfigurarUrlApp,
     crearUsuario,
     regenerarEnlace,
     desactivarUsuario,
