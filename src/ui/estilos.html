@@ -734,6 +734,36 @@
     background: var(--sl-elevated);
     font-size: 13px;
   }
+  .sl-desglose-bloque {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sl-desglose-subtotal {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 10px 2px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--sl-text-label);
+  }
+  .sl-desglose-subtotal > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sl-desglose-subtotal .sl-mono {
+    font-family: var(--sl-mono);
+    color: var(--sl-text-secondary);
+    flex: none;
+    text-transform: none;
+    letter-spacing: 0;
+  }
 
   /* Rol CONSULTA: oculta botones de acción */
   body.sl-rol-consulta [data-solo-escritura="1"] {

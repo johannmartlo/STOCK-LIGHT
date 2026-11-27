@@ -2035,16 +2035,24 @@
               '</div>'
             );
           }).join('');
-          if (!mostrarSubtotal) return filas;
           const baseLbl = etiquetaArticuloEnVariedad(bloque.variedadBase, v.grupo);
           const etiquetaBloque = [baseLbl, bloque.categoriaCorta].filter(Boolean).join(' · ');
-          const subtotal = (
-            '<div class="sl-desglose-subtotal" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 10px 2px;color:var(--sl-text-secondary);font-weight:600;font-size:12px">' +
-            '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(etiquetaBloque) + '</span>' +
-            '<span class="sl-mono">' + fmt(bloque.cajas) + '</span>' +
+          const ariaTitulo = etiquetaBloque || nombreLegible(v.grupo);
+          const ariaBloque = (ariaTitulo ? ariaTitulo + ', ' : '') + pluraliza(bloque.cajas, 'caja', 'cajas');
+          const subtotal = mostrarSubtotal
+            ? (
+              '<div class="sl-desglose-subtotal">' +
+              '<span>' + esc(etiquetaBloque) + '</span>' +
+              '<span class="sl-mono">' + fmt(bloque.cajas) + '</span>' +
+              '</div>'
+            )
+            : '';
+          return (
+            '<div class="sl-desglose-bloque" role="group" aria-label="' + esc(ariaBloque) + '">' +
+            subtotal +
+            filas +
             '</div>'
           );
-          return subtotal + filas;
         }).join('');
       }
       const desglose = calcularDesgloseArticulos(v);

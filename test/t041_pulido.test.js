@@ -302,6 +302,42 @@ runTest('6. Index.html tiene <style> de fondo antes de cualquier <link>, fuentes
   assert.strictEqual(filasSk, 6, 'El esqueleto de Existencias debe tener 6 filas');
 });
 
+// --------------------------------------------------------------------------
+// 7. SUBTOTAL DEL DESGLOSE: CLASE CSS Y ACCESIBILIDAD DE BLOQUES
+// --------------------------------------------------------------------------
+runTest('7. .sl-desglose-subtotal vive en estilos.html y cada bloque lleva role="group" y aria-label', () => {
+  const estilos = fs.readFileSync(path.join(SRC_DIR, 'ui', 'estilos.html'), 'utf8');
+  assert.ok(/\.sl-desglose-subtotal\s*\{[^}]*font-size\s*:\s*12px/i.test(estilos), 'Falta font-size: 12px en .sl-desglose-subtotal');
+  assert.ok(/\.sl-desglose-subtotal\s*\{[^}]*text-transform\s*:\s*uppercase/i.test(estilos), 'Falta text-transform: uppercase');
+  assert.ok(/\.sl-desglose-subtotal\s*\{[^}]*letter-spacing\s*:\s*0\.06em/i.test(estilos), 'Falta letter-spacing: 0.06em');
+  assert.ok(/\.sl-desglose-subtotal\s*\{[^}]*color\s*:\s*var\(--sl-text-label\)/i.test(estilos), 'Falta color: var(--sl-text-label)');
+  assert.ok(/\.sl-desglose-subtotal\s*\{[^}]*font-weight\s*:\s*600/i.test(estilos), 'Falta font-weight: 600');
+  assert.ok(/\.sl-desglose-subtotal\s+\.sl-mono\s*\{[^}]*color\s*:\s*var\(--sl-text-secondary\)/i.test(estilos), 'La cifra del subtotal debe usar var(--sl-text-secondary)');
+
+  const SLApp = cargarScriptHtml('ui/app.html', 'SLApp');
+  const html = SLApp.construirDesgloseHtml({
+    grupo: 'Tomate Ficticio',
+    cajas: 81,
+    desglose: [
+      {
+        variedadBase: 'TOMATE FICTICIO AMARILLO',
+        categoriaCorta: 'Cat. I',
+        cajas: 1,
+        lineas: [{ articulo: 'TOMATE FICTICIO AMARILLO I G', envase: 'CARTON 40X30', cajas: 1 }]
+      },
+      {
+        variedadBase: 'TOMATE FICTICIO ROJO',
+        categoriaCorta: 'Cat. I',
+        cajas: 80,
+        lineas: [{ articulo: 'TOMATE FICTICIO ROJO I GGG', envase: 'CARTON 40X30', cajas: 80 }]
+      }
+    ]
+  });
+  assert.ok(html.includes('<div class="sl-desglose-subtotal">'), 'El subtotal no debe llevar estilos en línea');
+  assert.ok(html.includes('role="group" aria-label="Amarillo · Cat. I, 1 caja"'), 'Bloque 1 con role="group" y aria-label');
+  assert.ok(html.includes('role="group" aria-label="Rojo · Cat. I, 80 cajas"'), 'Bloque 2 con role="group" y aria-label');
+});
+
 console.log('\n================================================================');
 console.log(` RESUMEN T-041: ${passed} SUPERADAS, ${failed} FALLIDAS`);
 console.log('================================================================\n');

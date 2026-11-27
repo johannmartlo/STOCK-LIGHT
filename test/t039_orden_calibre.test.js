@@ -241,7 +241,7 @@ runTest('1. Orden por variedad/categoría/calibre con tres bloques de ROJO (5 / 
   assert.ok(html.includes('Rojo · Cat. II</span>'), 'Subtotal Cat. II');
   assert.ok(html.includes('sl-mono">300</span>'), 'Subtotal de 300 cajas');
   assert.ok(
-    html.indexOf('Rojo · Cat. I</span>') < html.indexOf('Rojo I GGG · Carton 40x30'),
+    html.indexOf('Rojo · Cat. I</span>') < html.indexOf('Rojo I GGG · Cartón 40x30'),
     'El subtotal va antes de las líneas de su bloque'
   );
 
@@ -250,7 +250,7 @@ runTest('1. Orden por variedad/categoría/calibre con tres bloques de ROJO (5 / 
   const posExtra = texto.indexOf('Rojo Extra GG');
   const posGgg = texto.indexOf('Rojo I GGG');
   const posG = texto.indexOf('Rojo I G ');
-  const posSc = texto.indexOf('Rojo II S/c');
+  const posSc = texto.indexOf('Rojo II S/C');
   assert.ok(posAmarillo >= 0 && posExtra > posAmarillo && posGgg > posExtra && posG > posGgg && posSc > posG,
     'El texto de WhatsApp sigue el orden del desglose');
   assert.ok(!texto.includes('Cat. I'), 'El texto de WhatsApp no lleva subtotales');
@@ -446,7 +446,7 @@ runTest('6. El cliente respeta `desglose` si existe y mantiene el orden por caja
   const html = SLApp.construirDesgloseHtml(puente);
   assert.ok(html.includes('Rojo · Cat. I</span>'), 'Subtotal del primer bloque');
   assert.ok(html.includes('Rojo · Cat. II</span>'), 'Subtotal del segundo bloque');
-  assert.ok(html.indexOf('Rojo · Cat. I</span>') < html.indexOf('Rojo I G · Carton 40x30'), 'Subtotal antes de la línea');
+  assert.ok(html.indexOf('Rojo · Cat. I</span>') < html.indexOf('Rojo I G · Cartón 40x30'), 'Subtotal antes de la línea');
 
   // Un solo bloque: sin subtotal (no añade ruido).
   const unBloque = {
@@ -461,7 +461,7 @@ runTest('6. El cliente respeta `desglose` si existe y mantiene el orden por caja
   };
   const htmlUnBloque = SLApp.construirDesgloseHtml(unBloque);
   assert.ok(!htmlUnBloque.includes('sl-desglose-subtotal'), 'Con un solo bloque no hay subtotal');
-  assert.ok(htmlUnBloque.includes('Rojo I G · Carton 40x30'));
+  assert.ok(htmlUnBloque.includes('Rojo I G · Cartón 40x30'));
 });
 
 console.log('\n================================================================');
