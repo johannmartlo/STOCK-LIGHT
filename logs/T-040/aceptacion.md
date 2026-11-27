@@ -1,7 +1,7 @@
 # T-040 — Comprobación de aceptación
 
-Fecha: 2026-11-27. Rama `ticket/T-040-cuadre-noche`.
-Comando único: `node test/run_all.js` → **47 suites, 468 pruebas, 0 fallos** (`logs/T-040/tests.txt`).
+Fecha: 2026-11-27. Rama `ticket/T-040-cuadre-noche`, rebasada sobre `5585962` (T-041).
+Comando único: `node test/run_all.js` → **48 suites, 475 pruebas, 0 fallos** (`logs/T-040/tests.txt`).
 
 ## Puntos de aceptación del ticket
 
@@ -81,10 +81,10 @@ recuentos aleatorios (vacío, igual o diferencia entre −10 y +10, nunca `hay <
 - Una fila de `CUADRES` por semilla con los contadores y cajas de diferencia del resultado.
 
 ### 9. Pruebas existentes y salida del ejecutor
-**Cómo se comprueba:** `git diff --name-only 43c22cd..HEAD -- test/` no incluye ninguna prueba
-anterior; solo aparece `test/t040_cuadre.test.js`. `node test/run_all.js` termina con
-**47 suites, 468 pruebas, 0 fallos** y la salida completa está en `logs/T-040/tests.txt`
-(UTF-8 sin BOM).
+**Cómo se comprueba:** `git diff --name-only 5585962..HEAD -- test/` solo devuelve
+`test/t040_cuadre.test.js` (las pruebas que T-041 cambió ya vienen en la base, no las toca
+esta rama). `node test/run_all.js` termina con **48 suites, 475 pruebas, 0 fallos** y la salida
+completa está en `logs/T-040/tests.txt` (UTF-8 sin BOM).
 
 ## Reglas adicionales comprobadas
 
