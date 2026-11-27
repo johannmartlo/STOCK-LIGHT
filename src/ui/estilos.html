@@ -9,13 +9,13 @@
     --sl-line-strong: #27272A;
     --sl-text: #EDEDEF;
     --sl-text-secondary: #8A8F98;
-    --sl-text-label: #5C6068;
+    --sl-text-label: #80858E;
     --sl-btn-bg: #EDEDEF;
     --sl-btn-text: #0A0A0B;
     --sl-green: #4ADE80;
     --sl-amber: #FBBF24;
     --sl-red: #F87171;
-    --sl-out: #71717A;
+    --sl-out: #8B8B94;
     --sl-brand: #F2553D;
     --sl-pink: #F59ABF;
     --sl-font: 'Geist', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -76,7 +76,8 @@
   .sl-float { animation: sl-float 4s ease-in-out infinite; }
   .sl-spin { animation: sl-spin 1s linear infinite; }
   .sl-sk {
-    background: linear-gradient(90deg, rgba(255,255,255,.04) 0%, var(--sl-line-strong) 50%, rgba(255,255,255,.04) 100%);
+    background-color: #18181B;
+    background-image: linear-gradient(90deg, #18181B 0%, var(--sl-line-strong) 50%, #18181B 100%);
     background-size: 560px 100%;
     animation: sl-shimmer 1.4s linear infinite;
   }
@@ -85,6 +86,9 @@
     *, *::before, *::after {
       animation: none !important;
       transition: none !important;
+    }
+    .sl-sk {
+      background-image: none !important;
     }
   }
 
@@ -394,7 +398,7 @@
   .sl-nav-badge {
     margin-left: auto;
     font-family: var(--sl-mono);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--sl-text);
     background: var(--sl-line-strong);
     border-radius: 4px;
@@ -413,7 +417,7 @@
   .sl-sidebar-footer .sl-avatar {
     width: 26px;
     height: 26px;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .sl-user-name {

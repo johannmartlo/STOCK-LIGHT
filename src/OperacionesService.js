@@ -20,6 +20,15 @@ const OPERACIONES_FECHAS_NODE = typeof module !== 'undefined' && module.exports
 
 const UMBRAL_RENDE_DISTINTO_PCT = 10;
 const OPERACIONES_LIMITE_BUSQUEDA = 20;
+const MOTIVOS_LEGIBLES_OPERACIONES = {
+  STOCK_INICIAL: 'Stock inicial',
+  RECUENTO: 'Recuento',
+  ERROR_CARGA: 'Error de carga',
+  DESTRIO: 'Destrío',
+  OTRO: 'Otro',
+  ANULACION_AJUSTE: 'Anulación de ajuste',
+  REPROCESO: 'Cambio de confección'
+};
 
 class OperacionesService {
   /**
@@ -165,9 +174,18 @@ class OperacionesService {
     const consumos = (this.repo && typeof this.repo.getConsumosFifo === 'function') ? this.repo.getConsumosFifo() : [];
     const documentos = (this.repo && typeof this.repo.getDocumentos === 'function') ? this.repo.getDocumentos() : [];
     const maestro = (this.repo && typeof this.repo.getMaestro === 'function') ? this.repo.getMaestro() : [];
+    let usuarios = [];
+    if (this.repo && typeof this.repo.getUsuarios === 'function') {
+      try {
+        const resUsuarios = this.repo.getUsuarios();
+        if (Array.isArray(resUsuarios)) usuarios = resUsuarios;
+      } catch (e) {
+        usuarios = [];
+      }
+    }
     const { reprocesos, lineas } = this._cargarReprocesos_();
     const config = this._configCatalogo_();
-    return { movimientos, capas, stock, consumos, documentos, maestro, reprocesos, lineas, config };
+    return { movimientos, capas, stock, consumos, documentos, maestro, usuarios, reprocesos, lineas, config };
   }
 
   _fechaOrdenReproceso_(reproceso) {
@@ -610,7 +628,42 @@ class OperacionesService {
     return `${tipo} · ${partes}`;
   }
 
+  _traducirMotivo_(motivo) {
+    const raw = String(motivo === null || motivo === undefined ? '' : motivo).trim();
+    if (!raw) return '';
+    const clave = raw.toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(MOTIVOS_LEGIBLES_OPERACIONES, clave)) {
+      return MOTIVOS_LEGIBLES_OPERACIONES[clave];
+    }
+    const limpio = raw.replace(/_/g, ' ').toLowerCase();
+    return limpio.charAt(0).toUpperCase() + limpio.slice(1);
+  }
+
+  _resolverAdminUnico_(usuarios) {
+    const lista = Array.isArray(usuarios) ? usuarios : [];
+    const adminsActivos = lista.filter(u => {
+      if (!u) return false;
+      const rol = String(u.rol || '').trim().toUpperCase();
+      if (rol !== 'ADMIN') return false;
+      if (u.activo === false) return false;
+      const act = String(u.activo === undefined || u.activo === null ? 'TRUE' : u.activo).trim().toUpperCase();
+      return act !== 'FALSE' && act !== 'NO' && act !== '0';
+    });
+    if (adminsActivos.length === 1) {
+      return String(adminsActivos[0].nombre || '').trim();
+    }
+    return '';
+  }
+
+  _usuarioVisible_(usuario, nombreAdminUnico) {
+    const raw = String(usuario === null || usuario === undefined ? '' : usuario).trim();
+    if (!raw || raw.indexOf('@') < 0) return raw;
+    if (nombreAdminUnico) return nombreAdminUnico;
+    return raw.split('@')[0];
+  }
+
   _construirTransacciones_(datos) {
+    const nombreAdminUnico = this._resolverAdminUnico_(datos.usuarios);
     const documentosPorId = new Map();
     for (const doc of datos.documentos) {
       documentosPorId.set(String(doc.id_documento || ''), doc);
@@ -720,6 +773,7 @@ class OperacionesService {
         }
       }
 
+      const usuarioVisibleRep = this._usuarioVisible_(rep.usuario, nombreAdminUnico);
       const transaccion = {
         id: idRep,
         tipo: 'cambio',
@@ -729,7 +783,7 @@ class OperacionesService {
         variedad,
         variedades: listaVariedades,
         documento: `REPROCESO:${idRep}`,
-        usuario: rep.usuario || '',
+        usuario: usuarioVisibleRep,
         fecha_hora: rep.fecha_hora || '',
         fecha_negocio: this._fechaNegocio_(rep.fecha || rep.fecha_hora || ''),
         anulable,
@@ -737,7 +791,7 @@ class OperacionesService {
         anulado_por: anulaciones.length > 0 ? String(anulaciones[0].id_movimiento || '') : '',
         anula_id: '',
         _busqueda: this._sinAcentos_([
-          idRep, texto, detalle, rep.usuario, variantesTexto_(lineas)
+          idRep, texto, detalle, rep.usuario, usuarioVisibleRep, variantesTexto_(lineas)
         ].join(' ')),
         _mov_ids: [],
         _rep_id: idRep
@@ -781,6 +835,7 @@ class OperacionesService {
       if (anulaciones.length === 0) anulado = false;
 
       const cajas = -movs.reduce((total, mov) => total + Math.abs(Number(mov.cajas || 0)), 0);
+      const usuarioVisibleSal = this._usuarioVisible_(primero.usuario, nombreAdminUnico);
       const transaccion = {
         id: clave,
         tipo: 'salida',
@@ -791,7 +846,7 @@ class OperacionesService {
         variedad,
         variedades: listaVariedades,
         documento: this._etiquetaDocumento_(documento) || String(primero.id_documento_ref || ''),
-        usuario: primero.usuario || '',
+        usuario: usuarioVisibleSal,
         fecha_hora: primero.fecha_hora || '',
         fecha_negocio: this._fechaNegocio_(primero.fecha_negocio || ''),
         anulable: !anulado,
@@ -800,7 +855,7 @@ class OperacionesService {
         anula_id: '',
         _busqueda: this._sinAcentos_([
           clave, articulo, envase, entidad, this._etiquetaDocumento_(documento),
-          primero.usuario, textoLineas, primero.fecha_negocio
+          primero.usuario, usuarioVisibleSal, textoLineas, primero.fecha_negocio
         ].join(' ')),
         _mov_ids: movs.map(mov => String(mov.id_movimiento || ''))
       };
@@ -834,9 +889,16 @@ class OperacionesService {
       const anulado = anulaciones.length > 0 || (capa && String(capa.estado_capa || '').toUpperCase() === 'ANULADA');
       const signo = Number(mov.signo || (tipo === 'ENTRADA' ? 1 : -1));
       const cajas = Math.abs(Number(mov.cajas || 0)) * (signo >= 0 ? 1 : -1);
+      const docRefRaw = String(mov.id_documento_ref || '').trim();
+      const esRefAjusteSintetica = !documento && /^AJUSTE:/i.test(docRefRaw);
       const etiquetaDocumento = tipoTransaccion === 'stock inicial'
-        ? 'STOCK INICIAL'
-        : (this._etiquetaDocumento_(documento) || String(mov.id_documento_ref || ''));
+        ? 'Stock inicial'
+        : (this._etiquetaDocumento_(documento) || (esRefAjusteSintetica ? '' : docRefRaw));
+      const motivoLegible = this._traducirMotivo_(motivo);
+      const detalleTransaccion = tipoTransaccion === 'stock inicial'
+        ? etiquetaDocumento
+        : [etiquetaDocumento, motivoLegible].filter(Boolean).join(' · ');
+      const usuarioVisibleMov = this._usuarioVisible_(mov.usuario, nombreAdminUnico);
       const texto = tipoTransaccion === 'stock inicial'
         ? `Stock inicial · ${mov.codigo_articulo || ''} ${mov.codigo_envase || ''}`
         : this._textoTransaccion_(
@@ -852,12 +914,12 @@ class OperacionesService {
         id: String(mov.id_movimiento || ''),
         tipo: tipoTransaccion,
         texto,
-        detalle: [etiquetaDocumento, motivo].filter(Boolean).join(' · '),
+        detalle: detalleTransaccion,
         cajas,
         variedad: variedades[0],
         variedades,
         documento: etiquetaDocumento,
-        usuario: mov.usuario || '',
+        usuario: usuarioVisibleMov,
         fecha_hora: mov.fecha_hora || '',
         fecha_negocio: this._fechaNegocio_(mov.fecha_negocio || ''),
         anulable,
@@ -866,7 +928,7 @@ class OperacionesService {
         anula_id: '',
         _busqueda: this._sinAcentos_([
           mov.id_movimiento, mov.codigo_articulo, mov.codigo_envase, mov.entidad_nombre,
-          etiquetaDocumento, mov.usuario, motivo, mov.fecha_negocio
+          etiquetaDocumento, mov.usuario, usuarioVisibleMov, motivo, motivoLegible, mov.fecha_negocio
         ].join(' ')),
         _mov_ids: [String(mov.id_movimiento || '')]
       };
@@ -889,23 +951,24 @@ class OperacionesService {
       const idObjetivo = grupoAnulacion.idObjetivo;
       const objetivo = transacciones.find(item => item.id === idObjetivo);
       const documento = documentosPorId.get(String(primero.id_documento_ref || ''));
+      const usuarioVisibleAnul = this._usuarioVisible_(primero.usuario, nombreAdminUnico);
       const transaccion = {
         id: String(primero.id_movimiento || ''),
         tipo: 'anulacion',
         texto: objetivo ? `Anulación de ${objetivo.tipo} · ${objetivo.texto}` : 'Anulación',
-        detalle: [objetivo ? objetivo.detalle : '', primero.usuario || ''].filter(Boolean).join(' · '),
+        detalle: [objetivo ? objetivo.detalle : '', usuarioVisibleAnul].filter(Boolean).join(' · '),
         cajas: 0,
         variedad: objetivo ? objetivo.variedad : this._variedad_(primero.codigo_articulo, primero.codigo_envase),
         variedades: objetivo ? objetivo.variedades : [this._variedad_(primero.codigo_articulo, primero.codigo_envase)],
         documento: objetivo ? objetivo.documento : this._etiquetaDocumento_(documento),
-        usuario: primero.usuario || '',
+        usuario: usuarioVisibleAnul,
         fecha_hora: primero.fecha_hora || '',
         fecha_negocio: this._fechaNegocio_(primero.fecha_negocio || ''),
         anulable: false,
         anulado: false,
         anulado_por: '',
         anula_id: idObjetivo,
-        _busqueda: this._sinAcentos_([objetivo ? objetivo.texto : '', primero.usuario || ''].join(' ')),
+        _busqueda: this._sinAcentos_([objetivo ? objetivo.texto : '', primero.usuario || '', usuarioVisibleAnul].join(' ')),
         _mov_ids: movs.map(mov => String(mov.id_movimiento || ''))
       };
       transacciones.push(transaccion);
@@ -914,29 +977,31 @@ class OperacionesService {
     for (const [idRep, movs] of anulacionesPorReproceso.entries()) {
       const primero = movs[0];
       const objetivo = transacciones.find(item => item.id === idRep);
+      const usuarioVisibleAnulRep = this._usuarioVisible_(primero.usuario, nombreAdminUnico);
       const transaccion = {
         id: String(primero.id_movimiento || ''),
         tipo: 'anulacion',
         texto: objetivo ? `Anulación de cambio · ${objetivo.texto}` : 'Anulación de cambio',
-        detalle: primero.usuario || '',
+        detalle: usuarioVisibleAnulRep,
         cajas: 0,
         variedad: objetivo ? objetivo.variedad : 'SIN CLASIFICAR',
         variedades: objetivo ? objetivo.variedades : [],
         documento: objetivo ? objetivo.documento : `REPROCESO:${idRep}`,
-        usuario: primero.usuario || '',
+        usuario: usuarioVisibleAnulRep,
         fecha_hora: primero.fecha_hora || '',
         fecha_negocio: this._fechaNegocio_(primero.fecha_negocio || ''),
         anulable: false,
         anulado: false,
         anulado_por: '',
         anula_id: idRep,
-        _busqueda: this._sinAcentos_([objetivo ? objetivo.texto : '', primero.usuario || ''].join(' ')),
+        _busqueda: this._sinAcentos_([objetivo ? objetivo.texto : '', primero.usuario || '', usuarioVisibleAnulRep].join(' ')),
         _mov_ids: movs.map(mov => String(mov.id_movimiento || ''))
       };
       transacciones.push(transaccion);
     }
 
     for (const mov of anulacionesSinReferencia) {
+      const usuarioVisibleSinRef = this._usuarioVisible_(mov.usuario, nombreAdminUnico);
       const transaccion = {
         id: String(mov.id_movimiento || ''),
         tipo: 'anulacion',
@@ -946,14 +1011,14 @@ class OperacionesService {
         variedad: this._variedad_(mov.codigo_articulo, mov.codigo_envase),
         variedades: [this._variedad_(mov.codigo_articulo, mov.codigo_envase)],
         documento: String(mov.id_documento_ref || ''),
-        usuario: mov.usuario || '',
+        usuario: usuarioVisibleSinRef,
         fecha_hora: mov.fecha_hora || '',
         fecha_negocio: this._fechaNegocio_(mov.fecha_negocio || ''),
         anulable: false,
         anulado: false,
         anulado_por: '',
         anula_id: '',
-        _busqueda: this._sinAcentos_([mov.codigo_articulo, mov.codigo_envase, mov.observaciones].join(' ')),
+        _busqueda: this._sinAcentos_([mov.codigo_articulo, mov.codigo_envase, mov.observaciones, mov.usuario || '', usuarioVisibleSinRef].join(' ')),
         _mov_ids: [String(mov.id_movimiento || '')]
       };
       transacciones.push(transaccion);

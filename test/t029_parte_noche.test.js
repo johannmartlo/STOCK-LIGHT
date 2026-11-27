@@ -305,7 +305,7 @@ runTest('3. Los 6 ejemplos de nombreLegible dan lo mismo en servidor que en clie
     ['TOMATE MORESCO I GG · CARTÓN 40X30', 'Moresco I GG · Cartón 40x30'],
     ['TOMATE ROSA GRANEL MMM · EPS 106 9X500', 'Rosa Granel MMM · EPS 106 9x500'],
     ['TOMATE RAMA EXTRA G · POOL 60X40', 'Rama Extra G · POOL 60x40'],
-    ['TOMATE COCKTAIL II MM · IFCO 8X300', 'Cocktail II MM · Ifco 8x300'],
+    ['TOMATE COCKTAIL II MM · IFCO 8X300', 'Cocktail II MM · IFCO 8x300'],
     ['TOMATE PERA I GGG → TOMATE ROSA 500G', 'Pera I GGG → Rosa 500g']
   ];
 

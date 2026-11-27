@@ -525,7 +525,7 @@
         <span id="chgMobPropInfo"></span>
         <div class="sl-chg-mob-stepper">
           <span>Destrío</span>
-          <button type="button" id="btnChgMobSinDestrio" class="sl-chg-pill sl-hidden" style="height:26px;font-size:11px">Sin destrío</button>
+          <button type="button" id="btnChgMobSinDestrio" class="sl-chg-pill sl-hidden" style="height:26px;font-size:12px">Sin destrío</button>
           <button type="button" id="btnChgMobDestrioMenos" class="sl-chg-mob-step-btn" aria-label="Restar destrío">−</button>
           <span id="chgMobDestrioVal" class="sl-mono" style="min-width:20px;text-align:center;color:var(--sl-text);font-weight:700">—</span>
           <button type="button" id="btnChgMobDestrioMas" class="sl-chg-mob-step-btn" aria-label="Sumar destrío">+</button>
@@ -968,7 +968,7 @@
         const elegida = St.origenes.some(function (o) { return o.id_capa === p.id_capa; });
         return (
           '<button type="button" class="sl-chg-result-btn" data-add-orig="' + escHtml(p.id_capa) + '"' + (elegida ? ' style="opacity:.5"' : '') + '>' +
-          '<span><b>' + escHtml(nombreLeg(p.articulo)) + '</b> · ' + escHtml(nombreLeg(p.envase)) + '<br><span style="font-size:11px;color:var(--sl-text-secondary)">Entrada ' + escHtml(fmtFechaCorta(p.fecha)) + (p.proveedor ? ' · ' + escHtml(nombreLeg(p.proveedor)) : '') + '</span></span>' +
+          '<span><b>' + escHtml(nombreLeg(p.articulo)) + '</b> · ' + escHtml(nombreLeg(p.envase)) + '<br><span style="font-size:13px;color:var(--sl-text-secondary)">Entrada ' + escHtml(fmtFechaCorta(p.fecha)) + (p.proveedor ? ' · ' + escHtml(nombreLeg(p.proveedor)) : '') + '</span></span>' +
           '<span class="sl-mono" style="font-weight:600">' + (elegida ? 'Elegida' : ('hay ' + fmtNum(p.disponibles))) + '</span>' +
           '</button>'
         );
@@ -1648,7 +1648,7 @@
             return;
           }
           catRes.innerHTML = matches.map(function (c, idx) {
-            return '<button type="button" class="sl-chg-result-btn" data-cat-pick="' + idx + '"><span><b>' + escHtml(nombreLeg(c.articulo)) + '</b> · ' + escHtml(nombreLeg(c.envase)) + '</span><span style="font-size:11px;color:var(--sl-text-secondary)">' + escHtml(c.articulo) + '</span></button>';
+            return '<button type="button" class="sl-chg-result-btn" data-cat-pick="' + idx + '"><span><b>' + escHtml(nombreLeg(c.articulo)) + '</b> · ' + escHtml(nombreLeg(c.envase)) + '</span><span style="font-size:12px;color:var(--sl-text-secondary)">' + escHtml(c.articulo) + '</span></button>';
           }).join('');
           catRes.querySelectorAll('[data-cat-pick]').forEach(function (btn) {
             btn.addEventListener('click', function () {

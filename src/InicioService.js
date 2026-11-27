@@ -390,11 +390,12 @@ class InicioService {
       return info;
     };
 
-    // 3. Indexar movimientos confirmados en una sola pasada y determinar fechaFin
+    // 3. Indexar movimientos confirmados en una sola pasada y determinar fechaFin y fechaInicioDatos
     const movsConfirmados = [];
     const movById = new Map();
     const docIdsCsv = new Set();
     let maxFechaMov = '';
+    let fechaInicioDatos = '';
 
     for (let i = 0; i < movimientos.length; i++) {
       const m = movimientos[i];
@@ -405,7 +406,14 @@ class InicioService {
       if (fechaNeg && (!maxFechaMov || fechaNeg > maxFechaMov)) {
         maxFechaMov = fechaNeg;
       }
-      if (String(m.origen_dato || '').trim().toUpperCase() === 'CSV' && m.id_documento_ref) {
+      const motMov = String(m.motivo_ajuste || '').trim().toUpperCase();
+      const origMov = String(m.origen_dato || '').trim().toUpperCase();
+      if ((motMov === 'STOCK_INICIAL' || origMov === 'STOCK_INICIAL') && fechaNeg) {
+        if (!fechaInicioDatos || fechaNeg < fechaInicioDatos) {
+          fechaInicioDatos = fechaNeg;
+        }
+      }
+      if (origMov === 'CSV' && m.id_documento_ref) {
         docIdsCsv.add(String(m.id_documento_ref).trim());
       }
 
@@ -458,6 +466,8 @@ class InicioService {
       const delta = signo * cajas;
       const tipo = String(m.tipo_movimiento || '').trim().toUpperCase();
       const motivo = String(m.motivo_ajuste || '').trim().toUpperCase();
+      const origenDato = String(m.origen_dato || '').trim().toUpperCase();
+      const esStockInicial = motivo === 'STOCK_INICIAL' || origenDato === 'STOCK_INICIAL';
 
       // Serie 30 días
       if (!fecha || fecha < fechaInicio30) {
@@ -467,14 +477,18 @@ class InicioService {
         if (idx30 !== undefined) {
           deltaStock30[idx30] += delta;
 
-          if (tipo === 'ENTRADA') {
+          if (tipo === 'ENTRADA' && !esStockInicial) {
             entradas30[idx30] += cajas;
           } else if (tipo === 'SALIDA') {
             salidas30[idx30] += cajas;
           } else if (tipo === 'ANULACION') {
             const refMov = m.id_movimiento_ref ? movById.get(String(m.id_movimiento_ref).trim()) : null;
             const refTipo = refMov ? String(refMov.tipo_movimiento || '').trim().toUpperCase() : '';
-            if (refTipo === 'ENTRADA' || (!refTipo && motivo === 'ANULAR_ENTRADA')) {
+            const refEsStockInicial = Boolean(refMov && (
+              String(refMov.motivo_ajuste || '').trim().toUpperCase() === 'STOCK_INICIAL'
+              || String(refMov.origen_dato || '').trim().toUpperCase() === 'STOCK_INICIAL'
+            ));
+            if ((refTipo === 'ENTRADA' && !refEsStockInicial) || (!refTipo && motivo === 'ANULAR_ENTRADA')) {
               entradas30[idx30] -= cajas;
             } else if (refTipo === 'SALIDA' || (!refTipo && motivo === 'ANULAR_SALIDA')) {
               salidas30[idx30] -= cajas;
@@ -504,9 +518,11 @@ class InicioService {
     const serie = [];
     for (let d = 0; d < 30; d++) {
       stockAcumulado += deltaStock30[d];
+      const fechaDia = fechas30[d];
+      const anteriorInicio = Boolean(fechaInicioDatos && fechaDia < fechaInicioDatos);
       serie.push({
-        fecha: fechas30[d],
-        stock: stockAcumulado,
+        fecha: fechaDia,
+        stock: anteriorInicio ? null : stockAcumulado,
         entradas: entradas30[d],
         salidas: salidas30[d]
       });
@@ -752,6 +768,7 @@ class InicioService {
 
     return {
       fecha_referencia: fechaFin,
+      fecha_inicio_datos: fechaInicioDatos,
       total,
       serie,
       variedades,

@@ -5,7 +5,24 @@
  * (`src/ui/app.html`, T-024). Es lógica pura: no toca hojas ni servicios de Google.
  */
 
-const SIGLAS_LEGIBLES = new Set(['G', 'GG', 'GGG', 'M', 'MM', 'MMM', 'I', 'II', 'EPS', 'POOL']);
+const SIGLAS_LEGIBLES = new Set([
+  'G', 'GG', 'GGG', 'M', 'MM', 'MMM', 'I', 'II', 'EPS', 'POOL',
+  'HD', 'TDA', 'SAT', 'SL', 'SA', 'SLL', 'IFCO', 'LL', 'S/C'
+]);
+
+const PALABRAS_ENLACE_LEGIBLES = new Set([
+  'de', 'del', 'la', 'las', 'el', 'los', 'y', 'en', 'con', 'para'
+]);
+
+const TILDES_LEGIBLES = {
+  CARTON: 'Cartón',
+  GENERICA: 'Genérica',
+  GENERICO: 'Genérico',
+  JAPONES: 'Japonés',
+  CORAZON: 'Corazón',
+  PLASTICO: 'Plástico',
+  CAMARA: 'Cámara'
+};
 
 /**
  * Normaliza para comparar sin acentos ni mayúsculas (misma regla que el cliente).
@@ -36,14 +53,19 @@ function nombreLegible_(texto) {
     if (/^\s*[·→]\s*$/.test(parte)) return parte;
     const sinTomate = parte.trim().replace(/^TOMATE\s+/i, '');
     if (!sinTomate) return '';
-    return sinTomate.split(/\s+/).map(function (palabra) {
+    return sinTomate.split(/\s+/).map(function (palabra, idx) {
       const upper = palabra.toUpperCase();
       if (SIGLAS_LEGIBLES.has(upper)) return upper;
-      if (/^\d+(?:[.,]\d+)?[xX]\d+(?:[.,]\d+)?[a-zA-Z]*$/.test(palabra)) {
-        return palabra.toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(TILDES_LEGIBLES, upper)) {
+        return TILDES_LEGIBLES[upper];
+      }
+      const lower = palabra.toLowerCase();
+      if (idx > 0 && PALABRAS_ENLACE_LEGIBLES.has(lower)) return lower;
+      if (/^\d+(?:[.,]\d+)?(?:[xX]\d+(?:[.,]\d+)?)+[a-zA-Z]*$/.test(palabra)) {
+        return lower;
       }
       if (/^\d+(?:[.,]\d+)?(?:G|KG|ML|L|CM|MM)$/i.test(palabra)) {
-        return palabra.toLowerCase();
+        return lower;
       }
       return palabra.charAt(0).toUpperCase() + palabra.slice(1).toLowerCase();
     }).join(' ');

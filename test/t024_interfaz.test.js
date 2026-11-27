@@ -103,8 +103,8 @@ runTest('3. src/ui/estilos.html define todos los tokens CSS cerrados en :root', 
   assert.ok(estilosHtml.includes(':root {'), 'Debe definir :root');
   const colores = [
     '#0A0A0B', '#121214', '#18181B', '#1F1F23', '#27272A',
-    '#EDEDEF', '#8A8F98', '#5C6068',
-    '#4ADE80', '#FBBF24', '#F87171', '#71717A', '#F2553D'
+    '#EDEDEF', '#8A8F98', '#80858E',
+    '#4ADE80', '#FBBF24', '#F87171', '#8B8B94', '#F2553D'
   ];
   for (const hex of colores) {
     assert.ok(estilosHtml.toUpperCase().includes(hex.toUpperCase()), `Falta token de color ${hex}`);
@@ -200,7 +200,7 @@ runTest('8. nombreLegible formatea correctamente 6 ejemplos de productos, calibr
     ['TOMATE MORESCO I GG · CARTÓN 40X30', 'Moresco I GG · Cartón 40x30'],
     ['TOMATE ROSA GRANEL MMM · EPS 106 9X500', 'Rosa Granel MMM · EPS 106 9x500'],
     ['TOMATE RAMA EXTRA G · POOL 60X40', 'Rama Extra G · POOL 60x40'],
-    ['TOMATE COCKTAIL II MM · IFCO 8X300', 'Cocktail II MM · Ifco 8x300'],
+    ['TOMATE COCKTAIL II MM · IFCO 8X300', 'Cocktail II MM · IFCO 8x300'],
     ['TOMATE PERA I GGG → TOMATE ROSA 500G', 'Pera I GGG → Rosa 500g']
   ];
   for (const [entrada, esperado] of casos) {

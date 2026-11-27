@@ -7,19 +7,18 @@
   </div>
 
   <!-- Estado 1: Cargando (esqueleto) -->
-  <div id="estadoCargando" class="sl-state-wrap sl-hidden" aria-busy="true" aria-label="Cargando existencias">
-    <div class="sl-state-card" style="padding: 24px 18px">
-      <div class="sl-sk" style="width: 120px; height: 14px; border-radius: 7px"></div>
-      <div class="sl-sk" style="width: 190px; height: 56px; border-radius: 12px"></div>
-      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
-        <div class="sl-sk" style="height: 58px; border-radius: 14px"></div>
-        <div class="sl-sk" style="height: 58px; border-radius: 14px"></div>
-        <div class="sl-sk" style="height: 58px; border-radius: 14px"></div>
-      </div>
+  <div id="estadoCargando" class="sl-state-wrap" aria-busy="true" aria-label="Cargando existencias" style="max-width: 1120px">
+    <div class="sl-state-card" style="padding: 24px 18px; border: 0">
+      <div class="sl-sk" style="width: 140px; height: 14px; border-radius: 7px"></div>
+      <div class="sl-sk" style="width: 210px; height: 56px; border-radius: 12px"></div>
       <div class="sl-sk" style="height: 170px; border-radius: 12px"></div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
-        <div class="sl-sk" style="height: 110px; border-radius: 12px"></div>
-        <div class="sl-sk" style="height: 110px; border-radius: 12px"></div>
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px">
+        <div class="sl-sk" data-sk-row="1" style="height: 52px; border-radius: 10px"></div>
+        <div class="sl-sk" data-sk-row="2" style="height: 52px; border-radius: 10px"></div>
+        <div class="sl-sk" data-sk-row="3" style="height: 52px; border-radius: 10px"></div>
+        <div class="sl-sk" data-sk-row="4" style="height: 52px; border-radius: 10px"></div>
+        <div class="sl-sk" data-sk-row="5" style="height: 52px; border-radius: 10px"></div>
+        <div class="sl-sk" data-sk-row="6" style="height: 52px; border-radius: 10px"></div>
       </div>
     </div>
   </div>
@@ -110,7 +109,7 @@
 
           <div id="deskBarsWrap" aria-hidden="true" style="display:flex;gap:3px;height:64px;margin-top:8px;position:relative"></div>
 
-          <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--sl-mono);font-size:11px;color:var(--sl-text-label);margin-top:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--sl-mono);font-size:12px;color:var(--sl-text-label);margin-top:6px">
             <span id="deskAxisStart"></span>
             <span style="font-family:var(--sl-font);font-size:12px;display:flex;gap:14px">
               <span style="display:inline-flex;gap:6px;align-items:center"><span style="width:8px;height:8px;border-radius:2px;background:var(--sl-green)"></span>Entradas</span>
